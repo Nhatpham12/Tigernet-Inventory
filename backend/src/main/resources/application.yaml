@@ -1,0 +1,21 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: backend
+  datasource:
+    url: jdbc:mysql://localhost:3306/tigernet
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
