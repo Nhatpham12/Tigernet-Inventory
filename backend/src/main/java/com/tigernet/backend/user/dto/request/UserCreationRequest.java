@@ -17,7 +17,7 @@ public class UserCreationRequest {
     private String email;
     private Boolean isActive;
     private LocalDateTime createdAt;
-    private String password;
+    private String password; // mật khẩu thô người dùng gõ vào
     private String username;
     private RoleEntity roleId;
 }

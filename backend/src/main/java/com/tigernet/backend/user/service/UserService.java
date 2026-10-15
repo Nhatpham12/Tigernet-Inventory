@@ -7,22 +7,33 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class UserService {
     @Autowired
     private UserRepository userRepository;
 
-    private UserEntity createRequest(UserCreationRequest request){
-        User user = new User();
+    public UserEntity createUser(UserCreationRequest request){
+        UserEntity user = new UserEntity();
 
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
         user.setIsActive(request.getIsActive());
         user.setCreatedAt(request.getCreatedAt());
-        user.setPassword(request.getPassword());
+        user.setPasswordHash(request.getPassword());
         user.setUsername(request.getUsername());
-        user.setRoleId(request.getRoleId());
+        user.setRole(request.getRoleId());
 
         return userRepository.save(user);
+    }
+
+    public List<UserEntity> getUsers(){
+        return userRepository.findAll();
+    }
+
+    public UserEntity getUserById(Integer userId){
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
     }
 }

@@ -11,8 +11,9 @@ import java.time.LocalDateTime;
 @Table(name = "Users")
 public class UserEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ID")
+    private Integer userId;
 
     @Column(name = "Full_Name")
     private String fullName;
@@ -27,7 +28,7 @@ public class UserEntity {
     private LocalDateTime createdAt;
 
     @Column(name = "Password_Hash")
-    private String passwordHash;
+    private String passwordHash; // mật khẩu được mã hóa và lưu vào DB
 
     @Column(name = "Username")
     private String username;
