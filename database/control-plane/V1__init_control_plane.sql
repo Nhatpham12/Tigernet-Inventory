@@ -1,7 +1,8 @@
 -- =====================================================================
 -- TIGERNET — Control Plane (1 database dùng chung, do công ty vận hành)
--- Phase 2: chỉ cần khi chạy SaaS nhiều khách hàng trên cùng hạ tầng.
--- Không chứa dữ liệu nghiệp vụ kho của khách hàng.
+-- P1 tối thiểu (BACKLOG G-11): tenants + tenant_databases + routing datasource.
+-- P2: tenant_branding, licenses. tenant_operations dùng cho OPS-01/04/05.
+-- Không chứa dữ liệu nghiệp vụ kho của khách hàng (schema tenant: database/tenant/, ERD v6).
 -- =====================================================================
 
 SET NAMES utf8mb4;
@@ -23,7 +24,7 @@ CREATE TABLE tenants (
     UNIQUE KEY uk_tenants_code (code),
     UNIQUE KEY uk_tenants_subdomain (subdomain),
     CONSTRAINT ck_tenants_status CHECK (status IN ('PROVISIONING','TRIAL','ACTIVE','SUSPENDED','CANCELLED'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Thông tin kết nối DB của tenant — mật khẩu mã hoá (AES-GCM tầng ứng dụng hoặc Vault)
 CREATE TABLE tenant_databases (
@@ -40,7 +41,7 @@ CREATE TABLE tenant_databases (
     PRIMARY KEY (tenant_id),
     UNIQUE KEY uk_tenant_databases_db (db_host, db_port, db_name),
     CONSTRAINT fk_tenant_databases_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE tenant_branding (
     tenant_id       BIGINT       NOT NULL,
@@ -51,7 +52,7 @@ CREATE TABLE tenant_branding (
     updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (tenant_id),
     CONSTRAINT fk_tenant_branding_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE licenses (
     id               BIGINT      NOT NULL AUTO_INCREMENT,
@@ -69,7 +70,7 @@ CREATE TABLE licenses (
     KEY idx_licenses_tenant (tenant_id),
     CONSTRAINT fk_licenses_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id),
     CONSTRAINT ck_licenses_edition CHECK (edition IN ('SAAS','ON_PREMISE'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Nhật ký backup / migration / provisioning của đội vận hành
 CREATE TABLE tenant_operations (
@@ -85,4 +86,4 @@ CREATE TABLE tenant_operations (
     CONSTRAINT fk_tenant_operations_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id),
     CONSTRAINT ck_tenant_operations_type CHECK (op_type IN ('PROVISION','MIGRATE','BACKUP','RESTORE')),
     CONSTRAINT ck_tenant_operations_status CHECK (status IN ('RUNNING','SUCCESS','FAILED'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

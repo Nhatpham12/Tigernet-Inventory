@@ -1,856 +1,762 @@
 -- =====================================================================
--- TIGERNET — Tenant database schema v2 (MySQL 8.0+)
+-- TIGERNET — Tenant database schema v6 (ĐA KHO) — Flyway V1
+-- Nguồn: docs/Database_Design_v6.md + docs/TIGERNET_ERD_v6_dark.png
 -- Mỗi khách hàng (tenant) có 1 database riêng dùng schema này.
--- Flyway: đặt file này trong src/main/resources/db/migration/tenant
+-- DBMS : MySQL 8.0.16+ (CHECK được thực thi). Charset utf8mb4 / utf8mb4_unicode_ci.
+-- Database do Control Plane tạo khi provisioning (OPS-01), file này KHÔNG
+-- tạo database. Chạy tay toàn bộ: docs/Database_Script_v6.sql.
 --
--- Quy ước:
---   * PK: BIGINT AUTO_INCREMENT (mỗi tenant 1 DB nên không cần UUID)
---   * Tiền: DECIMAL(18,2) — Số lượng: INT (xem câu hỏi mở Q1 trong ERD)
---   * Trạng thái: VARCHAR + CHECK (enum trong code Java, không dùng bảng tra cứu)
---   * Chứng từ (phiếu) có cột version cho optimistic locking (@Version)
---   * Xoá = xoá mềm (is_deleted) hoặc đổi status CANCELLED, không xoá vật lý
+-- Quy ước FK (Phần 4 của tài liệu):
+--   * ON UPDATE CASCADE cho mọi FK
+--   * header -> detail            : ON DELETE CASCADE
+--   * Products / Product_Groups   : ON DELETE RESTRICT
+--   * lookup / FK NULL-able       : ON DELETE SET NULL
+--   * FK NOT NULL còn lại (Users, Warehouses, Parties, Customers...) : RESTRICT
+--
+-- Tên bảng/cột viết đúng như ERD (PascalCase_Underscore). Server Linux phân biệt
+-- hoa/thường tên bảng -> entity JPA phải khai báo đúng tên (@Table/@Column).
+-- Dữ liệu ephemeral (khóa đăng nhập, rate limit, refresh token, OTP) nằm ở
+-- Redis, KHÔNG có bảng.
 -- =====================================================================
 
 SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
 
--- ---------------------------------------------------------------------
--- 1. ĐỊNH DANH & PHÂN QUYỀN
--- ---------------------------------------------------------------------
+-- =====================================================================
+-- 1. DANH MỤC NỀN (LOOKUP)
+-- =====================================================================
 
-CREATE TABLE roles (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    code        VARCHAR(30)  NOT NULL,              -- STOREKEEPER, ACCOUNTANT, SALES, MANAGER, ADMIN
-    name        VARCHAR(100) NOT NULL,
-    description VARCHAR(255) NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_roles_code (code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.1 Roles -----------------------------------------------------------
+CREATE TABLE Roles (
+    ID          INT          NOT NULL AUTO_INCREMENT,
+    Role_Name   VARCHAR(50)  NOT NULL,
+    Description VARCHAR(255) NULL,
+    CONSTRAINT PK_Roles PRIMARY KEY (ID),
+    CONSTRAINT UQ_Roles_Role_Name UNIQUE (Role_Name)
+) ENGINE=InnoDB;
 
-CREATE TABLE users (
-    id                  BIGINT       NOT NULL AUTO_INCREMENT,
-    role_id             BIGINT       NOT NULL,       -- mỗi user đúng 1 vai trò
-    username            VARCHAR(50)  NOT NULL,       -- chỉ set lúc tạo, không sửa
-    password_hash       VARCHAR(100) NOT NULL,       -- bcrypt
-    full_name           VARCHAR(150) NOT NULL,
-    email               VARCHAR(150) NOT NULL,
-    phone               VARCHAR(20)  NULL,
-    is_active           BOOLEAN      NOT NULL DEFAULT TRUE,  -- DELETE /users = vô hiệu hoá
-    failed_login_count  INT          NOT NULL DEFAULT 0,
-    locked_until        DATETIME     NULL,           -- khoá 15' sau 5 lần sai
-    last_login_at       DATETIME     NULL,
-    password_changed_at DATETIME     NULL,
-    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_users_username (username),
-    UNIQUE KEY uk_users_email (email),
-    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.3 Product_Groups --------------------------------------------------
+CREATE TABLE Product_Groups (
+    ID         INT          NOT NULL AUTO_INCREMENT,
+    Group_Name VARCHAR(100) NOT NULL,
+    Is_Deleted BOOLEAN      NOT NULL DEFAULT FALSE,
+    CONSTRAINT PK_Product_Groups PRIMARY KEY (ID),
+    CONSTRAINT UQ_Product_Groups_Name UNIQUE (Group_Name)
+) ENGINE=InnoDB;
 
-CREATE TABLE refresh_tokens (
-    id         BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id    BIGINT       NOT NULL,
-    token_hash CHAR(64)     NOT NULL,               -- SHA-256 của token, không lưu token gốc
-    expires_at DATETIME     NOT NULL,
-    revoked_at DATETIME     NULL,
-    created_ip VARCHAR(45)  NULL,
-    user_agent VARCHAR(255) NULL,
-    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_refresh_tokens_hash (token_hash),
-    KEY idx_refresh_tokens_user (user_id),
-    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.8 VAT_Options -----------------------------------------------------
+CREATE TABLE VAT_Options (
+    ID   INT          NOT NULL AUTO_INCREMENT,
+    VAT  VARCHAR(10)  NOT NULL,
+    Rate DECIMAL(5,2) NULL,
+    CONSTRAINT PK_VAT_Options PRIMARY KEY (ID),
+    CONSTRAINT UQ_VAT_Options_VAT UNIQUE (VAT),
+    CONSTRAINT CK_VAT_Options_Rate CHECK (Rate IS NULL OR Rate >= 0)
+) ENGINE=InnoDB;
 
-CREATE TABLE password_reset_otps (
-    id            BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id       BIGINT       NOT NULL,
-    otp_hash      VARCHAR(100) NOT NULL,             -- bcrypt của OTP
-    expires_at    DATETIME     NOT NULL,             -- hiệu lực 10'
-    used_at       DATETIME     NULL,
-    attempt_count INT          NOT NULL DEFAULT 0,
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_password_reset_otps_user (user_id, created_at),
-    CONSTRAINT fk_password_reset_otps_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.9 Payment_Statuses ------------------------------------------------
+CREATE TABLE Payment_Statuses (
+    ID             INT         NOT NULL AUTO_INCREMENT,
+    Payment_Status VARCHAR(50) NOT NULL,
+    CONSTRAINT PK_Payment_Statuses PRIMARY KEY (ID),
+    CONSTRAINT UQ_Payment_Statuses_Name UNIQUE (Payment_Status)
+) ENGINE=InnoDB;
 
-CREATE TABLE audit_logs (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id     BIGINT       NULL,                   -- NULL = hệ thống / job tự động
-    action      VARCHAR(50)  NOT NULL,               -- CREATE, UPDATE, CONFIRM, APPROVE, LOGIN...
-    entity_type VARCHAR(50)  NULL,                   -- tên bảng / aggregate
-    entity_id   BIGINT       NULL,
-    summary     VARCHAR(500) NULL,
-    old_data    JSON         NULL,
-    new_data    JSON         NULL,
-    ip_address  VARCHAR(45)  NULL,
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_audit_logs_entity (entity_type, entity_id),
-    KEY idx_audit_logs_user_time (user_id, created_at),
-    KEY idx_audit_logs_time (created_at),
-    CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.23.1a Return_Fee_Policy -------------------------------------------
+CREATE TABLE Return_Fee_Policy (
+    ID             INT          NOT NULL AUTO_INCREMENT,
+    Tier_Name      VARCHAR(30)  NOT NULL,
+    Max_Days       INT          NOT NULL,
+    Action_Type    VARCHAR(30)  NOT NULL,
+    Fee_Percent    DECIMAL(5,2) NOT NULL,
+    Is_Allowed     BOOLEAN      NOT NULL DEFAULT TRUE,
+    Effective_From DATE         NULL,
+    CONSTRAINT PK_Return_Fee_Policy PRIMARY KEY (ID),
+    CONSTRAINT UQ_Return_Fee_Policy UNIQUE (Tier_Name, Action_Type, Effective_From),
+    CONSTRAINT CK_RFP_Max_Days    CHECK (Max_Days > 0),
+    CONSTRAINT CK_RFP_Fee_Percent CHECK (Fee_Percent BETWEEN 0 AND 100),
+    CONSTRAINT CK_RFP_Action_Type CHECK (Action_Type IN ('REFUND','EXCHANGE_EQUAL_HIGHER','EXCHANGE_LOWER'))
+) ENGINE=InnoDB;
 
--- ---------------------------------------------------------------------
--- 2. CẤU HÌNH
--- ---------------------------------------------------------------------
+-- =====================================================================
+-- 2. THỰC THỂ CHỦ (MASTER)
+-- =====================================================================
 
-CREATE TABLE vat_rates (
-    id           BIGINT       NOT NULL AUTO_INCREMENT,
-    code         VARCHAR(20)  NOT NULL,              -- VAT0, VAT5, VAT8, VAT10, KCT
-    name         VARCHAR(100) NOT NULL,
-    rate_percent DECIMAL(5,2) NOT NULL,
-    is_default   BOOLEAN      NOT NULL DEFAULT FALSE,
-    is_active    BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_vat_rates_code (code),
-    CONSTRAINT ck_vat_rates_rate CHECK (rate_percent >= 0 AND rate_percent <= 100)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.2 Users -----------------------------------------------------------
+CREATE TABLE Users (
+    ID            INT          NOT NULL AUTO_INCREMENT,
+    Username      VARCHAR(50)  NOT NULL,
+    Password_Hash VARCHAR(255) NOT NULL,
+    Full_Name     VARCHAR(100) NULL,
+    Email         VARCHAR(150) NULL,
+    Role_ID       INT          NOT NULL,
+    Is_Active     BOOLEAN      NOT NULL DEFAULT TRUE,
+    Created_At    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Users PRIMARY KEY (ID),
+    CONSTRAINT UQ_Users_Username UNIQUE (Username),
+    CONSTRAINT UQ_Users_Email    UNIQUE (Email),
+    CONSTRAINT FK_Users_Role FOREIGN KEY (Role_ID) REFERENCES Roles(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
 
--- Quy tắc cho thuê, khoá đăng nhập, OTP... (thay cho giá trị hard-code — đóng gap G-2)
-CREATE TABLE system_settings (
-    setting_key   VARCHAR(100) NOT NULL,
-    setting_value VARCHAR(500) NOT NULL,
-    value_type    VARCHAR(10)  NOT NULL DEFAULT 'STRING',
-    description   VARCHAR(255) NULL,
-    updated_by    BIGINT       NULL,
-    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (setting_key),
-    CONSTRAINT ck_system_settings_type CHECK (value_type IN ('STRING','INT','DECIMAL','BOOL')),
-    CONSTRAINT fk_system_settings_user FOREIGN KEY (updated_by) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.2a Warehouses [v6] ------------------------------------------------
+CREATE TABLE Warehouses (
+    ID             INT          NOT NULL AUTO_INCREMENT,
+    Warehouse_Code VARCHAR(20)  NOT NULL,
+    Warehouse_Name VARCHAR(150) NOT NULL,
+    Address        VARCHAR(255) NOT NULL,
+    Phone          VARCHAR(50)  NULL,
+    Manager_ID     INT          NULL,
+    Is_Active      BOOLEAN      NOT NULL DEFAULT TRUE,
+    Created_At     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Warehouses PRIMARY KEY (ID),
+    CONSTRAINT UQ_Warehouses_Code UNIQUE (Warehouse_Code),
+    CONSTRAINT UQ_Warehouses_Name UNIQUE (Warehouse_Name),
+    CONSTRAINT FK_Warehouses_Manager FOREIGN KEY (Manager_ID) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
 
--- Sinh mã chứng từ an toàn khi chạy đồng thời: SELECT ... FOR UPDATE rồi tăng next_value
-CREATE TABLE document_sequences (
-    doc_type   VARCHAR(10) NOT NULL,                 -- PN, PX, PT, TT, TH, KK, DC, TTN
-    period     VARCHAR(8)  NOT NULL,                 -- '2026' hoặc '202610'
-    next_value INT         NOT NULL DEFAULT 1,
-    PRIMARY KEY (doc_type, period)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.2b User_Warehouses [v6] -------------------------------------------
+-- Mỗi user tối đa 1 dòng Is_Default = TRUE: kiểm tra ở tầng service.
+CREATE TABLE User_Warehouses (
+    User_ID      INT      NOT NULL,
+    Warehouse_ID INT      NOT NULL,
+    Is_Default   BOOLEAN  NOT NULL DEFAULT FALSE,
+    Assigned_At  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_User_Warehouses PRIMARY KEY (User_ID, Warehouse_ID),
+    CONSTRAINT FK_UW_User FOREIGN KEY (User_ID) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_UW_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
 
-CREATE TABLE return_fee_policies (
-    id             BIGINT       NOT NULL AUTO_INCREMENT,
-    tier_name      VARCHAR(100) NOT NULL,
-    max_days       INT          NOT NULL,            -- áp dụng khi số ngày kể từ giao hàng <= max_days
-    action_type    VARCHAR(20)  NOT NULL,
-    fee_percent    DECIMAL(5,2) NOT NULL DEFAULT 0,
-    is_allowed     BOOLEAN      NOT NULL DEFAULT TRUE,
-    effective_from DATE         NOT NULL,
-    is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    CONSTRAINT ck_return_fee_policies_action CHECK (action_type IN ('REFUND','EXCHANGE','WARRANTY')),
-    CONSTRAINT ck_return_fee_policies_fee CHECK (fee_percent >= 0 AND fee_percent <= 100),
-    CONSTRAINT ck_return_fee_policies_days CHECK (max_days >= 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE INDEX IX_UW_Warehouse ON User_Warehouses (Warehouse_ID);
 
--- ---------------------------------------------------------------------
--- 3. DANH MỤC & ĐỐI TÁC
--- ---------------------------------------------------------------------
+-- 4.4 Products --------------------------------------------------------
+CREATE TABLE Products (
+    ID                INT           NOT NULL AUTO_INCREMENT,
+    Product_Name      VARCHAR(255)  NOT NULL,
+    Group_ID          INT           NOT NULL,
+    Unit              VARCHAR(30)   NOT NULL,
+    Default_Price_In  DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Default_Price_Out DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Is_Serialized     BOOLEAN       NOT NULL DEFAULT TRUE,
+    Min_Stock_Level   INT           NOT NULL DEFAULT 0,
+    Image_Path        VARCHAR(255)  NULL,
+    Is_Deleted        BOOLEAN       NOT NULL DEFAULT FALSE,
+    CONSTRAINT PK_Products PRIMARY KEY (ID),
+    CONSTRAINT UQ_Products_Name_Group UNIQUE (Product_Name, Group_ID),
+    CONSTRAINT FK_Products_Group FOREIGN KEY (Group_ID) REFERENCES Product_Groups(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_Products_Price_In  CHECK (Default_Price_In  >= 0),
+    CONSTRAINT CK_Products_Price_Out CHECK (Default_Price_Out >= 0),
+    CONSTRAINT CK_Products_Min_Stock CHECK (Min_Stock_Level   >= 0)
+) ENGINE=InnoDB;
 
-CREATE TABLE warehouses (
-    id         BIGINT       NOT NULL AUTO_INCREMENT,
-    code       VARCHAR(20)  NOT NULL,
-    name       VARCHAR(150) NOT NULL,
-    address    VARCHAR(255) NULL,
-    is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_warehouses_code (code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE INDEX IX_Products_Name     ON Products (Product_Name);
+CREATE INDEX IX_Products_Group_ID ON Products (Group_ID);
 
-CREATE TABLE product_groups (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    code        VARCHAR(30)  NOT NULL,
-    name        VARCHAR(150) NOT NULL,
-    description VARCHAR(255) NULL,
-    is_deleted  BOOLEAN      NOT NULL DEFAULT FALSE,
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_product_groups_code (code)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.5 Parties ---------------------------------------------------------
+CREATE TABLE Parties (
+    ID          INT          NOT NULL AUTO_INCREMENT,
+    Party_Type  VARCHAR(20)  NOT NULL,
+    Full_Name   VARCHAR(255) NOT NULL,
+    Tax_Code    VARCHAR(30)  NULL,
+    National_ID VARCHAR(20)  NULL,
+    Address     VARCHAR(255) NULL,
+    Phone       VARCHAR(50)  NULL,
+    Email       VARCHAR(150) NULL,
+    Is_Deleted  BOOLEAN      NOT NULL DEFAULT FALSE,
+    CONSTRAINT PK_Parties PRIMARY KEY (ID),
+    CONSTRAINT UQ_Parties_Tax_Code UNIQUE (Tax_Code),
+    CONSTRAINT CK_Parties_Type CHECK (Party_Type IN ('INDIVIDUAL','ORGANIZATION'))
+) ENGINE=InnoDB;
 
-CREATE TABLE products (
-    id                    BIGINT        NOT NULL AUTO_INCREMENT,
-    sku                   VARCHAR(50)   NOT NULL,    -- mã sản phẩm (tìm kiếm "theo mã")
-    barcode               VARCHAR(64)   NULL,
-    name                  VARCHAR(200)  NOT NULL,
-    group_id              BIGINT        NULL,
-    unit                  VARCHAR(20)   NOT NULL,    -- cái, bộ, hộp...
-    default_import_price  DECIMAL(18,2) NOT NULL DEFAULT 0,
-    default_sale_price    DECIMAL(18,2) NOT NULL DEFAULT 0,
-    default_rental_price  DECIMAL(18,2) NOT NULL DEFAULT 0,  -- giá thuê / ngày
-    is_serialized         BOOLEAN       NOT NULL DEFAULT FALSE,
-    is_rentable           BOOLEAN       NOT NULL DEFAULT FALSE,
-    min_stock_level       INT           NOT NULL DEFAULT 0,
-    image_path            VARCHAR(500)  NULL,
-    description           TEXT          NULL,
-    is_deleted            BOOLEAN       NOT NULL DEFAULT FALSE,
-    created_at            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_products_sku (sku),
-    UNIQUE KEY uk_products_barcode (barcode),
-    KEY idx_products_group (group_id),
-    KEY idx_products_name (name),
-    CONSTRAINT fk_products_group FOREIGN KEY (group_id) REFERENCES product_groups (id),
-    CONSTRAINT ck_products_prices CHECK (default_import_price >= 0 AND default_sale_price >= 0 AND default_rental_price >= 0),
-    CONSTRAINT ck_products_min_stock CHECK (min_stock_level >= 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE INDEX IX_Parties_Full_Name   ON Parties (Full_Name);
+CREATE INDEX IX_Parties_National_ID ON Parties (National_ID);
 
--- Gộp Parties + Customers + Suppliers: 1 đối tác có thể vừa là KH vừa là NCC
-CREATE TABLE partners (
-    id             BIGINT       NOT NULL AUTO_INCREMENT,
-    code           VARCHAR(30)  NOT NULL,
-    is_customer    BOOLEAN      NOT NULL DEFAULT FALSE,
-    is_supplier    BOOLEAN      NOT NULL DEFAULT FALSE,
-    partner_kind   VARCHAR(20)  NOT NULL DEFAULT 'ORGANIZATION',
-    full_name      VARCHAR(200) NOT NULL,
-    tax_code       VARCHAR(20)  NULL,                -- MST (doanh nghiệp)
-    national_id    VARCHAR(20)  NULL,                -- CCCD (cá nhân)
-    contact_person VARCHAR(150) NULL,
-    phone          VARCHAR(20)  NULL,
-    email          VARCHAR(150) NULL,
-    address        VARCHAR(255) NULL,
-    contract_no    VARCHAR(50)  NULL,
-    note           VARCHAR(500) NULL,
-    is_deleted     BOOLEAN      NOT NULL DEFAULT FALSE,
-    created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_partners_code (code),
-    KEY idx_partners_name (full_name),
-    KEY idx_partners_phone (phone),
-    KEY idx_partners_tax_code (tax_code),
-    CONSTRAINT ck_partners_role CHECK (is_customer OR is_supplier),
-    CONSTRAINT ck_partners_kind CHECK (partner_kind IN ('ORGANIZATION','INDIVIDUAL'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.6 Suppliers -------------------------------------------------------
+CREATE TABLE Suppliers (
+    ID            INT          NOT NULL AUTO_INCREMENT,
+    Party_ID      INT          NOT NULL,
+    Contract_No   VARCHAR(100) NULL,
+    Tracking_Code VARCHAR(100) NULL,
+    Is_Deleted    BOOLEAN      NOT NULL DEFAULT FALSE,
+    CONSTRAINT PK_Suppliers PRIMARY KEY (ID),
+    CONSTRAINT UQ_Suppliers_Party UNIQUE (Party_ID),
+    CONSTRAINT FK_Suppliers_Party FOREIGN KEY (Party_ID) REFERENCES Parties(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
 
-CREATE TABLE receivers (
-    id         BIGINT       NOT NULL AUTO_INCREMENT,
-    partner_id BIGINT       NOT NULL,
-    name       VARCHAR(150) NOT NULL,
-    phone      VARCHAR(20)  NULL,
-    address    VARCHAR(255) NULL,
-    is_default BOOLEAN      NOT NULL DEFAULT FALSE,
-    is_deleted BOOLEAN      NOT NULL DEFAULT FALSE,
-    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_receivers_partner (partner_id),
-    CONSTRAINT fk_receivers_partner FOREIGN KEY (partner_id) REFERENCES partners (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.6.1 Supplier_Bank_Accounts ----------------------------------------
+CREATE TABLE Supplier_Bank_Accounts (
+    ID                INT          NOT NULL AUTO_INCREMENT,
+    Supplier_ID       INT          NOT NULL,
+    Account_Name      VARCHAR(150) NOT NULL,
+    Account_Number    VARCHAR(50)  NOT NULL,
+    Bank_Name         VARCHAR(150) NOT NULL,
+    Bank_Payment_Code VARCHAR(100) NULL,
+    CONSTRAINT PK_Supplier_Bank_Accounts PRIMARY KEY (ID),
+    CONSTRAINT FK_SBA_Supplier FOREIGN KEY (Supplier_ID) REFERENCES Suppliers(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
 
-CREATE TABLE partner_bank_accounts (
-    id             BIGINT       NOT NULL AUTO_INCREMENT,
-    partner_id     BIGINT       NOT NULL,
-    bank_name      VARCHAR(150) NOT NULL,
-    bank_bin       VARCHAR(10)  NULL,                -- mã BIN ngân hàng (VietQR / Napas)
-    account_number VARCHAR(30)  NOT NULL,
-    account_name   VARCHAR(150) NOT NULL,
-    is_default     BOOLEAN      NOT NULL DEFAULT FALSE,
-    is_deleted     BOOLEAN      NOT NULL DEFAULT FALSE,
-    created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_partner_bank_accounts_partner (partner_id),
-    CONSTRAINT fk_partner_bank_accounts_partner FOREIGN KEY (partner_id) REFERENCES partners (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.6.2 Supplier_Documents --------------------------------------------
+CREATE TABLE Supplier_Documents (
+    ID          INT          NOT NULL AUTO_INCREMENT,
+    Supplier_ID INT          NOT NULL,
+    Doc_Type    VARCHAR(100) NULL,
+    File_Path   VARCHAR(255) NOT NULL,
+    Uploaded_At DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Supplier_Documents PRIMARY KEY (ID),
+    CONSTRAINT FK_SD_Supplier FOREIGN KEY (Supplier_ID) REFERENCES Suppliers(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
 
-CREATE TABLE partner_documents (
-    id          BIGINT       NOT NULL AUTO_INCREMENT,
-    partner_id  BIGINT       NOT NULL,
-    doc_type    VARCHAR(30)  NOT NULL,               -- CONTRACT, LICENSE, CERTIFICATE, OTHER
-    file_name   VARCHAR(255) NOT NULL,
-    file_path   VARCHAR(500) NOT NULL,
-    file_size   BIGINT       NULL,
-    uploaded_by BIGINT       NULL,
-    uploaded_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    is_deleted  BOOLEAN      NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (id),
-    KEY idx_partner_documents_partner (partner_id),
-    CONSTRAINT fk_partner_documents_partner FOREIGN KEY (partner_id) REFERENCES partners (id),
-    CONSTRAINT fk_partner_documents_user FOREIGN KEY (uploaded_by) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.7 Customers -------------------------------------------------------
+CREATE TABLE Customers (
+    ID         INT     NOT NULL AUTO_INCREMENT,
+    Party_ID   INT     NOT NULL,
+    Is_Deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT PK_Customers PRIMARY KEY (ID),
+    CONSTRAINT UQ_Customers_Party UNIQUE (Party_ID),
+    CONSTRAINT FK_Customers_Party FOREIGN KEY (Party_ID) REFERENCES Parties(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
 
--- ---------------------------------------------------------------------
--- 4. NHẬP KHO
--- ---------------------------------------------------------------------
+-- 4.7.1 Receivers -----------------------------------------------------
+CREATE TABLE Receivers (
+    ID            INT          NOT NULL AUTO_INCREMENT,
+    Customer_ID   INT          NOT NULL,
+    Receiver_Name VARCHAR(150) NOT NULL,
+    Address       VARCHAR(255) NULL,
+    Phone         VARCHAR(50)  NULL,
+    Is_Deleted    BOOLEAN      NOT NULL DEFAULT FALSE,
+    CONSTRAINT PK_Receivers PRIMARY KEY (ID),
+    CONSTRAINT FK_Receivers_Customer FOREIGN KEY (Customer_ID) REFERENCES Customers(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
 
-CREATE TABLE import_receipts (
-    id                  BIGINT        NOT NULL AUTO_INCREMENT,
-    code                VARCHAR(30)   NOT NULL,      -- PN-2026-00001
-    warehouse_id        BIGINT        NOT NULL,
-    supplier_id         BIGINT        NOT NULL,
-    receipt_date        DATE          NOT NULL,
-    supplier_invoice_no VARCHAR(50)   NULL,          -- số hoá đơn của NCC (đối soát kế toán)
-    status              VARCHAR(20)   NOT NULL DEFAULT 'DRAFT',
-    subtotal            DECIMAL(18,2) NOT NULL DEFAULT 0,
-    vat_amount          DECIMAL(18,2) NOT NULL DEFAULT 0,
-    total_amount        DECIMAL(18,2) NOT NULL DEFAULT 0,
-    paid_amount         DECIMAL(18,2) NOT NULL DEFAULT 0,   -- = tổng payments chưa huỷ
-    note                VARCHAR(500)  NULL,
-    created_by          BIGINT        NOT NULL,
-    confirmed_by        BIGINT        NULL,
-    confirmed_at        DATETIME      NULL,
-    cancelled_by        BIGINT        NULL,
-    cancelled_at        DATETIME      NULL,
-    created_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    version             INT           NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_import_receipts_code (code),
-    KEY idx_import_receipts_supplier_date (supplier_id, receipt_date),
-    KEY idx_import_receipts_status_date (status, receipt_date),
-    CONSTRAINT fk_import_receipts_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id),
-    CONSTRAINT fk_import_receipts_supplier FOREIGN KEY (supplier_id) REFERENCES partners (id),
-    CONSTRAINT fk_import_receipts_created_by FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT fk_import_receipts_confirmed_by FOREIGN KEY (confirmed_by) REFERENCES users (id),
-    CONSTRAINT fk_import_receipts_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users (id),
-    CONSTRAINT ck_import_receipts_status CHECK (status IN ('DRAFT','CONFIRMED','CANCELLED')),
-    CONSTRAINT ck_import_receipts_amounts CHECK (subtotal >= 0 AND vat_amount >= 0 AND total_amount >= 0
-                                                 AND paid_amount >= 0 AND paid_amount <= total_amount)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- =====================================================================
+-- 3. NHẬP KHO & TỒN KHO
+-- =====================================================================
 
--- SP có serial: mỗi dòng = 1 serial, quantity = 1 (ràng buộc ở tầng ứng dụng)
-CREATE TABLE import_receipt_lines (
-    id          BIGINT        NOT NULL AUTO_INCREMENT,
-    receipt_id  BIGINT        NOT NULL,
-    line_no     INT           NOT NULL,
-    product_id  BIGINT        NOT NULL,
-    serial_no   VARCHAR(100)  NULL,                  -- serial chưa tồn tại lúc nhập → lưu text, tạo product_serials khi xác nhận
-    quantity    INT           NOT NULL,
-    unit_price  DECIMAL(18,2) NOT NULL,
-    line_total  DECIMAL(18,2) NOT NULL,
-    note        VARCHAR(255)  NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_import_receipt_lines_serial (receipt_id, product_id, serial_no),
-    KEY idx_import_receipt_lines_product (product_id),
-    CONSTRAINT fk_import_receipt_lines_receipt FOREIGN KEY (receipt_id) REFERENCES import_receipts (id) ON DELETE CASCADE,
-    CONSTRAINT fk_import_receipt_lines_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT ck_import_receipt_lines_qty CHECK (quantity > 0),
-    CONSTRAINT ck_import_receipt_lines_price CHECK (unit_price >= 0 AND line_total >= 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.10 Import_Receipts ------------------------------------------------
+CREATE TABLE Import_Receipts (
+    ID              INT           NOT NULL AUTO_INCREMENT,
+    Receipt_Code    VARCHAR(30)   NOT NULL,
+    Source_Party_ID INT           NOT NULL,
+    Warehouse_ID    INT           NOT NULL,
+    Date_In         DATETIME      NOT NULL,
+    Total_Amount    DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Status          VARCHAR(20)   NOT NULL DEFAULT 'DRAFT',
+    Note            TEXT          NULL,
+    Created_By      INT           NOT NULL,
+    Created_At      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Import_Receipts PRIMARY KEY (ID),
+    CONSTRAINT UQ_Import_Receipts_Code UNIQUE (Receipt_Code),
+    CONSTRAINT FK_Import_Source_Party FOREIGN KEY (Source_Party_ID) REFERENCES Parties(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Import_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Import_Created_By FOREIGN KEY (Created_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_Import_Total  CHECK (Total_Amount >= 0),
+    CONSTRAINT CK_Import_Status CHECK (Status IN ('DRAFT','PENDING','CONFIRMED'))
+) ENGINE=InnoDB;
 
--- ---------------------------------------------------------------------
--- 5. TỒN KHO (nguồn sự thật duy nhất: stock_balances + stock_movements)
--- ---------------------------------------------------------------------
+CREATE INDEX IX_Import_Source_Party_ID ON Import_Receipts (Source_Party_ID);
+CREATE INDEX IX_Import_Date_In         ON Import_Receipts (Date_In);
+CREATE INDEX IX_Import_Warehouse_Date  ON Import_Receipts (Warehouse_ID, Date_In);
 
--- Từng món hàng có serial (thay cho Inventory cũ)
-CREATE TABLE product_serials (
-    id              BIGINT        NOT NULL AUTO_INCREMENT,
-    product_id      BIGINT        NOT NULL,
-    serial_no       VARCHAR(100)  NOT NULL,
-    warehouse_id    BIGINT        NULL,              -- kho đang chứa; NULL khi đã bán / đang cho thuê
-    status          VARCHAR(20)   NOT NULL DEFAULT 'IN_STOCK',
-    import_line_id  BIGINT        NULL,              -- nhập từ dòng phiếu nhập nào
-    unit_cost       DECIMAL(18,2) NULL,
-    warranty_expiry DATE          NULL,              -- hạn bảo hành cho khách sau khi bán
-    created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    version         INT           NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_product_serials_product_serial (product_id, serial_no),
-    KEY idx_product_serials_serial (serial_no),
-    KEY idx_product_serials_status (status),
-    CONSTRAINT fk_product_serials_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT fk_product_serials_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id),
-    CONSTRAINT fk_product_serials_import_line FOREIGN KEY (import_line_id) REFERENCES import_receipt_lines (id),
-    CONSTRAINT ck_product_serials_status CHECK (status IN
-        ('IN_STOCK','RESERVED','RENTED','SOLD','DAMAGED','IN_REPAIR','LOST','RETURNED_TO_SUPPLIER'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.11 Import_Receipt_Details -----------------------------------------
+CREATE TABLE Import_Receipt_Details (
+    ID                INT           NOT NULL AUTO_INCREMENT,
+    Import_Receipt_ID INT           NOT NULL,
+    Product_ID        INT           NOT NULL,
+    Quantity          INT           NOT NULL,
+    Price_In          DECIMAL(18,2) NOT NULL,
+    Serial            VARCHAR(255)  NULL,
+    Tracking_Code     VARCHAR(100)  NULL,
+    Line_Total        DECIMAL(18,2) NOT NULL,
+    CONSTRAINT PK_Import_Receipt_Details PRIMARY KEY (ID),
+    CONSTRAINT FK_IRD_Receipt FOREIGN KEY (Import_Receipt_ID) REFERENCES Import_Receipts(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_IRD_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_IRD_Quantity CHECK (Quantity > 0),
+    CONSTRAINT CK_IRD_Price_In CHECK (Price_In >= 0)
+) ENGINE=InnoDB;
 
--- Số dư hiện tại theo kho × sản phẩm. CHECK chặn tồn âm ngay ở DB.
---   qty_on_hand : hàng dùng được đang nằm trong kho (gồm cả phần đã giữ chỗ)
---   qty_reserved: đã giữ cho phiếu xuất/thuê đã xác nhận nhưng chưa giao
---   qty_rented  : đang ở chỗ khách thuê
---   qty_damaged : hư hỏng / chờ sửa, không bán được
-CREATE TABLE stock_balances (
-    id            BIGINT   NOT NULL AUTO_INCREMENT,
-    warehouse_id  BIGINT   NOT NULL,
-    product_id    BIGINT   NOT NULL,
-    qty_on_hand   INT      NOT NULL DEFAULT 0,
-    qty_reserved  INT      NOT NULL DEFAULT 0,
-    qty_rented    INT      NOT NULL DEFAULT 0,
-    qty_damaged   INT      NOT NULL DEFAULT 0,
-    qty_available INT      AS (qty_on_hand - qty_reserved) STORED,
-    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    version       INT      NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_stock_balances_wh_product (warehouse_id, product_id),
-    KEY idx_stock_balances_product (product_id),
-    CONSTRAINT fk_stock_balances_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id),
-    CONSTRAINT fk_stock_balances_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT ck_stock_balances_non_negative CHECK (qty_on_hand >= 0 AND qty_reserved >= 0
-                                                     AND qty_rented >= 0 AND qty_damaged >= 0),
-    CONSTRAINT ck_stock_balances_reserved CHECK (qty_reserved <= qty_on_hand)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.16 Inventory ------------------------------------------------------
+-- Serial UNIQUE toàn hệ thống (NULL được phép lặp cho hàng không serial).
+-- Hàng thuê trả về dùng lại chính dòng Inventory cũ (cập nhật Status),
+-- nên không sinh serial trùng.
+CREATE TABLE Inventory (
+    ID               INT           NOT NULL AUTO_INCREMENT,
+    Product_ID       INT           NOT NULL,
+    Warehouse_ID     INT           NOT NULL,
+    Serial           VARCHAR(255)  NULL,
+    Import_Detail_ID INT           NULL,
+    Quantity_On_Hand INT           NOT NULL DEFAULT 0,
+    Status           VARCHAR(20)   NOT NULL DEFAULT 'IN_STOCK',
+    Price_In         DECIMAL(18,2) NULL,
+    Note             TEXT          NULL,
+    Date_In          DATETIME      NULL,
+    Date_Out         DATETIME      NULL,
+    CONSTRAINT PK_Inventory PRIMARY KEY (ID),
+    CONSTRAINT UQ_Inventory_Serial UNIQUE (Serial),
+    CONSTRAINT FK_Inventory_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Inventory_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Inventory_Import_Detail FOREIGN KEY (Import_Detail_ID) REFERENCES Import_Receipt_Details(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT CK_Inventory_Qty    CHECK (Quantity_On_Hand >= 0),
+    CONSTRAINT CK_Inventory_Status CHECK (Status IN ('IN_STOCK','SOLD','RENTED','LENT','DAMAGED','RESERVED','IN_TRANSIT'))
+) ENGINE=InnoDB;
 
--- Sổ cái biến động tồn (chỉ INSERT, không UPDATE/DELETE).
--- Tồn tại thời điểm T = SUM(qty_change) WHERE created_at <= T  → báo cáo "tồn theo thời điểm".
-CREATE TABLE stock_movements (
-    id            BIGINT        NOT NULL AUTO_INCREMENT,
-    warehouse_id  BIGINT        NOT NULL,
-    product_id    BIGINT        NOT NULL,
-    serial_id     BIGINT        NULL,
-    movement_type VARCHAR(30)   NOT NULL,
-    qty_change    INT           NOT NULL,            -- thay đổi của qty_on_hand (+ vào, - ra)
-    balance_after INT           NOT NULL,            -- qty_on_hand sau biến động
-    unit_cost     DECIMAL(18,2) NULL,
-    ref_type      VARCHAR(30)   NOT NULL,            -- IMPORT_RECEIPT, EXPORT_RECEIPT, RENTAL_RECEIPT, RENTAL_RETURN, SALES_RETURN, STOCK_ADJUSTMENT
-    ref_id        BIGINT        NOT NULL,
-    ref_line_id   BIGINT        NULL,
-    created_by    BIGINT        NULL,
-    created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_stock_movements_product_time (product_id, warehouse_id, created_at),
-    KEY idx_stock_movements_ref (ref_type, ref_id),
-    KEY idx_stock_movements_serial (serial_id),
-    CONSTRAINT fk_stock_movements_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id),
-    CONSTRAINT fk_stock_movements_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT fk_stock_movements_serial FOREIGN KEY (serial_id) REFERENCES product_serials (id),
-    CONSTRAINT fk_stock_movements_user FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT ck_stock_movements_type CHECK (movement_type IN
-        ('IMPORT','EXPORT','RENTAL_OUT','RENTAL_RETURN','SALES_RETURN',
-         'ADJUSTMENT_IN','ADJUSTMENT_OUT','DAMAGE','REPAIRED','OPENING_BALANCE')),
-    CONSTRAINT ck_stock_movements_qty CHECK (qty_change <> 0),
-    CONSTRAINT ck_stock_movements_balance CHECK (balance_after >= 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- IX_Inventory_Serial: đã có sẵn qua UQ_Inventory_Serial.
+CREATE INDEX IX_Inventory_Product_ID       ON Inventory (Product_ID);
+CREATE INDEX IX_Inventory_Date_In          ON Inventory (Date_In);
+CREATE INDEX IX_Inventory_Date_Out         ON Inventory (Date_Out);
+CREATE INDEX IX_Inventory_Wh_Product_Status ON Inventory (Warehouse_ID, Product_ID, Status);
 
--- ---------------------------------------------------------------------
--- 6. XUẤT KHO & BÁN HÀNG
--- ---------------------------------------------------------------------
+-- 4.24 Stock_Summary [v6] ---------------------------------------------
+CREATE TABLE Stock_Summary (
+    Product_ID      INT      NOT NULL,
+    Warehouse_ID    INT      NOT NULL,
+    Qty_On_Hand     INT      NOT NULL DEFAULT 0,
+    Qty_Reserved    INT      NOT NULL DEFAULT 0,
+    Qty_Rented      INT      NOT NULL DEFAULT 0,
+    Qty_Damaged     INT      NOT NULL DEFAULT 0,
+    Qty_In_Transit  INT      NOT NULL DEFAULT 0,
+    Min_Stock_Level INT      NULL,
+    Last_Updated    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Stock_Summary PRIMARY KEY (Product_ID, Warehouse_ID),
+    CONSTRAINT FK_SS_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_SS_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT CK_SS_Min_Stock CHECK (Min_Stock_Level IS NULL OR Min_Stock_Level >= 0)
+) ENGINE=InnoDB;
 
-CREATE TABLE export_receipts (
-    id                BIGINT        NOT NULL AUTO_INCREMENT,
-    code              VARCHAR(30)   NOT NULL,        -- PX-2026-00001
-    warehouse_id      BIGINT        NOT NULL,
-    customer_id       BIGINT        NOT NULL,
-    receiver_id       BIGINT        NULL,
-    receiver_name     VARCHAR(150)  NULL,            -- snapshot lúc lập phiếu
-    receiver_phone    VARCHAR(20)   NULL,
-    receiver_address  VARCHAR(255)  NULL,
-    export_date       DATE          NOT NULL,
-    delivery_date     DATE          NULL,
-    status            VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
-    vat_rate_id       BIGINT        NULL,
-    vat_percent       DECIMAL(5,2)  NOT NULL DEFAULT 0,   -- snapshot: sửa mẫu VAT không ảnh hưởng phiếu cũ
-    subtotal          DECIMAL(18,2) NOT NULL DEFAULT 0,
-    discount_amount   DECIMAL(18,2) NOT NULL DEFAULT 0,
-    vat_amount        DECIMAL(18,2) NOT NULL DEFAULT 0,
-    total_amount      DECIMAL(18,2) NOT NULL DEFAULT 0,
-    paid_amount       DECIMAL(18,2) NOT NULL DEFAULT 0,   -- = tổng payments chưa huỷ
-    remaining_amount  DECIMAL(18,2) AS (total_amount - paid_amount) STORED,
-    payment_status    VARCHAR(20)   NOT NULL DEFAULT 'UNPAID',
-    e_invoice_no      VARCHAR(50)   NULL,            -- số hoá đơn điện tử (nếu có tích hợp)
-    note              VARCHAR(500)  NULL,
-    created_by        BIGINT        NOT NULL,
-    confirmed_by      BIGINT        NULL,
-    confirmed_at      DATETIME      NULL,
-    completed_by      BIGINT        NULL,
-    completed_at      DATETIME      NULL,
-    cancelled_by      BIGINT        NULL,
-    cancelled_at      DATETIME      NULL,
-    created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    version           INT           NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_export_receipts_code (code),
-    KEY idx_export_receipts_customer_date (customer_id, export_date),
-    KEY idx_export_receipts_status_date (status, export_date),
-    KEY idx_export_receipts_payment (payment_status),
-    CONSTRAINT fk_export_receipts_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id),
-    CONSTRAINT fk_export_receipts_customer FOREIGN KEY (customer_id) REFERENCES partners (id),
-    CONSTRAINT fk_export_receipts_receiver FOREIGN KEY (receiver_id) REFERENCES receivers (id),
-    CONSTRAINT fk_export_receipts_vat FOREIGN KEY (vat_rate_id) REFERENCES vat_rates (id),
-    CONSTRAINT fk_export_receipts_created_by FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT fk_export_receipts_confirmed_by FOREIGN KEY (confirmed_by) REFERENCES users (id),
-    CONSTRAINT fk_export_receipts_completed_by FOREIGN KEY (completed_by) REFERENCES users (id),
-    CONSTRAINT fk_export_receipts_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users (id),
-    CONSTRAINT ck_export_receipts_status CHECK (status IN ('PENDING','CONFIRMED','COMPLETED','CANCELLED')),
-    CONSTRAINT ck_export_receipts_payment CHECK (payment_status IN ('UNPAID','PARTIAL','PAID')),
-    CONSTRAINT ck_export_receipts_amounts CHECK (subtotal >= 0 AND discount_amount >= 0 AND vat_amount >= 0
-                                                 AND total_amount >= 0 AND paid_amount >= 0
-                                                 AND paid_amount <= total_amount)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE INDEX IX_SS_Warehouse ON Stock_Summary (Warehouse_ID);
 
-CREATE TABLE export_receipt_lines (
-    id              BIGINT        NOT NULL AUTO_INCREMENT,
-    receipt_id      BIGINT        NOT NULL,
-    line_no         INT           NOT NULL,
-    product_id      BIGINT        NOT NULL,
-    serial_id       BIGINT        NULL,
-    quantity        INT           NOT NULL,
-    unit_price      DECIMAL(18,2) NOT NULL,
-    line_total      DECIMAL(18,2) NOT NULL,
-    warranty_months INT           NOT NULL DEFAULT 0,
-    warranty_expiry DATE          NULL,              -- tính khi hoàn tất xuất
-    returned_qty    INT           NOT NULL DEFAULT 0,   -- đã trả lại qua sales_returns
-    note            VARCHAR(255)  NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_export_receipt_lines_serial (receipt_id, serial_id),
-    KEY idx_export_receipt_lines_product (product_id),
-    CONSTRAINT fk_export_receipt_lines_receipt FOREIGN KEY (receipt_id) REFERENCES export_receipts (id) ON DELETE CASCADE,
-    CONSTRAINT fk_export_receipt_lines_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT fk_export_receipt_lines_serial FOREIGN KEY (serial_id) REFERENCES product_serials (id),
-    CONSTRAINT ck_export_receipt_lines_qty CHECK (quantity > 0 AND returned_qty >= 0 AND returned_qty <= quantity),
-    CONSTRAINT ck_export_receipt_lines_price CHECK (unit_price >= 0 AND line_total >= 0),
-    CONSTRAINT ck_export_receipt_lines_warranty CHECK (warranty_months >= 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- =====================================================================
+-- 4. XUẤT KHO
+-- =====================================================================
 
--- ---------------------------------------------------------------------
--- 7. CHO THUÊ / MƯỢN & TRẢ HÀNG THUÊ
--- ---------------------------------------------------------------------
+-- 4.12 Export_Receipts ------------------------------------------------
+CREATE TABLE Export_Receipts (
+    ID                        INT           NOT NULL AUTO_INCREMENT,
+    Receipt_Code              VARCHAR(30)   NOT NULL,
+    Customer_ID               INT           NOT NULL,
+    Warehouse_ID              INT           NOT NULL,
+    Receiver_ID               INT           NULL,
+    Receiver_Name_Snapshot    VARCHAR(150)  NULL,
+    Receiver_Address_Snapshot VARCHAR(255)  NULL,
+    Receiver_Phone_Snapshot   VARCHAR(50)   NULL,
+    Date_Out                  DATETIME      NOT NULL,
+    Delivery_Date             DATETIME      NULL,
+    VAT_ID                    INT           NULL,
+    Deposit                   DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Total_Amount              DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Payment_Status_ID         INT           NULL,
+    Paid                      DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Remain                    DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Status                    VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
+    Note                      TEXT          NULL,
+    Created_By                INT           NOT NULL,
+    Created_At                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Export_Receipts PRIMARY KEY (ID),
+    CONSTRAINT UQ_Export_Receipts_Code UNIQUE (Receipt_Code),
+    CONSTRAINT FK_Export_Customer FOREIGN KEY (Customer_ID) REFERENCES Customers(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Export_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Export_Receiver FOREIGN KEY (Receiver_ID) REFERENCES Receivers(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT FK_Export_VAT FOREIGN KEY (VAT_ID) REFERENCES VAT_Options(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT FK_Export_Payment_Status FOREIGN KEY (Payment_Status_ID) REFERENCES Payment_Statuses(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT FK_Export_Created_By FOREIGN KEY (Created_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_Export_Money  CHECK (Deposit >= 0 AND Total_Amount >= 0 AND Paid >= 0),
+    CONSTRAINT CK_Export_Status CHECK (Status IN ('PENDING','CONFIRMED','EXPORTED'))
+) ENGINE=InnoDB;
 
-CREATE TABLE rental_receipts (
-    id               BIGINT        NOT NULL AUTO_INCREMENT,
-    code             VARCHAR(30)   NOT NULL,         -- PT-2026-00001
-    warehouse_id     BIGINT        NOT NULL,
-    customer_id      BIGINT        NOT NULL,
-    receiver_id      BIGINT        NULL,
-    receiver_name    VARCHAR(150)  NULL,
-    receiver_phone   VARCHAR(20)   NULL,
-    receiver_address VARCHAR(255)  NULL,
-    rental_type      VARCHAR(10)   NOT NULL DEFAULT 'RENT',  -- RENT = thuê, LOAN = mượn (giá 0)
-    status           VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
-    start_date       DATE          NOT NULL,
-    due_date         DATE          NOT NULL,
-    deposit_amount   DECIMAL(18,2) NOT NULL DEFAULT 0,
-    rent_amount      DECIMAL(18,2) NOT NULL DEFAULT 0,       -- tiền thuê dự kiến / thực tế sau khi trả hết
-    penalty_amount   DECIMAL(18,2) NOT NULL DEFAULT 0,       -- cộng dồn từ rental_returns
-    damage_amount    DECIMAL(18,2) NOT NULL DEFAULT 0,
-    total_amount     DECIMAL(18,2) NOT NULL DEFAULT 0,       -- rent + penalty + damage
-    paid_amount      DECIMAL(18,2) NOT NULL DEFAULT 0,
-    remaining_amount DECIMAL(18,2) AS (total_amount - paid_amount) STORED,
-    payment_status   VARCHAR(20)   NOT NULL DEFAULT 'UNPAID',
-    note             VARCHAR(500)  NULL,
-    created_by       BIGINT        NOT NULL,
-    confirmed_by     BIGINT        NULL,
-    confirmed_at     DATETIME      NULL,
-    cancelled_by     BIGINT        NULL,
-    cancelled_at     DATETIME      NULL,
-    created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    version          INT           NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_rental_receipts_code (code),
-    KEY idx_rental_receipts_customer (customer_id),
-    KEY idx_rental_receipts_status_due (status, due_date),   -- cảnh báo sắp hết hạn / quá hạn
-    CONSTRAINT fk_rental_receipts_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id),
-    CONSTRAINT fk_rental_receipts_customer FOREIGN KEY (customer_id) REFERENCES partners (id),
-    CONSTRAINT fk_rental_receipts_receiver FOREIGN KEY (receiver_id) REFERENCES receivers (id),
-    CONSTRAINT fk_rental_receipts_created_by FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT fk_rental_receipts_confirmed_by FOREIGN KEY (confirmed_by) REFERENCES users (id),
-    CONSTRAINT fk_rental_receipts_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users (id),
-    CONSTRAINT ck_rental_receipts_type CHECK (rental_type IN ('RENT','LOAN')),
-    CONSTRAINT ck_rental_receipts_status CHECK (status IN ('PENDING','ACTIVE','PARTIALLY_RETURNED','RETURNED','CANCELLED')),
-    CONSTRAINT ck_rental_receipts_payment CHECK (payment_status IN ('UNPAID','PARTIAL','PAID')),
-    CONSTRAINT ck_rental_receipts_dates CHECK (due_date > start_date),
-    CONSTRAINT ck_rental_receipts_amounts CHECK (deposit_amount >= 0 AND rent_amount >= 0 AND penalty_amount >= 0
-                                                 AND damage_amount >= 0 AND total_amount >= 0
-                                                 AND paid_amount >= 0 AND paid_amount <= total_amount)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE INDEX IX_Export_Customer_ID       ON Export_Receipts (Customer_ID);
+CREATE INDEX IX_Export_Date_Out          ON Export_Receipts (Date_Out);
+CREATE INDEX IX_Export_Payment_Status_ID ON Export_Receipts (Payment_Status_ID);
+CREATE INDEX IX_Export_Warehouse_Date    ON Export_Receipts (Warehouse_ID, Date_Out);
 
-CREATE TABLE rental_receipt_lines (
-    id            BIGINT        NOT NULL AUTO_INCREMENT,
-    rental_id     BIGINT        NOT NULL,
-    line_no       INT           NOT NULL,
-    product_id    BIGINT        NOT NULL,
-    serial_id     BIGINT        NULL,
-    quantity      INT           NOT NULL,
-    price_per_day DECIMAL(18,2) NOT NULL,
-    line_total    DECIMAL(18,2) NOT NULL,            -- quantity × price_per_day × số ngày thuê
-    returned_qty  INT           NOT NULL DEFAULT 0,
-    note          VARCHAR(255)  NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_rental_receipt_lines_serial (rental_id, serial_id),
-    KEY idx_rental_receipt_lines_product (product_id),
-    CONSTRAINT fk_rental_receipt_lines_rental FOREIGN KEY (rental_id) REFERENCES rental_receipts (id) ON DELETE CASCADE,
-    CONSTRAINT fk_rental_receipt_lines_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT fk_rental_receipt_lines_serial FOREIGN KEY (serial_id) REFERENCES product_serials (id),
-    CONSTRAINT ck_rental_receipt_lines_qty CHECK (quantity > 0 AND returned_qty >= 0 AND returned_qty <= quantity),
-    CONSTRAINT ck_rental_receipt_lines_price CHECK (price_per_day >= 0 AND line_total >= 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.13 Export_Receipt_Details -----------------------------------------
+CREATE TABLE Export_Receipt_Details (
+    ID                INT           NOT NULL AUTO_INCREMENT,
+    Export_Receipt_ID INT           NOT NULL,
+    Product_ID        INT           NOT NULL,
+    Inventory_ID      INT           NULL,
+    Quantity          INT           NOT NULL,
+    Price_Out         DECIMAL(18,2) NOT NULL,
+    Serial            VARCHAR(255)  NULL,
+    Warranty_Months   INT           NULL,
+    Warranty_Expiry   DATE          NULL,
+    Line_Total        DECIMAL(18,2) NOT NULL,
+    CONSTRAINT PK_Export_Receipt_Details PRIMARY KEY (ID),
+    CONSTRAINT FK_ERD_Receipt FOREIGN KEY (Export_Receipt_ID) REFERENCES Export_Receipts(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_ERD_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_ERD_Inventory FOREIGN KEY (Inventory_ID) REFERENCES Inventory(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT CK_ERD_Quantity  CHECK (Quantity > 0),
+    CONSTRAINT CK_ERD_Price_Out CHECK (Price_Out >= 0),
+    CONSTRAINT CK_ERD_Warranty  CHECK (Warranty_Months IS NULL OR Warranty_Months >= 0)
+) ENGINE=InnoDB;
 
--- Một phiếu thuê có thể trả nhiều lần (trả từng phần)
-CREATE TABLE rental_returns (
-    id                    BIGINT        NOT NULL AUTO_INCREMENT,
-    code                  VARCHAR(30)   NOT NULL,    -- TT-2026-00001
-    rental_id             BIGINT        NOT NULL,
-    return_date           DATE          NOT NULL,
-    days_overdue          INT           NOT NULL DEFAULT 0,
-    penalty_amount        DECIMAL(18,2) NOT NULL DEFAULT 0,   -- quá hạn >= ngưỡng: số ngày quá hạn × giá thuê/ngày
-    damage_amount         DECIMAL(18,2) NOT NULL DEFAULT 0,
-    deposit_refund_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
-    note                  VARCHAR(500)  NULL,
-    created_by            BIGINT        NOT NULL,
-    created_at            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_rental_returns_code (code),
-    KEY idx_rental_returns_rental (rental_id),
-    CONSTRAINT fk_rental_returns_rental FOREIGN KEY (rental_id) REFERENCES rental_receipts (id),
-    CONSTRAINT fk_rental_returns_created_by FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT ck_rental_returns_amounts CHECK (days_overdue >= 0 AND penalty_amount >= 0
-                                                AND damage_amount >= 0 AND deposit_refund_amount >= 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- =====================================================================
+-- 5. CHO THUÊ / MƯỢN & TRẢ HÀNG THUÊ
+-- =====================================================================
 
-CREATE TABLE rental_return_lines (
-    id             BIGINT        NOT NULL AUTO_INCREMENT,
-    return_id      BIGINT        NOT NULL,
-    rental_line_id BIGINT        NOT NULL,
-    serial_id      BIGINT        NULL,
-    quantity       INT           NOT NULL,
-    item_condition VARCHAR(20)   NOT NULL DEFAULT 'GOOD',
-    condition_note VARCHAR(255)  NULL,
-    damage_fee     DECIMAL(18,2) NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    KEY idx_rental_return_lines_return (return_id),
-    KEY idx_rental_return_lines_rental_line (rental_line_id),
-    CONSTRAINT fk_rental_return_lines_return FOREIGN KEY (return_id) REFERENCES rental_returns (id) ON DELETE CASCADE,
-    CONSTRAINT fk_rental_return_lines_rental_line FOREIGN KEY (rental_line_id) REFERENCES rental_receipt_lines (id),
-    CONSTRAINT fk_rental_return_lines_serial FOREIGN KEY (serial_id) REFERENCES product_serials (id),
-    CONSTRAINT ck_rental_return_lines_qty CHECK (quantity > 0),
-    CONSTRAINT ck_rental_return_lines_condition CHECK (item_condition IN ('GOOD','DAMAGED','LOST')),
-    CONSTRAINT ck_rental_return_lines_fee CHECK (damage_fee >= 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.14 Rental_Receipts ------------------------------------------------
+CREATE TABLE Rental_Receipts (
+    ID                        INT           NOT NULL AUTO_INCREMENT,
+    Receipt_Code              VARCHAR(30)   NOT NULL,
+    Customer_ID               INT           NOT NULL,
+    Warehouse_ID              INT           NOT NULL,
+    Receiver_ID               INT           NULL,
+    Receiver_Name_Snapshot    VARCHAR(150)  NULL,
+    Receiver_Address_Snapshot VARCHAR(255)  NULL,
+    Receiver_Phone_Snapshot   VARCHAR(50)   NULL,
+    Rental_Type               VARCHAR(10)   NOT NULL DEFAULT 'RENT',
+    Date_Out                  DATETIME      NOT NULL,
+    Due_Date                  DATETIME      NOT NULL,
+    Deposit                   DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Rental_Price_Per_Day      DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Total_Rent                DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Penalty_Amount            DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Return_Date               DATETIME      NULL,
+    Payment_Status_ID         INT           NULL,
+    Created_By                INT           NOT NULL,
+    Created_At                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Rental_Receipts PRIMARY KEY (ID),
+    CONSTRAINT UQ_Rental_Receipts_Code UNIQUE (Receipt_Code),
+    CONSTRAINT FK_Rental_Customer FOREIGN KEY (Customer_ID) REFERENCES Customers(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Rental_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Rental_Receiver FOREIGN KEY (Receiver_ID) REFERENCES Receivers(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT FK_Rental_Payment_Status FOREIGN KEY (Payment_Status_ID) REFERENCES Payment_Statuses(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT FK_Rental_Created_By FOREIGN KEY (Created_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_Rental_Type  CHECK (Rental_Type IN ('RENT','LEND')),
+    CONSTRAINT CK_Rental_Dates CHECK (Due_Date >= Date_Out),
+    CONSTRAINT CK_Rental_Money CHECK (Deposit >= 0 AND Rental_Price_Per_Day >= 0
+                                      AND Total_Rent >= 0 AND Penalty_Amount >= 0)
+) ENGINE=InnoDB;
 
--- ---------------------------------------------------------------------
--- 8. TRẢ HÀNG BÁN / ĐỔI HÀNG / BẢO HÀNH  (Phase 2 — đóng gap G-3)
--- ---------------------------------------------------------------------
+CREATE INDEX IX_Rental_Customer_ID ON Rental_Receipts (Customer_ID);
+CREATE INDEX IX_Rental_Due_Date    ON Rental_Receipts (Due_Date);
+CREATE INDEX IX_Rental_Warehouse   ON Rental_Receipts (Warehouse_ID, Date_Out);
 
-CREATE TABLE sales_returns (
-    id                         BIGINT        NOT NULL AUTO_INCREMENT,
-    code                       VARCHAR(30)   NOT NULL,   -- TH-2026-00001
-    export_receipt_id          BIGINT        NOT NULL,
-    customer_id                BIGINT        NOT NULL,
-    return_type                VARCHAR(20)   NOT NULL,   -- REFUND, EXCHANGE, WARRANTY
-    return_date                DATE          NOT NULL,
-    days_since_delivery        INT           NOT NULL DEFAULT 0,
-    fee_policy_id              BIGINT        NULL,
-    fee_percent                DECIMAL(5,2)  NOT NULL DEFAULT 0,   -- snapshot từ policy
-    original_value             DECIMAL(18,2) NOT NULL DEFAULT 0,
-    fee_amount                 DECIMAL(18,2) NOT NULL DEFAULT 0,
-    refund_amount              DECIMAL(18,2) NOT NULL DEFAULT 0,
-    exchange_export_receipt_id BIGINT        NULL,               -- phiếu xuất hàng đổi
-    status                     VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
-    approved_by                BIGINT        NULL,
-    approved_at                DATETIME      NULL,
-    reject_reason              VARCHAR(255)  NULL,
-    note                       VARCHAR(500)  NULL,
-    created_by                 BIGINT        NOT NULL,
-    created_at                 DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at                 DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    version                    INT           NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_sales_returns_code (code),
-    KEY idx_sales_returns_export (export_receipt_id),
-    KEY idx_sales_returns_customer (customer_id),
-    CONSTRAINT fk_sales_returns_export FOREIGN KEY (export_receipt_id) REFERENCES export_receipts (id),
-    CONSTRAINT fk_sales_returns_customer FOREIGN KEY (customer_id) REFERENCES partners (id),
-    CONSTRAINT fk_sales_returns_policy FOREIGN KEY (fee_policy_id) REFERENCES return_fee_policies (id),
-    CONSTRAINT fk_sales_returns_exchange FOREIGN KEY (exchange_export_receipt_id) REFERENCES export_receipts (id),
-    CONSTRAINT fk_sales_returns_approved_by FOREIGN KEY (approved_by) REFERENCES users (id),
-    CONSTRAINT fk_sales_returns_created_by FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT ck_sales_returns_type CHECK (return_type IN ('REFUND','EXCHANGE','WARRANTY')),
-    CONSTRAINT ck_sales_returns_status CHECK (status IN ('PENDING','APPROVED','REJECTED')),
-    CONSTRAINT ck_sales_returns_amounts CHECK (original_value >= 0 AND fee_amount >= 0 AND refund_amount >= 0
-                                               AND fee_percent >= 0 AND fee_percent <= 100)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.15 Rental_Receipt_Details -----------------------------------------
+CREATE TABLE Rental_Receipt_Details (
+    ID                INT           NOT NULL AUTO_INCREMENT,
+    Rental_Receipt_ID INT           NOT NULL,
+    Product_ID        INT           NOT NULL,
+    Inventory_ID      INT           NULL,
+    Quantity          INT           NOT NULL,
+    Rental_Price      DECIMAL(18,2) NOT NULL,
+    Serial            VARCHAR(255)  NULL,
+    Is_Returned       BOOLEAN       NOT NULL DEFAULT FALSE,
+    CONSTRAINT PK_Rental_Receipt_Details PRIMARY KEY (ID),
+    CONSTRAINT FK_RRD_Receipt FOREIGN KEY (Rental_Receipt_ID) REFERENCES Rental_Receipts(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_RRD_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_RRD_Inventory FOREIGN KEY (Inventory_ID) REFERENCES Inventory(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT CK_RRD_Quantity CHECK (Quantity > 0),
+    CONSTRAINT CK_RRD_Price    CHECK (Rental_Price >= 0)
+) ENGINE=InnoDB;
 
-CREATE TABLE sales_return_lines (
-    id              BIGINT       NOT NULL AUTO_INCREMENT,
-    sales_return_id BIGINT       NOT NULL,
-    export_line_id  BIGINT       NOT NULL,
-    serial_id       BIGINT       NULL,
-    quantity        INT          NOT NULL,
-    item_condition  VARCHAR(20)  NOT NULL DEFAULT 'GOOD',
-    disposition     VARCHAR(20)  NOT NULL DEFAULT 'RESTOCK',  -- nhập lại kho / hàng hỏng / gửi sửa bảo hành
-    note            VARCHAR(255) NULL,
-    PRIMARY KEY (id),
-    KEY idx_sales_return_lines_return (sales_return_id),
-    KEY idx_sales_return_lines_export_line (export_line_id),
-    CONSTRAINT fk_sales_return_lines_return FOREIGN KEY (sales_return_id) REFERENCES sales_returns (id) ON DELETE CASCADE,
-    CONSTRAINT fk_sales_return_lines_export_line FOREIGN KEY (export_line_id) REFERENCES export_receipt_lines (id),
-    CONSTRAINT fk_sales_return_lines_serial FOREIGN KEY (serial_id) REFERENCES product_serials (id),
-    CONSTRAINT ck_sales_return_lines_qty CHECK (quantity > 0),
-    CONSTRAINT ck_sales_return_lines_condition CHECK (item_condition IN ('GOOD','DAMAGED')),
-    CONSTRAINT ck_sales_return_lines_disposition CHECK (disposition IN ('RESTOCK','DAMAGED','WARRANTY_REPAIR'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.22 Return_Receipts ------------------------------------------------
+CREATE TABLE Return_Receipts (
+    ID                INT           NOT NULL AUTO_INCREMENT,
+    Receipt_Code      VARCHAR(30)   NOT NULL,
+    Rental_Receipt_ID INT           NOT NULL,
+    Warehouse_ID      INT           NOT NULL,
+    Return_Date       DATETIME      NOT NULL,
+    Days_Overdue      INT           NOT NULL DEFAULT 0,
+    Penalty_Amount    DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Note              TEXT          NULL,
+    Created_By        INT           NOT NULL,
+    Created_At        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Return_Receipts PRIMARY KEY (ID),
+    CONSTRAINT UQ_Return_Receipts_Code UNIQUE (Receipt_Code),
+    CONSTRAINT FK_Return_Rental FOREIGN KEY (Rental_Receipt_ID) REFERENCES Rental_Receipts(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Return_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Return_Created_By FOREIGN KEY (Created_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_Return_Overdue CHECK (Days_Overdue >= 0),
+    CONSTRAINT CK_Return_Penalty CHECK (Penalty_Amount >= 0)
+) ENGINE=InnoDB;
 
--- ---------------------------------------------------------------------
--- 9. THANH TOÁN & CÔNG NỢ  (mới — lịch sử thanh toán cho KT-03)
--- ---------------------------------------------------------------------
+CREATE INDEX IX_Return_Rental ON Return_Receipts (Rental_Receipt_ID);
 
--- Mỗi lần thu/chi là 1 dòng. Sai thì huỷ (is_voided), không sửa/xoá.
--- Mỗi payment gắn với đúng 1 chứng từ.
-CREATE TABLE payments (
-    id                BIGINT        NOT NULL AUTO_INCREMENT,
-    code              VARCHAR(30)   NOT NULL,        -- TTN-2026-00001
-    partner_id        BIGINT        NOT NULL,
-    direction         VARCHAR(3)    NOT NULL,        -- IN = thu, OUT = chi
-    purpose           VARCHAR(20)   NOT NULL,
-    export_receipt_id BIGINT        NULL,
-    rental_receipt_id BIGINT        NULL,
-    import_receipt_id BIGINT        NULL,
-    sales_return_id   BIGINT        NULL,
-    amount            DECIMAL(18,2) NOT NULL,
-    method            VARCHAR(20)   NOT NULL DEFAULT 'CASH',
-    paid_at           DATETIME      NOT NULL,
-    reference_no      VARCHAR(100)  NULL,            -- mã giao dịch ngân hàng
-    note              VARCHAR(255)  NULL,
-    is_voided         BOOLEAN       NOT NULL DEFAULT FALSE,
-    voided_by         BIGINT        NULL,
-    voided_at         DATETIME      NULL,
-    void_reason       VARCHAR(255)  NULL,
-    created_by        BIGINT        NOT NULL,
-    created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_payments_code (code),
-    KEY idx_payments_partner_time (partner_id, paid_at),
-    KEY idx_payments_export (export_receipt_id),
-    KEY idx_payments_rental (rental_receipt_id),
-    KEY idx_payments_import (import_receipt_id),
-    KEY idx_payments_sales_return (sales_return_id),
-    CONSTRAINT fk_payments_partner FOREIGN KEY (partner_id) REFERENCES partners (id),
-    CONSTRAINT fk_payments_export FOREIGN KEY (export_receipt_id) REFERENCES export_receipts (id),
-    CONSTRAINT fk_payments_rental FOREIGN KEY (rental_receipt_id) REFERENCES rental_receipts (id),
-    CONSTRAINT fk_payments_import FOREIGN KEY (import_receipt_id) REFERENCES import_receipts (id),
-    CONSTRAINT fk_payments_sales_return FOREIGN KEY (sales_return_id) REFERENCES sales_returns (id),
-    CONSTRAINT fk_payments_created_by FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT fk_payments_voided_by FOREIGN KEY (voided_by) REFERENCES users (id),
-    CONSTRAINT ck_payments_direction CHECK (direction IN ('IN','OUT')),
-    CONSTRAINT ck_payments_purpose CHECK (purpose IN
-        ('SALE','RENTAL_FEE','DEPOSIT','DEPOSIT_REFUND','PENALTY','SALES_REFUND','PURCHASE')),
-    CONSTRAINT ck_payments_method CHECK (method IN ('CASH','BANK_TRANSFER','CARD','OTHER')),
-    CONSTRAINT ck_payments_amount CHECK (amount > 0),
-    CONSTRAINT ck_payments_one_ref CHECK (
-        (export_receipt_id IS NOT NULL) + (rental_receipt_id IS NOT NULL)
-      + (import_receipt_id IS NOT NULL) + (sales_return_id IS NOT NULL) = 1)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.23 Return_Receipt_Details -----------------------------------------
+CREATE TABLE Return_Receipt_Details (
+    ID                INT          NOT NULL AUTO_INCREMENT,
+    Return_Receipt_ID INT          NOT NULL,
+    Rental_Detail_ID  INT          NOT NULL,
+    Product_ID        INT          NOT NULL,
+    Inventory_ID      INT          NULL,
+    Quantity          INT          NOT NULL,
+    Serial            VARCHAR(255) NULL,
+    Condition_Note    VARCHAR(255) NULL,
+    CONSTRAINT PK_Return_Receipt_Details PRIMARY KEY (ID),
+    CONSTRAINT FK_RtRD_Receipt FOREIGN KEY (Return_Receipt_ID) REFERENCES Return_Receipts(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_RtRD_Rental_Detail FOREIGN KEY (Rental_Detail_ID) REFERENCES Rental_Receipt_Details(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_RtRD_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_RtRD_Inventory FOREIGN KEY (Inventory_ID) REFERENCES Inventory(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT CK_RtRD_Quantity CHECK (Quantity > 0)
+) ENGINE=InnoDB;
 
--- ---------------------------------------------------------------------
--- 10. KIỂM KÊ & ĐIỀU CHỈNH TỒN
--- ---------------------------------------------------------------------
+-- =====================================================================
+-- 6. ĐỔI / TRẢ HÀNG ĐÃ BÁN
+-- =====================================================================
 
-CREATE TABLE stocktakes (
-    id             BIGINT       NOT NULL AUTO_INCREMENT,
-    code           VARCHAR(30)  NOT NULL,            -- KK-2026-00001
-    warehouse_id   BIGINT       NOT NULL,
-    stocktake_date DATE         NOT NULL,
-    status         VARCHAR(20)  NOT NULL DEFAULT 'DRAFT',
-    note           VARCHAR(500) NULL,
-    created_by     BIGINT       NOT NULL,
-    submitted_at   DATETIME     NULL,
-    approved_by    BIGINT       NULL,
-    approved_at    DATETIME     NULL,
-    created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    version        INT          NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_stocktakes_code (code),
-    KEY idx_stocktakes_wh_date (warehouse_id, stocktake_date),
-    CONSTRAINT fk_stocktakes_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id),
-    CONSTRAINT fk_stocktakes_created_by FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT fk_stocktakes_approved_by FOREIGN KEY (approved_by) REFERENCES users (id),
-    CONSTRAINT ck_stocktakes_status CHECK (status IN ('DRAFT','COUNTING','SUBMITTED','APPROVED','CANCELLED'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.23.1 Sales_Returns ------------------------------------------------
+CREATE TABLE Sales_Returns (
+    ID                    INT           NOT NULL AUTO_INCREMENT,
+    Receipt_Code          VARCHAR(30)   NOT NULL,
+    Export_Receipt_ID     INT           NOT NULL,
+    Party_ID              INT           NOT NULL,
+    Warehouse_ID          INT           NOT NULL,
+    Return_Type           VARCHAR(20)   NOT NULL,
+    Exchange_Direction    VARCHAR(20)   NULL,
+    Return_Date           DATETIME      NOT NULL,
+    Days_Since_Delivery   INT           NULL,
+    Policy_ID             INT           NULL,
+    Original_Value        DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Fee_Percent           DECIMAL(5,2)  NOT NULL DEFAULT 0,
+    Fee_Amount            DECIMAL(18,2) NOT NULL DEFAULT 0,
+    New_Export_Receipt_ID INT           NULL,
+    Refund_Amount         DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Status                VARCHAR(20)   NOT NULL DEFAULT 'DRAFT',
+    Note                  TEXT          NULL,
+    Created_By            INT           NOT NULL,
+    Created_At            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Sales_Returns PRIMARY KEY (ID),
+    CONSTRAINT UQ_Sales_Returns_Code UNIQUE (Receipt_Code),
+    CONSTRAINT FK_SR_Export FOREIGN KEY (Export_Receipt_ID) REFERENCES Export_Receipts(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_SR_Party FOREIGN KEY (Party_ID) REFERENCES Parties(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_SR_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_SR_Policy FOREIGN KEY (Policy_ID) REFERENCES Return_Fee_Policy(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT FK_SR_New_Export FOREIGN KEY (New_Export_Receipt_ID) REFERENCES Export_Receipts(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT FK_SR_Created_By FOREIGN KEY (Created_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_SR_Return_Type CHECK (Return_Type IN ('REFUND','EXCHANGE','WARRANTY')),
+    CONSTRAINT CK_SR_Exchange_Dir CHECK (Exchange_Direction IS NULL
+                                         OR Exchange_Direction IN ('EQUAL_HIGHER','LOWER')),
+    CONSTRAINT CK_SR_Status CHECK (Status IN ('DRAFT','CONFIRMED','COMPLETED','REJECTED')),
+    CONSTRAINT CK_SR_Fee_Percent CHECK (Fee_Percent BETWEEN 0 AND 100),
+    CONSTRAINT CK_SR_Money CHECK (Original_Value >= 0 AND Fee_Amount >= 0)
+) ENGINE=InnoDB;
 
-CREATE TABLE stocktake_lines (
-    id           BIGINT       NOT NULL AUTO_INCREMENT,
-    stocktake_id BIGINT       NOT NULL,
-    product_id   BIGINT       NOT NULL,
-    system_qty   INT          NOT NULL,              -- snapshot qty_on_hand lúc tạo phiếu
-    actual_qty   INT          NULL,                  -- NULL = chưa đếm
-    difference   INT          AS (actual_qty - system_qty) STORED,
-    note         VARCHAR(255) NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_stocktake_lines_product (stocktake_id, product_id),
-    CONSTRAINT fk_stocktake_lines_stocktake FOREIGN KEY (stocktake_id) REFERENCES stocktakes (id) ON DELETE CASCADE,
-    CONSTRAINT fk_stocktake_lines_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT ck_stocktake_lines_qty CHECK (system_qty >= 0 AND (actual_qty IS NULL OR actual_qty >= 0))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE INDEX IX_SalesReturn_Export ON Sales_Returns (Export_Receipt_ID);
+CREATE INDEX IX_SalesReturn_Party  ON Sales_Returns (Party_ID);
 
-CREATE TABLE stock_adjustments (
-    id            BIGINT       NOT NULL AUTO_INCREMENT,
-    code          VARCHAR(30)  NOT NULL,             -- DC-2026-00001
-    warehouse_id  BIGINT       NOT NULL,
-    stocktake_id  BIGINT       NULL,                 -- sinh tự động từ kiểm kê, hoặc NULL nếu lập tay
-    reason_type   VARCHAR(20)  NOT NULL,
-    reason        VARCHAR(500) NOT NULL,
-    status        VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
-    created_by    BIGINT       NOT NULL,
-    approved_by   BIGINT       NULL,
-    approved_at   DATETIME     NULL,
-    reject_reason VARCHAR(255) NULL,
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    version       INT          NOT NULL DEFAULT 0,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_stock_adjustments_code (code),
-    UNIQUE KEY uk_stock_adjustments_stocktake (stocktake_id),
-    KEY idx_stock_adjustments_status (status),
-    CONSTRAINT fk_stock_adjustments_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id),
-    CONSTRAINT fk_stock_adjustments_stocktake FOREIGN KEY (stocktake_id) REFERENCES stocktakes (id),
-    CONSTRAINT fk_stock_adjustments_created_by FOREIGN KEY (created_by) REFERENCES users (id),
-    CONSTRAINT fk_stock_adjustments_approved_by FOREIGN KEY (approved_by) REFERENCES users (id),
-    CONSTRAINT ck_stock_adjustments_reason CHECK (reason_type IN ('STOCKTAKE','DAMAGE','LOSS','FOUND','OTHER')),
-    CONSTRAINT ck_stock_adjustments_status CHECK (status IN ('PENDING','APPROVED','REJECTED'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.23.2 Sales_Return_Details -----------------------------------------
+CREATE TABLE Sales_Return_Details (
+    ID               INT          NOT NULL AUTO_INCREMENT,
+    Sales_Return_ID  INT          NOT NULL,
+    Export_Detail_ID INT          NOT NULL,
+    Product_ID       INT          NOT NULL,
+    Inventory_ID     INT          NULL,
+    Quantity         INT          NOT NULL,
+    Serial           VARCHAR(255) NULL,
+    Return_Condition VARCHAR(20)  NOT NULL,
+    Restock_Status   VARCHAR(20)  NULL,
+    CONSTRAINT PK_Sales_Return_Details PRIMARY KEY (ID),
+    CONSTRAINT FK_SRD_Sales_Return FOREIGN KEY (Sales_Return_ID) REFERENCES Sales_Returns(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_SRD_Export_Detail FOREIGN KEY (Export_Detail_ID) REFERENCES Export_Receipt_Details(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_SRD_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_SRD_Inventory FOREIGN KEY (Inventory_ID) REFERENCES Inventory(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT CK_SRD_Quantity  CHECK (Quantity > 0),
+    CONSTRAINT CK_SRD_Condition CHECK (Return_Condition IN ('RESELLABLE','DAMAGED','TO_WARRANTY')),
+    CONSTRAINT CK_SRD_Restock   CHECK (Restock_Status IS NULL OR Restock_Status IN
+                                       ('IN_STOCK','SOLD','RENTED','LENT','DAMAGED','RESERVED','IN_TRANSIT'))
+) ENGINE=InnoDB;
 
-CREATE TABLE stock_adjustment_lines (
-    id            BIGINT       NOT NULL AUTO_INCREMENT,
-    adjustment_id BIGINT       NOT NULL,
-    product_id    BIGINT       NOT NULL,
-    serial_id     BIGINT       NULL,
-    qty_change    INT          NOT NULL,             -- + thừa, - thiếu
-    note          VARCHAR(255) NULL,
-    PRIMARY KEY (id),
-    KEY idx_stock_adjustment_lines_adjustment (adjustment_id),
-    CONSTRAINT fk_stock_adjustment_lines_adjustment FOREIGN KEY (adjustment_id) REFERENCES stock_adjustments (id) ON DELETE CASCADE,
-    CONSTRAINT fk_stock_adjustment_lines_product FOREIGN KEY (product_id) REFERENCES products (id),
-    CONSTRAINT fk_stock_adjustment_lines_serial FOREIGN KEY (serial_id) REFERENCES product_serials (id),
-    CONSTRAINT ck_stock_adjustment_lines_qty CHECK (qty_change <> 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- =====================================================================
+-- 7. KIỂM KÊ & ĐIỀU CHỈNH
+-- =====================================================================
 
--- ---------------------------------------------------------------------
--- 11. CẢNH BÁO
--- ---------------------------------------------------------------------
+-- 4.17 Stocktakes -----------------------------------------------------
+CREATE TABLE Stocktakes (
+    ID             INT         NOT NULL AUTO_INCREMENT,
+    Stocktake_Code VARCHAR(30) NOT NULL,
+    Warehouse_ID   INT         NOT NULL,
+    Stocktake_Date DATETIME    NOT NULL,
+    Status         VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    Created_By     INT         NOT NULL,
+    CONSTRAINT PK_Stocktakes PRIMARY KEY (ID),
+    CONSTRAINT UQ_Stocktakes_Code UNIQUE (Stocktake_Code),
+    CONSTRAINT FK_Stocktake_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Stocktake_Created_By FOREIGN KEY (Created_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_Stocktake_Status CHECK (Status IN ('DRAFT','COMPLETED'))
+) ENGINE=InnoDB;
 
-CREATE TABLE alerts (
-    id             BIGINT       NOT NULL AUTO_INCREMENT,
-    alert_type     VARCHAR(30)  NOT NULL,
-    severity       VARCHAR(10)  NOT NULL DEFAULT 'WARNING',
-    title          VARCHAR(200) NOT NULL,
-    message        VARCHAR(500) NULL,
-    ref_type       VARCHAR(30)  NULL,                -- PRODUCT, RENTAL_RECEIPT, EXPORT_RECEIPT...
-    ref_id         BIGINT       NULL,
-    target_role_id BIGINT       NULL,                -- NULL = mọi vai trò
-    dedupe_key     VARCHAR(150) NULL,                -- vd 'LOW_STOCK:1:25'; đặt NULL khi resolve để lần sau sinh lại được
-    is_resolved    BOOLEAN      NOT NULL DEFAULT FALSE,
-    resolved_at    DATETIME     NULL,
-    created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_alerts_dedupe (dedupe_key),
-    KEY idx_alerts_open (is_resolved, created_at),
-    KEY idx_alerts_ref (ref_type, ref_id),
-    CONSTRAINT fk_alerts_role FOREIGN KEY (target_role_id) REFERENCES roles (id),
-    CONSTRAINT ck_alerts_type CHECK (alert_type IN ('LOW_STOCK','RENTAL_EXPIRING','RENTAL_OVERDUE','PENDING_APPROVAL')),
-    CONSTRAINT ck_alerts_severity CHECK (severity IN ('INFO','WARNING','CRITICAL'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE INDEX IX_Stocktake_Warehouse_Date ON Stocktakes (Warehouse_ID, Stocktake_Date);
 
--- Trạng thái "đã đọc" theo từng người (badge chưa đọc trên Navbar)
-CREATE TABLE alert_reads (
-    alert_id BIGINT   NOT NULL,
-    user_id  BIGINT   NOT NULL,
-    read_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (alert_id, user_id),
-    KEY idx_alert_reads_user (user_id),
-    CONSTRAINT fk_alert_reads_alert FOREIGN KEY (alert_id) REFERENCES alerts (id) ON DELETE CASCADE,
-    CONSTRAINT fk_alert_reads_user FOREIGN KEY (user_id) REFERENCES users (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+-- 4.18 Stocktake_Details ----------------------------------------------
+CREATE TABLE Stocktake_Details (
+    ID           INT NOT NULL AUTO_INCREMENT,
+    Stocktake_ID INT NOT NULL,
+    Product_ID   INT NOT NULL,
+    System_Qty   INT NOT NULL,
+    Actual_Qty   INT NOT NULL,
+    Difference   INT NOT NULL,
+    CONSTRAINT PK_Stocktake_Details PRIMARY KEY (ID),
+    CONSTRAINT UQ_Stocktake_Details UNIQUE (Stocktake_ID, Product_ID),
+    CONSTRAINT FK_STD_Stocktake FOREIGN KEY (Stocktake_ID) REFERENCES Stocktakes(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_STD_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_STD_Qty CHECK (System_Qty >= 0 AND Actual_Qty >= 0)
+) ENGINE=InnoDB;
+
+-- 4.19 Stock_Adjustments ----------------------------------------------
+CREATE TABLE Stock_Adjustments (
+    ID           INT          NOT NULL AUTO_INCREMENT,
+    Stocktake_ID INT          NOT NULL,
+    Product_ID   INT          NOT NULL,
+    Adjust_Qty   INT          NOT NULL,
+    Reason       VARCHAR(255) NULL,
+    Created_At   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Stock_Adjustments PRIMARY KEY (ID),
+    CONSTRAINT FK_SA_Stocktake FOREIGN KEY (Stocktake_ID) REFERENCES Stocktakes(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_SA_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- 8. CHUYỂN KHO [v6]
+-- =====================================================================
+
+-- 4.23.3 Stock_Transfers ----------------------------------------------
+CREATE TABLE Stock_Transfers (
+    ID                INT         NOT NULL AUTO_INCREMENT,
+    Transfer_Code     VARCHAR(30) NOT NULL,
+    From_Warehouse_ID INT         NOT NULL,
+    To_Warehouse_ID   INT         NOT NULL,
+    Transfer_Date     DATETIME    NOT NULL,
+    Received_Date     DATETIME    NULL,
+    Status            VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    Note              TEXT        NULL,
+    Created_By        INT         NOT NULL,
+    Received_By       INT         NULL,
+    Created_At        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Stock_Transfers PRIMARY KEY (ID),
+    CONSTRAINT UQ_Stock_Transfers_Code UNIQUE (Transfer_Code),
+    -- ON UPDATE RESTRICT: MySQL 8 không cho cột trong CHECK nằm ở FK có ON UPDATE CASCADE.
+    CONSTRAINT FK_ST_From_Warehouse FOREIGN KEY (From_Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE RESTRICT ON DELETE RESTRICT,
+    CONSTRAINT FK_ST_To_Warehouse FOREIGN KEY (To_Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE RESTRICT ON DELETE RESTRICT,
+    CONSTRAINT FK_ST_Created_By FOREIGN KEY (Created_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_ST_Received_By FOREIGN KEY (Received_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT CK_ST_Diff_Warehouse CHECK (From_Warehouse_ID <> To_Warehouse_ID),
+    CONSTRAINT CK_ST_Status CHECK (Status IN ('DRAFT','IN_TRANSIT','RECEIVED','CANCELLED'))
+) ENGINE=InnoDB;
+
+CREATE INDEX IX_Transfer_From ON Stock_Transfers (From_Warehouse_ID, Status);
+CREATE INDEX IX_Transfer_To   ON Stock_Transfers (To_Warehouse_ID, Status);
+
+-- 4.23.4 Stock_Transfer_Details ---------------------------------------
+CREATE TABLE Stock_Transfer_Details (
+    ID                INT          NOT NULL AUTO_INCREMENT,
+    Stock_Transfer_ID INT          NOT NULL,
+    Product_ID        INT          NOT NULL,
+    Inventory_ID      INT          NULL,
+    Quantity          INT          NOT NULL,
+    Received_Qty      INT          NULL,
+    Serial            VARCHAR(255) NULL,
+    CONSTRAINT PK_Stock_Transfer_Details PRIMARY KEY (ID),
+    CONSTRAINT FK_STD2_Transfer FOREIGN KEY (Stock_Transfer_ID) REFERENCES Stock_Transfers(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_STD2_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_STD2_Inventory FOREIGN KEY (Inventory_ID) REFERENCES Inventory(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT CK_STD2_Quantity     CHECK (Quantity > 0),
+    CONSTRAINT CK_STD2_Received_Qty CHECK (Received_Qty IS NULL OR Received_Qty >= 0)
+) ENGINE=InnoDB;
+
+-- =====================================================================
+-- 9. HỖ TRỢ VẬN HÀNH
+-- =====================================================================
+
+-- 4.20 Alerts ---------------------------------------------------------
+CREATE TABLE Alerts (
+    ID           INT          NOT NULL AUTO_INCREMENT,
+    Alert_Type   VARCHAR(30)  NOT NULL,
+    Warehouse_ID INT          NULL,
+    Message      VARCHAR(255) NOT NULL,
+    Ref_Table    VARCHAR(50)  NULL,
+    Ref_ID       INT          NULL,
+    Is_Resolved  BOOLEAN      NOT NULL DEFAULT FALSE,
+    Created_At   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Alerts PRIMARY KEY (ID),
+    CONSTRAINT FK_Alerts_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT CK_Alerts_Type CHECK (Alert_Type IN
+        ('LOW_STOCK','RENT_DUE','PENDING_APPROVAL','DEBT_OVERDUE','TRANSFER_PENDING'))
+) ENGINE=InnoDB;
+
+CREATE INDEX IX_Alerts_Warehouse_Resolved ON Alerts (Warehouse_ID, Is_Resolved);
+CREATE INDEX IX_Alerts_Ref                ON Alerts (Ref_Table, Ref_ID);
+
+-- 4.21 Audit_Logs -----------------------------------------------------
+CREATE TABLE Audit_Logs (
+    ID           BIGINT      NOT NULL AUTO_INCREMENT,
+    User_ID      INT         NULL,
+    Action       VARCHAR(50) NOT NULL,
+    Target_Table VARCHAR(50) NULL,
+    Target_ID    INT         NULL,
+    Detail       JSON        NULL,
+    Created_At   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Audit_Logs PRIMARY KEY (ID),
+    CONSTRAINT FK_Audit_User FOREIGN KEY (User_ID) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE INDEX IX_Audit_User_Time ON Audit_Logs (User_ID, Created_At);
+CREATE INDEX IX_Audit_Target    ON Audit_Logs (Target_Table, Target_ID);
+
+SET FOREIGN_KEY_CHECKS = 1;

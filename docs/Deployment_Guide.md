@@ -1,6 +1,6 @@
 # Hướng Dẫn Đóng Gói Và Triển Khai Ứng Dụng (Java Spring Boot + Flutter)
 
-Mục tiêu: Hướng dẫn chi tiết từng bước để đóng gói一套 ứng dụng hoàn chỉnh gồm Backend (Java Spring Boot) và Frontend (Flutter) thành các container Docker, sau đó triển khai trên môi trường của khách hàng (On-Premise) hoặc server nội bộ.
+Mục tiêu: Hướng dẫn chi tiết từng bước để đóng gói một bộ ứng dụng hoàn chỉnh gồm Backend (Java Spring Boot) và Frontend (Flutter) thành các container Docker, sau đó triển khai trên môi trường của khách hàng (On-Premise) hoặc server nội bộ.
 
 ## 1. Yêu Cầu Tiên Quyết
 - Docker và Docker Compose đã được cài đặt trên máy chủ.
@@ -30,16 +30,17 @@ Mục tiêu: Hướng dẫn chi tiết từng bước để đóng gói一套 �
 
 ## 4. Chuẩn Bị Database (MySQL)
 - **Bước 4.1:** Tạo Script khởi tạo Schema
-  - Tạo file `init.sql` chứa các câu lệnh `CREATE DATABASE`, `CREATE TABLE` và dữ liệu mặc định (nếu có).
+  - Dùng `docs/Database_Script_v6.sql` làm `init.sql` (bản gộp ERD v6: tạo database, bảng, view và dữ liệu danh mục mặc định). Các bản cập nhật sau chạy bằng Flyway từ `database/tenant/`.
   - Đặt file này vào thư mục mà Docker volume sẽ mount vào `/docker-entrypoint-initdb.d`.
 - **Bước 4.2:** Cấu hình biến môi trường
-  - Chuẩn bị file `.env` chứa các thông tin nhạy cảm: `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`.
+  - Chuẩn bị file `.env` chứa các thông tin nhạy cảm: `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `SPRING_DATA_REDIS_HOST`, `JWT_SECRET`, `MAIL_USERNAME`, `MAIL_PASSWORD`.
 
 ## 5. Tổng Hợp Với Docker Compose
 - **Bước 5.1:** Tạo file `docker-compose.yml`
-  - Định nghĩa 3 services: `frontend`, `backend`, `db`.
+  - Định nghĩa 4 services: `frontend`, `backend`, `db`, `redis`.
   - Services `db`: Sử dụng image `mysql:8.0`, mount volume lưu trữ dữ liệu (`db_data`) và mount script `init.sql`.
-  - Services `backend`: Phụ thuộc vào `db`, sử dụng file `.env` để nạp cấu hình kết nối.
+  - Services `redis`: image `redis:7-alpine` — lưu khóa đăng nhập, rate limit, refresh token, OTP (`Database_Design_v6.md` mục 1.1); không cần volume.
+  - Services `backend`: Phụ thuộc vào `db` và `redis`, sử dụng file `.env` để nạp cấu hình kết nối.
   - Services `frontend`: Phụ thuộc vào `backend`, map port `80:80`.
 - **Bước 5.2:** Chạy hệ thống
   - Lệnh: `docker compose up -d`
@@ -67,7 +68,7 @@ Khách hàng truy cập qua domain chung (ví dụ: `app.tencongty.com`), dữ l
 Khách hàng tự host trên server của họ, dữ liệu không rời khỏi hạ tầng khách hàng.
 1. **Chuẩn bị Package:**
    - Team kỹ thuật build sẵn các file binary hoặc Docker Image ổn định (Stable Build).
-   - Đóng gói thành 1 bộ bao gồm: `docker-compose.yml`, file `.sql` khởi tạo DB, và file `.env` cấu hình.
+   - Đóng gói thành 1 bộ bao gồm: `docker-compose.yml`, file `.sql` khởi tạo DB (`Database_Script_v6.sql`), và file `.env` cấu hình.
 2. **Giao nộp:**
    - Cung cấp bộ cài đặt này cho khách hàng qua link tải an toàn.
 3. **Triển khai tại chỗ (On-site):**
@@ -89,4 +90,4 @@ Khách hàng tự host trên server của họ, dữ liệu không rời khỏi 
 ## 7. Lưu Ý Về Bản Quyền (License)
 - Theo mô hình kinh doanh, hệ thống on-premise sẽ kết nối định kỳ về `License Server` của công ty bạn.
 - Backend cần được cấu hình thêm biến môi trường `LICENSE_SERVER_URL` và `TENANT_ID`.
-- Nếu License hết hạn, hệ thống sẽ tự động chuyển sang chế độ "Read-only" theo logic nghiệp vụ đãocode trong Backend.
+- Nếu License hết hạn, hệ thống sẽ tự động chuyển sang chế độ "Read-only" theo logic nghiệp vụ đã code trong Backend.

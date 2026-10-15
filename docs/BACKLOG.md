@@ -2,13 +2,14 @@
 
 Kết quả của **GD1 — "Phân rã yêu cầu thành backlog/use case cho từng vai trò"** (Kế hoạch chi tiết, việc #2, tuần 1–2).
 
-- **Nguồn:** `Kế hoạch TigerNet.xlsx` (Tổng Quan, Kế hoạch chi tiết — 57 việc, NOTE UXUI — 14 mục, API & Testing — 112 endpoint / 11 nhóm test / 20 test case), `tigernet_erd_final (1).png` (ERD ~30 bảng), `How_To_Sale.md`, `CRUD_ANALYSIS.md`, `Deployment_Guide.md`, `database/**/*.sql` (schema chuẩn), `BIEU_MAU.md` (biểu mẫu in).
+- **Nguồn:** `Kế hoạch TigerNet.xlsx` (Tổng Quan, Kế hoạch chi tiết — 57 việc, NOTE UXUI — 14 mục, API & Testing — 112 endpoint / 11 nhóm test / 20 test case), `TIGERNET_ERD_v6_dark.png` + `Database_Design_v6.md` (ERD v6 — đa kho, **nguồn chuẩn duy nhất về dữ liệu**), `database/tenant/*.sql` (Flyway, viết theo v6), `database/control-plane/*.sql`, `How_To_Sale.md`, `Deployment_Guide.md`, `BIEU_MAU.md` (biểu mẫu in).
 - **Loại bỏ:** `Kế hoạch TigerNet.backup.xlsx` (bản cũ, NOTE UXUI còn nội dung dự án weather-map) — đã xoá khỏi repo.
 - **Ưu tiên:** **P1** = Phase 1 (bắt buộc trong 3 tháng / 13 tuần), **P2** = Phase 2 (mở rộng, không chặn nghiệm thu 27/12/2026).
 - **Mã story:** `PUB` (chưa đăng nhập) · `CHUNG` (mọi vai trò) · `TK` (Thủ kho) · `KT` (Kế toán) · `BH` (Bán hàng) · `QL` (Quản lý) · `QT` (Quản trị hệ thống) · `OPS` (Admin vận hành SaaS) · `DEV` (nền tảng kỹ thuật).
-- **Cấu trúc:** Phần 1 yêu cầu cốt lõi · Phần 2 backlog 87 story theo vai trò · Phần 3 truy vết 112 endpoint → story → test case · Phần 4 milestone M1–M6 · Phần 5 quy ước DoR/DoD & checklist tuần 1.
+- **Cấu trúc:** Phần 1 yêu cầu cốt lõi · Phần 2 backlog 90 story theo vai trò · Phần 3 truy vết 112 endpoint → story → test case · Phần 4 milestone M1–M6 · Phần 5 quy ước DoR/DoD & checklist tuần 1.
 - **Bản rà soát (tuần 1):** đối soát 112/112 endpoint có story nhận (bổ sung 20 endpoint, sửa 4 tham chiếu chéo sai), chuẩn hoá bảng tổng kết 74 P1 / 10 P2, thêm G-7 (tải lịch tuần 12–13).
-- **Bản rà soát 2 (29/09/2026):** nhân sự thực tế 1 người (§1.5); thêm gap G-8→G-12 (cho mượn, endpoint in biểu mẫu, ERD↔SQL, Control Plane P1 tối thiểu, tài liệu thiếu); bổ sung cho mượn (`rentalType=RENT|LOAN`) vào BH-07/08/09, TK-12, QL-09; thêm `RENTAL_OVERDUE` vào CHUNG-04; đổi tham chiếu bảng tra cứu cũ (`Transaction_Types`, `Payment_Statuses`, `VAT_Options`, `Return_Fee_Policy`) sang enum/bảng theo SQL; thêm 3 story in biểu mẫu `TK-16`, `KT-09`, `BH-13` → tổng **87 story (77 P1 / 10 P2)**.
+- **Bản rà soát 2 (29/09/2026):** nhân sự thực tế 1 người (§1.5); thêm gap G-8→G-12 (cho mượn, endpoint in biểu mẫu, ERD↔SQL, Control Plane P1 tối thiểu, tài liệu thiếu); bổ sung cho mượn (`rentalType=RENT|LOAN`, nay là `LEND`) vào BH-07/08/09, TK-12, QL-09; thêm `RENTAL_OVERDUE` vào CHUNG-04; đổi tham chiếu bảng tra cứu cũ (`Transaction_Types`, `Payment_Statuses`, `VAT_Options`, `Return_Fee_Policy`) sang enum/bảng theo SQL; thêm 3 story in biểu mẫu `TK-16`, `KT-09`, `BH-13` → tổng 87 story (77 P1 / 10 P2).
+- **Bản rà soát 3 (06/10/2026) — chuyển sang ERD v6:** ERD v6 + `Database_Design_v6.md` thay cho schema SQL cũ (đảo lại G-10), `database/tenant/` viết lại theo v6; loại phiếu mượn đổi `LOAN` → **`LEND`**; mã vai trò Thủ kho là `WAREHOUSE`; khóa đăng nhập giữ 15 phút (sửa thiết kế v6 cho khớp TC-AUTH-01); Đa kho: thêm `CHUNG-07`, `QL-12`, `QT-07` (P1) và `TK-17` chuyển kho (P2). Giữ đúng ERD (không thêm bảng thanh toán): `KT-03` chỉ cập nhật đã trả/còn lại, phiếu thu/chi tách sang `KT-10` (P2); điều chỉnh tồn luôn sinh từ kiểm kê nên gộp `TK-14` vào `TK-13`, `QL-04` vào `QL-03`. Thêm gap G-13→G-15. Tổng **90 story (78 P1 / 12 P2)**.
 
 ---
 
@@ -20,7 +21,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 1. **Cách ly dữ liệu tuyệt đối giữa các tenant** — giá nhập, NCC, công nợ là dữ liệu nhạy cảm → `Database-per-tenant` + kiểm thử TC-TENANT-01 (0 rò rỉ chéo).
 2. **Vận hành tập trung** — provisioning, migration hàng loạt, backup, phát hành version làm 1 lần cho tất cả tenant (Control Plane).
-3. **Đủ nghiệp vụ một kho hàng** — danh mục → nhập → xuất/bán → cho thuê–mượn–trả → kiểm kê → báo cáo/cảnh báo.
+3. **Đủ nghiệp vụ kho hàng, nhiều kho** — danh mục → nhập → xuất/bán → cho thuê–mượn–trả → kiểm kê → báo cáo/cảnh báo; mỗi phiếu gắn đúng một kho, tồn theo dõi theo từng kho (ERD v6).
 4. **Phân trách rõ theo 5 vai trò, có đối soát** — mỗi hành động ghi `Audit_Logs` ("ai – làm gì – khi nào").
 
 ## 1.2 Phạm vi Phase 1 / Phase 2
@@ -28,25 +29,25 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | Hạng mục            | Phase 1 (P1)                                                                                                    | Phase 2 (P2)                                                  |
 | ------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | Xác thực            | JWT + refresh, bcrypt, OTP quên mật khẩu, khóa 15’ sau 5 lần sai                                                | —                                                             |
-| Danh mục            | SP, nhóm SP, NCC, KH, người nhận, tồn kho, serial                                                               | Ảnh SP, tài liệu NCC, TK ngân hàng NCC                        |
+| Danh mục            | SP, nhóm SP, NCC, KH, người nhận, **kho + phân công nhân viên theo kho**, tồn kho theo kho, serial              | Ảnh SP, tài liệu NCC, TK ngân hàng NCC                        |
 | Nhập kho            | Tạo/sửa/xác nhận/huỷ/in phiếu, cộng tồn, audit                                                                  | —                                                             |
-| Xuất & bán          | Kiểm tra tồn, phiếu xuất 3 trạng thái, VAT/thanh toán/công nợ                                                   | —                                                             |
-| Cho thuê & cho mượn | Phiếu thuê/mượn (`RENT`/`LOAN`), cảnh báo trước 7 ngày, trả + phạt quá hạn ≥10 ngày (thuê và mượn)              | Trả hàng bán + `return_fee_policies`                          |
-| Kiểm kê             | Phiếu kiểm kê → chênh lệch → phiếu điều chỉnh → duyệt                                                           | —                                                             |
-| Biểu mẫu in         | 9 biểu mẫu chứng từ PDF/Excel (xem `BIEU_MAU.md`)                                                               | Phiếu trả hàng bán/đổi hàng, phiếu bảo hành                   |
+| Xuất & bán          | Kiểm tra tồn tại kho xuất, phiếu xuất 3 trạng thái, VAT, ghi nhận đã trả/còn lại                                | Phiếu thu/chi, lịch sử thanh toán (G-13)                      |
+| Cho thuê & cho mượn | Phiếu thuê/mượn (`RENT`/`LEND`), cảnh báo trước 7 ngày, trả + phạt quá hạn ≥10 ngày (thuê và mượn)              | Trả hàng bán + `Return_Fee_Policy`                            |
+| Kiểm kê & kho       | Phiếu kiểm kê theo kho → chênh lệch → Quản lý chốt → tự sinh phiếu điều chỉnh                                   | Chuyển kho (`Stock_Transfers`)                                |
+| Biểu mẫu in         | 8 biểu mẫu chứng từ PDF/Excel (xem `BIEU_MAU.md`)                                                               | Phiếu thu/chi, phiếu trả/đổi hàng bán, bảo hành, chuyển kho   |
 | Báo cáo             | Dashboard, tồn / nhập-xuất / cho thuê / công nợ, Excel/PDF                                                      | Xuất XML/Word                                                 |
-| Hệ thống            | Alerts, VAT/Payment/Transaction/Rental-rules, health                                                            | Branding tenant, license, backup API, CRUD mẫu VAT            |
+| Hệ thống            | Alerts, VAT/Payment statuses/Rental-rules (đọc), health                                                         | Branding tenant, license, backup API, CRUD mẫu VAT            |
 | Kiến trúc           | SaaS multi-tenant, Control Plane tối thiểu (`tenants` + `tenant_databases` + routing datasource), Flyway, CI/CD | `tenant_branding`, `licenses`, License Server, gói On-Premise |
 
 ## 1.3 Định nghĩa 5 vai trò (RBAC)
 
 | Vai trò               | Trách nhiệm chính                | Quyền tinh hoa                                                                           |
 | --------------------- | -------------------------------- | ---------------------------------------------------------------------------------------- |
-| **Thủ kho**           | Hàng vào/ra kho, serial, kiểm kê | Tạo & xác nhận phiếu nhập, hoàn tất xuất, nhập số liệu kiểm kê, lập phiếu điều chỉnh     |
-| **Kế toán**           | Tiền, công nợ, đối soát          | Ghi nhận thanh toán/công nợ, xem & in phiếu, báo cáo nhập-xuất/công nợ, TK ngân hàng NCC |
-| **Bán hàng**          | Khách hàng, chào bán, cho thuê   | CRUD khách/người nhận, tạo phiếu xuất & phiếu thuê, theo dõi hạn thuê                    |
-| **Quản lý**           | Duyệt & kiểm soát                | Duyệt phiếu xuất/kiểm kê/điều chỉnh, toàn bộ báo cáo, giám sát người dùng & audit log    |
-| **Quản trị hệ thống** | Quản trị trong tenant            | CRUD người dùng & gán vai trò, mẫu VAT, cấu hình hệ thống                                |
+| **Thủ kho**           | Hàng vào/ra kho, serial, kiểm kê | Tạo & xác nhận phiếu nhập, hoàn tất xuất, nhập số liệu kiểm kê (cả kiểm kê đột xuất để điều chỉnh) — chỉ trong kho được phân công |
+| **Kế toán**           | Tiền, công nợ, đối soát          | Ghi nhận đã thu/còn nợ trên phiếu xuất, xem & in phiếu, báo cáo nhập-xuất/công nợ mọi kho, TK ngân hàng NCC (P2) |
+| **Bán hàng**          | Khách hàng, chào bán, cho thuê   | CRUD khách/người nhận, tạo phiếu xuất & phiếu thuê/mượn, theo dõi hạn thuê — chỉ trong kho được phân công |
+| **Quản lý**           | Duyệt & kiểm soát                | Duyệt phiếu nhập/xuất, chốt kiểm kê (= duyệt điều chỉnh), quản lý danh mục kho, toàn bộ báo cáo mọi kho, giám sát người dùng & audit log |
+| **Quản trị hệ thống** | Quản trị trong tenant            | CRUD người dùng, gán vai trò & phân công kho, danh mục kho, mẫu VAT, cấu hình hệ thống |
 
 **Admin vận hành (tách riêng, không thuộc 5 vai trò):** người của công ty vận hành SaaS — quản lý tenant, secret kết nối DB, backup/restore, migration hàng loạt, CI/CD, License Server. Một số chức năng (license, backup) hiển thị cho `Quản trị hệ thống` trong giao diện tenant, nhưng _quyền sở hữu vận hành_ thuộc nhóm `OPS`.
 
@@ -65,7 +66,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 ## 1.5 Ràng buộc & giả định
 
 - **Nhân sự:** **1 người** phụ trách toàn bộ DB, FE, BE, Testing, Deploy; 13 tuần (28/09/2026 → 27/12/2026). _(Bản trước ghi 2 người — không đúng thực tế.)_ Hệ quả: các việc ghi "Cả 2" trong kế hoạch chạy tuần tự, không song song; rủi ro tải xem G-7.
-- **Stack:** Flutter Web (1 build duy nhất, white-labeling theo subdomain), Spring Boot (context-path `/identity` cho auth per `CRUD_ANALYSIS.md`), MySQL 8 database-per-tenant.
+- **Stack:** Flutter Web (1 build duy nhất, white-labeling theo subdomain), Spring Boot (nhóm API xác thực/người dùng đặt dưới tiền tố `/identity`), MySQL 8 database-per-tenant theo ERD v6, Redis (khóa đăng nhập, rate limit, refresh token, OTP).
 - **Giả định:** thứ tự GD1→GD12 trong kế hoạch giữ nguyên; backlog dưới đây bám 112 endpoint của sheet _API & Testing_.
 
 ## 1.6 Gap & rủi ro phát hiện khi review (cần chốt ở tuần 1)
@@ -74,16 +75,19 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G-1  | NOTE UXUI #11 ghi "trang **đăng ký**" nhưng 112 endpoint **không có** `POST /auth/register` — chỉ có `POST /users` (Quản trị)                                                                                                                                                                                                                                                      | Chốt: hoặc bỏ self-register (khuyến nghị, đúng mô hình B2B), hoặc bổ sung endpoint ở P1 → story `PUB-04`                                                                                                                                                                              |
 | G-2  | `GET /config/rental-rules` (xem quy tắc 7 ngày / 10 ngày phạt) **không có API sửa**                                                                                                                                                                                                                                                                                                | Giữ giá trị hard-code P1; thêm `PUT` ở P2 → `QL-11`                                                                                                                                                                                                                                   |
-| G-3  | GD7 có việc "trả bảo hành & hàng hư hỏng" (`WARRANTY`, `OTHER`) nhưng không có endpoint riêng                                                                                                                                                                                                                                                                                      | Dùng `POST /return-receipts` + `stock_movements.movement_type` (`DAMAGE`, `REPAIRED`) → gộp vào `TK-12`                                                                                                                                                                               |
+| G-3  | GD7 có việc "trả bảo hành & hàng hư hỏng" nhưng không có endpoint riêng | Dùng `POST /return-receipts`; hàng hư/mất chuyển `Inventory.Status = DAMAGED`, tình trạng ghi `Return_Receipt_Details.Condition_Note` (ERD v6 không có bảng biến động tồn) → gộp vào `TK-12` |
 | G-4  | NOTE UXUI #9 (trang admin: thống kê hiển thị & lượt truy cập theo tháng) chưa có endpoint                                                                                                                                                                                                                                                                                          | Đưa sang P2 → `QT-06`                                                                                                                                                                                                                                                                 |
 | G-5  | 5/14 mục NOTE UXUI chưa fixed (#8 alert pop-up, #9, #12 giới hạn menu, #13 filter/sort, #14 toast)                                                                                                                                                                                                                                                                                 | Dành story `PUB-01`, `CHUNG-04`, `CHUNG-06`, `QT-06`                                                                                                                                                                                                                                  |
 | G-6  | File backup chứa nội dung dự án khác (weather-map)                                                                                                                                                                                                                                                                                                                                 | **Đã xử lý:** xoá khỏi repo                                                                                                                                                                                                                                                           |
 | G-7  | Tuần 12–13 dồn cùng lúc GD10 (tích hợp/perf/security) + GD11 (backup/CI-CD/UAT env) + GD12 (UAT/docs/nghiệm thu) với **1 người**                                                                                                                                                                                                                                                   | Kéo perf + security sang tuần 11–12, chốt UAT env ở tuần 12; giữ tuần 13 cho UAT, fix lỗi và bàn giao; nếu trễ, cắt UI polish (DEV-10) và OPS-04 nâng cao trước, giữ nguyên luồng nghiệp vụ                                                                                           |
-| G-8  | **Cho mượn** (việc #33; SQL `rental_receipts.rental_type = 'LOAN'`) không có story/endpoint riêng — backlog chỉ nói "thuê"                                                                                                                                                                                                                                                         | Dùng chung `/rental-receipts` với `rentalType=RENT\|LOAN`, lọc `?type=LOAN`; bổ sung AC vào BH-07/08/09, TK-12, QL-09. **Đã chốt:** LOAN không tiền thuê/cọc, nhưng **quá hạn tính phạt như RENT** (≥10 ngày, số ngày quá hạn × giá thuê/ngày); bồi thường hư hỏng/mất áp dụng cả hai |
+| G-8  | **Cho mượn** (việc #33; ERD v6 `Rental_Receipts.Rental_Type = 'LEND'`) không có story/endpoint riêng — backlog chỉ nói "thuê" | Dùng chung `/rental-receipts` với `rentalType=RENT\|LEND`, lọc `?type=LEND`; bổ sung AC vào BH-07/08/09, TK-12, QL-09. **Đã chốt:** LEND không tiền thuê/cọc, nhưng **quá hạn tính phạt như RENT** (≥10 ngày, số ngày quá hạn × giá thuê/ngày); hư hỏng/mất ghi nhận trên phiếu trả cho cả hai (không có cột tiền bồi thường — G-14) |
 | G-9  | 112 endpoint chỉ có API in cho phiếu nhập & phiếu xuất; 7 biểu mẫu P1 khác chưa có endpoint                                                                                                                                                                                                                                                                                        | Thêm endpoint in (xem 3.1.1) + story `TK-16`, `KT-09`, `BH-13`; danh sách biểu mẫu ở `BIEU_MAU.md`                                                                                                                                                                                    |
-| G-10 | ERD PNG lệch schema SQL: PNG dùng `Parties/Customers/Suppliers`, `Inventory`, `Stock_Summary`, `Return_Receipts`, `Transaction_Types`, `Payment_Statuses`, `VAT_Options`; SQL dùng `partners`, `product_serials` + `stock_balances` + `stock_movements`, `rental_returns`, enum VARCHAR+CHECK, `vat_rates`, thêm `warehouses`, `payments`, `document_sequences`, `system_settings` | **SQL là nguồn chuẩn**; backlog đã đổi tham chiếu theo SQL; cập nhật ERD sau                                                                                                                                                                                                          |
+| G-10 | Ảnh ERD cũ (`tigernet_erd_final (1).png`), SQL cũ (`partners`, `stock_balances`, `payments`…) và thiết kế v6 lệch nhau | **Đã chốt lại 06/10/2026: ERD v6 (`TIGERNET_ERD_v6_dark.png`, `Database_Design_v6.md`) là nguồn chuẩn.** `database/tenant/` viết lại theo v6 (V1 bảng, V2 danh mục, V3 view); backlog đổi tham chiếu sang tên bảng v6; ERD cũ, SQL cũ và `Database_Design_v5.md` không dùng nữa |
 | G-11 | `V1__init_control_plane.sql` ghi "Phase 2" nhưng OPS-01…03 là P1                                                                                                                                                                                                                                                                                                                   | **Đã chốt:** P1 tối thiểu = `tenants` + `tenant_databases` + routing datasource; `tenant_branding`, `licenses` sang P2                                                                                                                                                                |
-| G-12 | Tài liệu được tham chiếu nhưng không có trong repo: `CRUD_ANALYSIS.md`, `Database_Design.docx`, SRS                                                                                                                                                                                                                                                                                | Bổ sung vào repo hoặc bỏ tham chiếu                                                                                                                                                                                                                                                   |
+| G-12 | Tài liệu được tham chiếu nhưng không có trong repo: `Database_Design.docx`, SRS | Bổ sung SRS vào repo hoặc chấp nhận chỉ trích dẫn (§) trong `Database_Design_v6.md` |
+| G-13 | ERD v6 không có bảng thanh toán: phiếu xuất chỉ lưu tổng `Paid`/`Remain`, phiếu nhập không có cột đã trả | **Đã chốt — giữ đúng ERD:** `KT-03` cập nhật `Paid`/`Remain`/`Payment_Status_ID`, từng lần thu ghi `Audit_Logs` (`PAYMENT`); phiếu thu/chi + lịch sử thanh toán + công nợ NCC → `KT-10` (P2, cần bổ sung bảng vào ERD khi làm); biên bản đối chiếu (`KT-09`) chỉ đối chiếu phải thu theo phiếu |
+| G-14 | ERD v6 không có: bước duyệt phiếu thuê, tiền bồi thường/hoàn cọc trên phiếu trả, trạng thái duyệt phiếu điều chỉnh, trạng thái hủy phiếu xuất/nhập, bảng cấu hình, bảng đã-đọc cảnh báo | **Đã chốt** theo `Database_Design_v6.md` mục "Phạm vi triển khai": phiếu thuê có hiệu lực khi tạo; bồi thường ghi chú; điều chỉnh qua chốt kiểm kê (gộp `TK-14`→`TK-13`, `QL-04`→`QL-03`, bỏ 2 endpoint); hủy phiếu = xóa + bản chụp vào audit; quy tắc thuê/khóa đăng nhập ở `application.yaml`; cảnh báo dùng cờ chung `Is_Resolved` |
+| G-15 | ERD v6 có đa kho (`Warehouses`, `User_Warehouses`, `Stock_Transfers`) nhưng backlog chưa có story | **Đã chốt:** kho + phân công + lọc theo kho là P1 (`CHUNG-07`, `QL-12`, `QT-07`); chuyển kho P2 (`TK-17`); mọi API danh sách/báo cáo nhận `warehouseId`; endpoint kho nằm ngoài 112 → thêm vào sheet _API & Testing_ |
 
 > **Đã xử lý trong bản rà soát này:** 20 endpoint list/detail chưa có story nhận và 4 tham chiếu chéo sai (`KT-08`, `BH-02` → `QL-10` phải là `QL-07`; `BH-12` → `QL-07` phải là `QL-05`; `G-2` → `QL-09` phải là `QL-11`) — xem 3.1.1.
 
@@ -104,7 +108,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 - AC:
   1. Chưa đăng nhập: chỉ thấy trang chủ công khai, trang đăng nhập, quên mật khẩu.
   2. Menu, bảng dữ liệu, dashboard bị ẩn/redirect về `/login` khi truy cập URL trực tiếp.
-  3. Sau đăng nhập: menu hiển thị đúng theo vai trò trả về từ `/identity/me`.
+  3. Sau đăng nhập: menu hiển thị đúng theo vai trò và danh sách kho trả về từ `/identity/me`.
 
 **PUB-02 — Đăng nhập & phiên token**
 
@@ -112,8 +116,8 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 - _Với tư cách người dùng, tôi muốn đăng nhập để truy cập hệ thống theo vai trò của mình._
 - AC:
   1. Đăng nhập đúng trả access + refresh token; sai mật khẩu trả 401.
-  2. Sai mật khẩu 5 lần liên tiếp → khóa tạm 15 phút, trả 429/423 (TC-AUTH-01).
-  3. Refresh token hết hạn → 401; logout thu hồi refresh token.
+  2. Sai mật khẩu 5 lần liên tiếp → khóa tạm 15 phút, trả 429/423 (TC-AUTH-01); đếm ở Redis `login_fail:{username}`.
+  3. Refresh token lưu Redis `refresh:{user_id}:{token_id}`; hết hạn → 401; logout xóa key (thu hồi).
   4. Mật khẩu lưu dạng bcrypt, không bao giờ trả plaintext.
 
 **PUB-03 — Quên & đặt lại mật khẩu bằng OTP email**
@@ -121,7 +125,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 - P1 · GD3 (tuần 5–6) · BE · `POST /identity/auth/forgot-password`, `POST /identity/auth/reset-password`
 - AC:
   1. Nhập email → gửi OTP; không tiết lộ email có tồn tại hay không (response thống nhất).
-  2. OTP hiệu lực 10 phút, sai/hết hạn → 400 (TC-AUTH-02).
+  2. OTP lưu Redis `otp:{email}` (dạng hash), hiệu lực 10 phút, sai/hết hạn → 400 (TC-AUTH-02).
   3. Đặt lại mật khẩu thành công → hash bcrypt, thu hồi toàn bộ session cũ.
 
 **PUB-04 — Đăng ký tài khoản (CẦN CHỐT — G-1)**
@@ -144,7 +148,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **CHUNG-01 — Hồ sơ & phân quyền hiện hành**
 
 - P1 · GD3 · `GET /identity/me`, `GET /identity/roles`
-- AC: trả thông tin user + vai trò + RBAC matrix; FE dùng để render menu (ghép `PUB-01`).
+- AC: trả thông tin user + vai trò + RBAC matrix + danh sách kho được phân công và kho mặc định (`User_Warehouses`); FE dùng để render menu và bộ chọn kho (ghép `PUB-01`, `CHUNG-07`).
 
 **CHUNG-02 — Đổi mật khẩu**
 
@@ -154,12 +158,12 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **CHUNG-03 — Dashboard tổng quan**
 
 - P1 · GD9 (tuần 11–12) · `GET /dashboard/summary`, `GET /dashboard/charts`
-- AC: hiển thị tồn kho, số phiếu chờ duyệt, doanh thu ngày; biểu đồ nhập/xuất theo kỳ; biểu đồ đặt đầu trang, co giãn theo màn hình (NOTE UXUI #5).
+- AC: hiển thị tồn kho theo kho đang chọn hoặc toàn công ty (`View_Stock_By_Warehouse`, `View_Stock_Company_Total`), số phiếu chờ duyệt, doanh thu ngày; biểu đồ nhập/xuất theo kỳ; biểu đồ đặt đầu trang, co giãn theo màn hình (NOTE UXUI #5).
 
 **CHUNG-04 — Trung tâm cảnh báo**
 
 - P1 · GD9 · `GET /alerts`, `GET /alerts/unread-count`, `PUT /alerts/{id}/read`
-- AC: 4 loại cảnh báo LOW*STOCK, RENTAL_EXPIRING, RENTAL_OVERDUE, PENDING_APPROVAL (khớp `alerts.alert_type`; RENTAL*\* áp dụng cả thuê lẫn mượn); badge đếm chưa đọc trên Navbar, icon nổi bật; popup mỗi lần vào trang (NOTE UXUI #8); bấm đã đọc → badge giảm.
+- AC: loại cảnh báo theo `Alerts.Alert_Type`: `LOW_STOCK` (theo kho), `RENT_DUE` (sắp đến hạn trước 7 ngày và quá hạn; cả RENT lẫn LEND), `PENDING_APPROVAL`, `DEBT_OVERDUE`; `TRANSFER_PENDING` ở P2. Chỉ thấy cảnh báo của kho được phân công (`Alerts.Warehouse_ID`; NULL = toàn công ty). Badge đếm cảnh báo chưa xử lý (`Is_Resolved = FALSE`) trên Navbar, icon nổi bật; popup mỗi lần vào trang (NOTE UXUI #8); bấm đã đọc → `Is_Resolved = TRUE` (cờ chung cho mọi người — G-14), badge giảm.
 
 **CHUNG-05 — Xuất báo cáo ra file**
 
@@ -170,6 +174,16 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 - P1 · GD2/GD10 · FE · (NOTE UXUI #1, #13, #14)
 - AC: bảng cỡ chữ lớn, kẻ dòng rõ, phân trang 20–50 dòng; filter/sort theo cột, header sticky khi cuộn; toast lỗi/thành công tiếng Việt; font Geist thống nhất, tiêu đề in hoa (NOTE UXUI #2, #10).
+
+**CHUNG-07 — Chọn kho làm việc & phạm vi dữ liệu theo kho (G-15)**
+
+- P1 · GD3 (tuần 5–6) · FE + BE · `GET /identity/me` (trả danh sách kho), tham số `warehouseId` trên các API danh sách/báo cáo
+- _Với tư cách nhân viên kho, tôi muốn chọn kho đang làm việc để chỉ thấy và thao tác hàng, phiếu của kho đó._
+- AC:
+  1. AppShell có bộ chọn kho, mặc định kho `Is_Default`; Quản lý, Quản trị, Kế toán có thêm lựa chọn "Tất cả kho".
+  2. Mọi màn hình danh sách, dashboard, báo cáo, cảnh báo lọc theo kho đang chọn.
+  3. Backend chặn ở tầng service (`WarehouseScopeGuard`): Thủ kho/Bán hàng đọc/ghi kho ngoài phân công → 403, kể cả khi gọi API trực tiếp (TC-RBAC-01).
+  4. Mỗi phiếu gắn đúng một kho; đơn cần hàng ở nhiều kho thì tách phiếu (hoặc chuyển kho trước — P2).
 
 ---
 
@@ -183,25 +197,25 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 - _Với tư cách Thủ kho, tôi muốn thêm và sửa sản phẩm kèm giá nhập/ra, mức tồn tối thiểu để nhập hàng đúng giá._
 - AC:
   1. Thiếu tên / giá âm → 400, không ghi DB (TC-PROD-01).
-  2. Sản phẩm serial bật cờ `is_serializable`; không serial thì bỏ qua bước nhập serial.
-  3. `GET .../serials` trả trạng thái từng serial: tồn / đang thuê / đã xuất.
+  2. Sản phẩm serial bật cờ `Is_Serialized`; không serial thì bỏ qua bước nhập serial.
+  3. `GET .../serials` trả trạng thái từng serial (`Inventory.Status`: IN_STOCK / RENTED / LENT / SOLD / DAMAGED) kèm kho đang giữ.
   4. Mọi thay đổi ghi `Audit_Logs`.
 
 **TK-02 — Xem tồn kho & cảnh báo dưới ngưỡng**
 
 - P1 · GD4 (tuần 7) · `GET /inventory`, `GET /inventory/{id}`, `GET /stock-summary`, `GET /inventory/low-stock`
-- AC: lọc theo sản phẩm, serial, trạng thái, ngày nhập/ra; dòng dưới `min_stock_level` hiện cờ đỏ và sinh alert LOW_STOCK (ghép `CHUNG-04`).
+- AC: lọc theo kho (mặc định kho đang chọn), sản phẩm, serial, trạng thái, ngày nhập/ra; `GET /stock-summary` trả `Stock_Summary` theo (SP, kho) và tổng toàn công ty; dòng dưới ngưỡng (`Stock_Summary.Min_Stock_Level`, NULL thì lấy `Products.Min_Stock_Level`) hiện cờ đỏ và sinh alert LOW_STOCK của kho đó (ghép `CHUNG-04`).
 - _Dùng chung: Kế toán (xem), Quản lý (xem)._
 
 **TK-03 — CRUD nhà cung cấp**
 
 - P1 · GD4 (tuần 7–8) · `GET /suppliers`, `POST /suppliers`, `GET /suppliers/{id}`, `PUT /suppliers/{id}`
-- AC: search/phân trang; validate SĐT/email; xem lịch sử nhập theo NCC (module NCC).
+- AC: NCC = `Parties` + hồ sơ vai trò `Suppliers` (một đối tác có thể vừa là NCC vừa là KH); search/phân trang; validate SĐT/email, MST không trùng; xem lịch sử nhập theo NCC (`Import_Receipts.Source_Party_ID`).
 
 **TK-04 — Tài liệu NCC & ảnh sản phẩm**
 
 - P2 · `GET /suppliers/{id}/documents`, `POST /suppliers/{id}/documents`, `POST /products/{id}/image` (xoá tài liệu thuộc `QL-07`)
-- AC: upload multipart, lưu `file_path`/`image_path`; giới hạn dung lượng & định dạng; chỉ Thủ kho/Quản lý.
+- AC: upload multipart lên object storage, DB lưu `Supplier_Documents.File_Path` / `Products.Image_Path`; giới hạn dung lượng & định dạng; chỉ Thủ kho/Quản lý.
 
 ### Epic TK-B — Nhập kho (GD5)
 
@@ -209,25 +223,25 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 - P1 · GD5 (tuần 8–9) · `POST /import-receipts`
 - AC:
-  1. Chọn NCC, thêm nhiều dòng SP: số lượng, giá, serial (bắt buộc với SP serial).
-  2. Tự tính tổng giá trị phiếu.
-  3. Thiếu NCC/SP, giá âm → 400, không ghi DB.
-  4. Phiếu sinh ra ở trạng thái _Chưa xác nhận_; ghi audit người tạo.
+  1. Chọn kho nhận (kho được phân công) và nguồn nhập `Source_Party_ID` (NCC, khách bán lẻ có CCCD hoặc khách đổi/trả); thêm nhiều dòng SP: số lượng, giá, serial (bắt buộc với SP serial), mã vận đơn.
+  2. Tự tính `Line_Total` và `Total_Amount`.
+  3. Thiếu kho/nguồn nhập/SP, giá âm → 400, không ghi DB.
+  4. Phiếu sinh ra ở trạng thái `DRAFT`; "Lưu & gửi duyệt" chuyển `PENDING`; số phiếu `PN-{Warehouse_Code}-{yyyy}-{0001}`; ghi audit người tạo.
 
 **TK-06 — Sửa phiếu nhập chưa xác nhận**
 
 - P1 · GD5 (tuần 9) · `PUT /import-receipts/{id}`
-- AC: chỉ sửa được phiếu chưa xác nhận; phiếu đã xác nhận → 409 (TC-IMP-02); nếu cho sửa thì tồn kho được ánh xạ ngược chính xác.
+- AC: chỉ sửa được phiếu `DRAFT`/`PENDING`; phiếu `CONFIRMED` → 409 (TC-IMP-02); nếu cho sửa thì tồn kho được ánh xạ ngược chính xác.
 
 **TK-07 — Xác nhận phiếu nhập → cộng tồn**
 
 - P1 · GD5 (tuần 8–9) · `PUT /import-receipts/{id}/confirm`
-- AC: tồn tăng đúng số lượng, serial chuyển sang _tồn_ (TC-IMP-01); sinh cảnh báo LOW_STOCK nếu vượt ngưỡng; ghi audit.
+- AC: `DRAFT`/`PENDING` → `CONFIRMED`; sinh dòng `Inventory` tại kho của phiếu (serial: mỗi serial một dòng, trùng serial toàn hệ thống → 409; không serial: một dòng/lô với `Quantity_On_Hand`), cộng `Stock_Summary` (SP, kho) trong cùng transaction (TC-IMP-01); tồn vượt ngưỡng thì đóng cảnh báo LOW_STOCK đang mở; ghi audit.
 
 **TK-08 — Huỷ phiếu nhập chưa xác nhận**
 
 - P1 · GD5 · `DELETE /import-receipts/{id}`
-- AC: chỉ huỷ được phiếu chưa xác nhận; huỷ không ảnh hưởng tồn; ghi audit.
+- AC: chỉ huỷ được phiếu `DRAFT`/`PENDING`; huỷ = xoá phiếu, bản chụp lưu `Audit_Logs` (G-14); không ảnh hưởng tồn.
 
 **TK-09 — In/xuất phiếu nhập**
 
@@ -239,12 +253,12 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **TK-10 — Kiểm tra tồn realtime trước khi xuất**
 
 - P1 · GD6 (tuần 9–10) · `GET /stock-check`
-- AC: trả tồn khả dụng theo productIds/serials; vượt tồn → 409, không trừ tồn (TC-EXP-01). _Dùng chung: Bán hàng._
+- AC: trả tồn khả dụng **tại kho chỉ định** (`warehouseId` bắt buộc) theo productIds/serials — chỉ tính `Inventory.Status = IN_STOCK` của kho đó; vượt tồn → 409, không trừ tồn (TC-EXP-01). _Dùng chung: Bán hàng._
 
 **TK-11 — Hoàn tất xuất kho (trừ tồn thực tế)**
 
 - P1 · GD6 (tuần 10) · `PUT /export-receipts/{id}/complete`
-- AC: chỉ từ trạng thái _Đã xác nhận_ → _Đã xuất_; trừ tồn + serial; sai thứ tự trạng thái → 409 (TC-EXP-03); ghi audit. _Dùng chung: Quản lý._
+- AC: chỉ từ `CONFIRMED` → `EXPORTED`; serial chuyển `SOLD`, hàng không serial trừ `Quantity_On_Hand`, cập nhật `Stock_Summary` của kho xuất; sai thứ tự trạng thái → 409 (TC-EXP-03); ghi audit. _Dùng chung: Quản lý._
 
 ### Epic TK-D — Cho thuê & trả hàng
 
@@ -252,39 +266,48 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 - P1 · GD7 (tuần 11–12) · `PUT /rental-receipts/{id}/return`, `POST /return-receipts`, `GET /return-receipts`, `GET /return-receipts/{id}`
 - AC:
-  1. Sinh `rental_returns` + `rental_return_lines` (serial, `item_condition` GOOD/DAMAGED/LOST, `condition_note`, `damage_fee`); cho phép trả từng phần — phiếu chuyển `PARTIALLY_RETURNED` / `RETURNED`; serial chuyển trạng thái theo kết quả trả (`IN_STOCK` / `DAMAGED` / `LOST`).
-  2. Phiếu **thuê/mượn** (`RENT`/`LOAN`) quá hạn ≥ `rental.penalty_min_overdue_days` (10) ngày: phạt = số ngày quá hạn × tiền thuê/ngày (TC-RENT-02) — **cả hai loại đều tính phạt** (G-8 đã chốt).
-  3. Phiếu **mượn** (`LOAN`) không có tiền thuê/cọc: vẫn tính phạt quá hạn theo mục 2 (cơ sở = `price_per_day` nhập khi tạo phiếu — BH-07); bồi thường hư hỏng/mất (`damage_amount`) tính riêng, áp dụng cả `RENT` và `LOAN`.
-  4. Hoàn cọc ghi `deposit_refund_amount`; hàng hư hỏng/bảo hành ghi `stock_movements.movement_type = DAMAGE | REPAIRED` (đóng G-3).
-  5. Ghi audit; tồn khả dụng cập nhật ngay. _Dùng chung: Bán hàng._
+  1. Lập phiếu trả (`Return_Receipts` + `Return_Receipt_Details`) gắn phiếu thuê/mượn gốc; kho nhận lại có thể khác kho cho thuê (`Return_Receipts.Warehouse_ID`). Cho phép trả từng phần: dòng thuê được trả đánh dấu `Is_Returned`; trả đủ mọi dòng → phiếu gốc `RETURNED` + `Return_Date`.
+  2. Hàng trả về tốt → `IN_STOCK` tại kho nhận; hư/mất → `DAMAGED` (ghi `Condition_Note`, mất ghi thêm `Inventory.Note`); hàng bảo hành/hư hỏng cũng đi luồng này (đóng G-3).
+  3. Phiếu **thuê/mượn** (`RENT`/`LEND`) quá hạn ≥ 10 ngày (`tigernet.rental.penalty-min-overdue-days`): tính `Days_Overdue`, phạt = số ngày quá hạn × `Rental_Price_Per_Day` (TC-RENT-02) — **cả hai loại đều tính phạt** (G-8).
+  4. Bồi thường hư hỏng/mất và hoàn cọc không có cột tiền trong ERD v6 → ghi vào `Return_Receipts.Note` (G-14).
+  5. Ghi audit; `Stock_Summary` cập nhật ngay (kho cho thuê giảm `Qty_Rented`, kho nhận tăng `Qty_On_Hand`/`Qty_Damaged`). _Dùng chung: Bán hàng._
 
 ### Epic TK-E — Kiểm kê & điều chỉnh (GD8)
 
 **TK-13 — Lập phiếu kiểm kê & nhập số liệu thực tế**
 
 - P1 · GD8 (tuần 11) · `POST /stocktakes`, `GET /stocktakes`, `GET /stocktakes/{id}`, `PUT /stocktakes/{id}/items`
-- AC: phiếu kiểm kê liệt kê toàn bộ SP; nhập SL thực tế → hệ thống tự tính `difference`; SL âm/lớn bất thường → chặn, yêu cầu nhập lại (TC-STK-02).
+- AC: mỗi phiếu kiểm kê thuộc đúng một kho; mặc định liệt kê toàn bộ SP của kho, hoặc chỉ các SP được chọn (**kiểm kê đột xuất** — thay cho phiếu điều chỉnh thủ công); `System_Qty` lấy theo tồn của kho; nhập SL thực tế → tự tính `Difference`; ghi lý do chênh lệch từng SP; SL âm/lớn bất thường → chặn, yêu cầu nhập lại (TC-STK-02).
 
-**TK-14 — Tạo phiếu điều chỉnh thủ công**
+**TK-14 — ~~Tạo phiếu điều chỉnh thủ công~~ (đã gộp vào TK-13 — G-14)**
 
-- P1 · GD8 · `POST /stock-adjustments`
-- AC: ghi lý do điều chỉnh (`Reason`); chờ Quản lý duyệt (→ `QL-04`).
+- ERD v6: `Stock_Adjustments.Stocktake_ID` bắt buộc, không có trạng thái duyệt riêng. Điều chỉnh đột xuất = lập phiếu kiểm kê cho các SP cần chỉnh (`TK-13`), Quản lý chốt (`QL-03`). Endpoint `POST /stock-adjustments` bỏ. Không tính vào tổng story.
 
 **TK-15 — Xem báo cáo tồn kho**
 
 - P1 · GD9 (tuần 12) · `GET /reports/inventory`
-- AC: báo cáo theo thời điểm/danh mục/sản phẩm/địa điểm. _Dùng chung: Kế toán, Quản lý._
+- AC: báo cáo theo thời điểm/danh mục/sản phẩm/kho (từng kho hoặc toàn công ty). _Dùng chung: Kế toán, Quản lý._
 
 ### Epic TK-F — Biểu mẫu in (G-9)
 
 **TK-16 — In chứng từ kho: phiếu thuê/mượn, biên bản trả, kiểm kê, điều chỉnh**
 
-- P1 · GD7–GD8 (tuần 11–12) · `GET /rental-receipts/{id}/print`, `GET /rental-returns/{id}/print`, `GET /stocktakes/{id}/print`, `GET /stock-adjustments/{id}/print` (`?format=excel|pdf`, ngoài 112 endpoint)
+- P1 · GD7–GD8 (tuần 11–12) · `GET /rental-receipts/{id}/print`, `GET /return-receipts/{id}/print`, `GET /stocktakes/{id}/print`, `GET /stocktakes/{id}/print?template=adjustment` (`?format=excel|pdf`, ngoài 112 endpoint)
 - AC:
-  1. Đúng bố cục biểu mẫu 4–7 trong `BIEU_MAU.md`; tiêu đề đổi theo `rental_type` (PHIẾU CHO THUÊ / PHIẾU CHO MƯỢN) và `reason_type` (điều chỉnh / xử lý hư hỏng, mất).
-  2. Số liệu lấy từ snapshot trên phiếu, khớp DB; phiếu mượn ẩn giá/tiền thuê.
-  3. Phiếu chưa xác nhận in dấu "BẢN NHÁP"; mỗi lần in ghi audit (`PRINT`).
+  1. Đúng bố cục biểu mẫu 4–7 trong `BIEU_MAU.md`; tiêu đề đổi theo `Rental_Type` (PHIẾU CHO THUÊ / PHIẾU CHO MƯỢN); đầu phiếu có mã kho + địa chỉ kho.
+  2. Người nhận lấy từ snapshot trên phiếu, khớp DB; phiếu mượn ẩn giá/tiền thuê.
+  3. Phiếu kiểm kê `DRAFT` in dấu "BẢN NHÁP"; mỗi lần in ghi audit (`PRINT`).
   4. File mở được ở cả PDF và Excel (TC-REP-01 áp dụng tương tự). _Dùng chung: Bán hàng (mẫu 4, 5), Quản lý (mẫu 6, 7)._
+
+### Epic TK-G — Chuyển kho (P2)
+
+**TK-17 — Chuyển hàng giữa các kho (G-15)**
+
+- P2 · `GET /stock-transfers`, `POST /stock-transfers`, `GET /stock-transfers/{id}`, `PUT /stock-transfers/{id}`, `PUT /stock-transfers/{id}/ship`, `PUT /stock-transfers/{id}/receive`, `DELETE /stock-transfers/{id}`, `GET /stock-transfers/{id}/print` (ngoài 112 endpoint)
+- AC:
+  1. `DRAFT` → `IN_TRANSIT` (kho nguồn xác nhận xuất): đủ tồn `IN_STOCK` tại kho nguồn; serial chuyển `IN_TRANSIT`, hàng không serial trừ ở kho nguồn; kho đích tăng `Qty_In_Transit`.
+  2. `IN_TRANSIT` → `RECEIVED` (kho đích xác nhận): nhập `Received_Qty`; hàng sang kho đích `IN_STOCK`; thiếu hụt ghi `DAMAGED` + cảnh báo `TRANSFER_PENDING`.
+  3. Hủy (`CANCELLED`) chỉ khi `DRAFT`; kho nguồn ≠ kho đích; người lập/người nhận phải được phân công kho tương ứng; in phiếu theo biểu mẫu 11; ghi audit.
 
 ## 2. KẾ TOÁN (KT) — tiền, công nợ, đối soát
 
@@ -302,9 +325,9 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 - P1 · GD6 (tuần 10) · `POST /export-receipts/{id}/payments`
 - AC:
-  1. Mỗi lần thu ghi 1 dòng `payments`; cập nhật `paid_amount` và `payment_status` (UNPAID / PARTIAL / PAID); tính Tổng tiền – VAT – Đã trả = Còn lại (`remaining_amount`) đúng (TC-EXP-02).
-  2. Không cho số tiền vượt còn lại; ghi sai thì huỷ (`is_voided`), không sửa/xoá — lịch sử thanh toán lưu vết.
-  3. Ghi audit người ghi nhận.
+  1. Nhập số tiền thu → cộng vào `Export_Receipts.Paid`, tính lại `Remain` = Tổng tiền (đã gồm VAT) − Đã trả, cập nhật `Payment_Status_ID` (UNPAID / PARTIAL / PAID) (TC-EXP-02).
+  2. Không cho số tiền vượt `Remain`; ghi sai thì ghi một lần điều chỉnh âm kèm lý do (không sửa số cũ, `Paid` không âm).
+  3. Mỗi lần thu ghi `Audit_Logs` (`Action = PAYMENT`, `Detail` JSON: số tiền, phương thức, ghi chú, người ghi) — đây là lịch sử thanh toán ở P1 (G-13); phiếu thu/chi in riêng → `KT-10` (P2).
 
 **KT-04 — In phiếu xuất**
 
@@ -319,25 +342,31 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **KT-06 — Báo cáo công nợ, tiền bán/thuê chưa thu**
 
 - P1 · GD9 (tuần 12–13) · `GET /reports/receivables`
-- AC: liệt kê KH còn công nợ, phân biệt bán/thuê; dữ liệu nguồn từ `remaining_amount` / `payment_status` của phiếu xuất, phiếu thuê và bảng `payments`. _Dùng chung: Quản lý._ Lưu ý: Thủ kho gọi endpoint này phải 403 (TC-RBAC-01).
+- AC: liệt kê KH còn công nợ, phân biệt bán/thuê; dữ liệu nguồn: `Remain`/`Payment_Status_ID` của phiếu xuất; `Total_Rent`, `Penalty_Amount`, `Deposit`, `Payment_Status_ID` của phiếu thuê; không có công nợ phải trả NCC (G-13); lọc theo kho. _Dùng chung: Quản lý._ Lưu ý: Thủ kho gọi endpoint này phải 403 (TC-RBAC-01).
 
 **KT-07 — Xem phiếu điều chỉnh tồn**
 
 - P1 · GD8 · `GET /stock-adjustments`, `GET /stock-adjustments/{id}`
-- AC: xem lý do & chênh lệch để hạch toán; không duyệt (duyệt thuộc `QL-04`).
+- AC: xem các dòng điều chỉnh sinh từ phiếu kiểm kê đã chốt (`Stock_Adjustments`: SP, `Adjust_Qty`, `Reason`, kho theo phiếu kiểm kê) để hạch toán; chỉ đọc (chốt thuộc `QL-03`).
 
 **KT-08 — Quản lý tài khoản ngân hàng của NCC**
 
 - P2 · `GET /suppliers/{id}/bank-accounts`, `POST /suppliers/{id}/bank-accounts`, `DELETE /suppliers/{id}/bank-accounts/{bankId}`
 - AC: nhiều TK/NCC; xoá chỉ bởi Quản lý (xem `QL-07`).
 
-**KT-09 — In phiếu thu/chi & biên bản đối chiếu công nợ (G-9)**
+**KT-09 — In biên bản đối chiếu công nợ (G-9)**
 
-- P1 · GD9 (tuần 12–13) · `GET /payments/{id}/print`, `GET /reports/reconciliation?partnerId=&from=&to=` (`?format=excel|pdf`, ngoài 112 endpoint)
+- P1 · GD9 (tuần 12–13) · `GET /reports/reconciliation?customerId=&from=&to=` (`?format=excel|pdf`, ngoài 112 endpoint)
 - AC:
-  1. Phiếu thu/chi theo biểu mẫu 8 (`BIEU_MAU.md`): tiêu đề theo `direction` (IN/OUT), lý do theo `purpose`, số tiền bằng chữ, chứng từ gốc; phiếu đã huỷ in dấu "ĐÃ HUỶ".
-  2. Biên bản đối chiếu theo biểu mẫu 9: số dư đầu kỳ + phát sinh tăng/giảm = số dư cuối kỳ, khớp `KT-06`; đối tác vừa KH vừa NCC tách phải thu / phải trả.
+  1. Theo biểu mẫu 8 (`BIEU_MAU.md`): liệt kê phiếu xuất đã xuất và phiếu thuê/mượn của khách trong kỳ; mỗi phiếu: tổng tiền, đã trả, còn lại; tổng còn phải thu khớp `KT-06`.
+  2. Không có số dư đầu kỳ và phát sinh theo từng lần thu (ERD v6 không lưu lịch sử thanh toán — G-13); chỉ đối chiếu phải thu khách hàng.
   3. Chỉ Kế toán, Quản lý (403 vai trò khác); mỗi lần in ghi audit.
+
+**KT-10 — Phiếu thu/chi & lịch sử thanh toán (P2 — G-13)**
+
+- P2 · `GET /export-receipts/{id}/payments`, `GET /payments/{id}/print` (ngoài 112 endpoint)
+- Điều kiện: bổ sung bảng thanh toán vào ERD (ERD v6 hiện không có).
+- AC: mỗi lần thu/chi là một chứng từ có mã; in phiếu thu/chi theo biểu mẫu 9 (`BIEU_MAU.md`); ghi sai thì huỷ, không xoá; theo dõi công nợ phải trả NCC theo phiếu nhập; biên bản đối chiếu có số dư đầu kỳ và phát sinh theo ngày.
 
 ## 3. BÁN HÀNG (BH) — khách hàng, xuất bán, cho thuê
 
@@ -346,24 +375,24 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **BH-01 — CRUD khách hàng**
 
 - P1 · GD4 (tuần 7–8) · `GET /customers`, `POST /customers`, `GET /customers/{id}`, `PUT /customers/{id}`
-- AC: phân biệt KH bán / KH thuê; search, phân trang; validate SĐT/email.
+- AC: KH = `Parties` + hồ sơ vai trò `Customers` (cá nhân có CCCD / tổ chức có MST); search, phân trang; validate SĐT/email.
 
 **BH-02 — CRUD người nhận hàng**
 
 - P1 · GD4 · `GET /customers/{id}/receivers`, `POST /customers/{id}/receivers`, `PUT /receivers/{receiverId}`, `DELETE /receivers/{receiverId}`
-- AC: 1 KH nhiều người nhận; mặc định 1 người nhận; xoá mềm (xoá bởi Quản lý → `QL-07`).
+- AC: 1 KH nhiều người nhận (`Receivers`); xoá mềm `Is_Deleted` (xoá bởi Quản lý → `QL-07`).
 
 ### Epic BH-B — Xuất kho & bán hàng (GD6)
 
 **BH-03 — Tạo phiếu xuất khi bán hàng**
 
 - P1 · GD6 (tuần 9–10) · `POST /export-receipts`
-- AC: chọn KH/người nhận, dòng SP + serial; áp mẫu VAT (`vat_rates`, lưu snapshot `vat_percent`); trạng thái khởi tạo _Chờ xác nhận_; gọi `stock-check` trước (→ `TK-10`).
+- AC: chọn kho xuất (kho được phân công), KH/người nhận (chụp tên/địa chỉ/SĐT vào `Receiver_*_Snapshot`), dòng SP + serial (serial phải đang ở kho xuất); chọn mức VAT (`VAT_ID` → `VAT_Options`); bảo hành theo tháng (`Warranty_Months` → `Warranty_Expiry`); trạng thái khởi tạo `PENDING`; gọi `stock-check` trước (→ `TK-10`).
 
 **BH-04 — Sửa / huỷ phiếu xuất chưa xác nhận**
 
 - P1 · GD6 (tuần 10) · `PUT /export-receipts/{id}`, `DELETE /export-receipts/{id}`
-- AC: chỉ tác động được phiếu _Chờ xác nhận_; đã xác nhận → 409; ghi audit.
+- AC: chỉ tác động được phiếu `PENDING`; huỷ = xoá phiếu, bản chụp ghi audit (G-14); đã xác nhận → 409.
 
 **BH-05 — In phiếu xuất**
 
@@ -376,26 +405,26 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 ### Epic BH-C — Cho thuê & cho mượn (GD7)
 
-> Thuê và mượn dùng chung bảng `rental_receipts`, phân biệt bằng `rental_type`: `RENT` = cho thuê, `LOAN` = cho mượn (G-8).
+> Thuê và mượn dùng chung bảng `Rental_Receipts`, phân biệt bằng `Rental_Type`: `RENT` = cho thuê, `LEND` = cho mượn (G-8). Phiếu có hiệu lực ngay khi tạo — ERD v6 không có bước duyệt phiếu thuê (G-14).
 
 **BH-07 — Tạo phiếu cho thuê / cho mượn**
 
-- P1 · GD7 (tuần 10–11) · `POST /rental-receipts` (body có `rentalType=RENT|LOAN`)
+- P1 · GD7 (tuần 10–11) · `POST /rental-receipts` (body có `rentalType=RENT|LEND`)
 - AC:
-  1. Chọn serial còn tồn (TC-RENT-01), thời hạn; **RENT:** tiền thuê/ngày, tiền cọc; **LOAN:** nhập tiền thuê/ngày (chỉ dùng làm cơ sở tính phạt quá hạn, **không tính vào tổng tiền**), không cọc.
-  2. Serial chuyển _đang thuê/mượn_ (`RENTED`), loại khỏi tồn khả dụng ngay khi xác nhận.
-  3. RENT: tính tổng tiền thuê dựa số ngày; LOAN: không phát sinh tiền thuê/cọc; cả hai: validate ngày trả > ngày bắt đầu.
-  4. Trạng thái khởi tạo _Chờ xác nhận_; ghi audit.
+  1. Chọn kho, serial còn tồn tại kho đó (TC-RENT-01), hạn trả `Due_Date`; **RENT:** giá thuê/ngày, tiền cọc; **LEND:** nhập giá thuê/ngày (chỉ làm cơ sở tính phạt quá hạn, **không tính vào `Total_Rent`**), không cọc.
+  2. Khi lưu phiếu: serial chuyển `RENTED` (thuê) / `LENT` (mượn), loại khỏi tồn khả dụng ngay; `Payment_Status = RENTING`.
+  3. RENT: `Total_Rent` tính theo số ngày; LEND: `Total_Rent = 0`; cả hai: `Due_Date` > `Date_Out`.
+  4. Ghi audit.
 
 **BH-08 — Sửa / huỷ phiếu thuê/mượn chưa xác nhận**
 
 - P1 · GD7 · `PUT /rental-receipts/{id}`, `DELETE /rental-receipts/{id}`
-- AC: huỷ phiếu chưa xác nhận thì serial trả về tồn khả dụng; không cho đổi `rentalType` sau khi đã xác nhận.
+- AC: chỉ sửa/huỷ được khi chưa có dòng nào được trả; huỷ → `Payment_Status = CANCELLED`, hàng về `IN_STOCK`; không cho đổi `Rental_Type` sau khi tạo.
 
 **BH-09 — Theo dõi hàng đang thuê/mượn & hạn trả**
 
-- P1 · GD7 (tuần 11) · `GET /rental-receipts` (lọc `type=RENT|LOAN`, trạng thái, KH, hạn trả), `GET /rental-receipts/{id}`, `GET /rental-receipts/expiring?days=7`
-- AC: danh sách phiếu thuê và phiếu mượn tách tab/lọc riêng; còn 7 ngày → sinh RENTAL_EXPIRING (TC-RENT-03), quá hạn → RENTAL_OVERDUE, áp dụng cả thuê lẫn mượn, hiện ở `CHUNG-04`.
+- P1 · GD7 (tuần 11) · `GET /rental-receipts` (lọc `type=RENT|LEND`, kho, trạng thái, KH, hạn trả), `GET /rental-receipts/{id}`, `GET /rental-receipts/expiring?days=7`
+- AC: danh sách phiếu thuê và phiếu mượn tách tab/lọc riêng; còn 7 ngày hoặc đã quá hạn → sinh `RENT_DUE` (TC-RENT-03), áp dụng cả thuê lẫn mượn, hiện ở `CHUNG-04`.
 
 **BH-10 — Trả hàng thuê/mượn & hoàn cọc** _(dùng chung)_
 
@@ -406,7 +435,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **BH-11 — Trả hàng / đổi khách & phí hoàn trả**
 
 - P2 · `POST /sales-returns`, `GET /sales-returns`, `GET /sales-returns/{id}`, `GET /return-fee-policies`, `PUT /return-fee-policies/{id}` (PUT: chỉ Quản lý)
-- AC: áp phí theo `return_fee_policies`; lưu original_value, refund_amount, fee_percent; chờ duyệt; in phiếu trả hàng/đổi hàng + phiếu bảo hành theo biểu mẫu 10 (`BIEU_MAU.md`, `GET /sales-returns/{id}/print`).
+- AC: áp phí theo `Return_Fee_Policy` (bậc theo số ngày từ `Delivery_Date`, quá 30 ngày → từ chối); lưu `Original_Value`, `Fee_Percent`, `Fee_Amount`, `Refund_Amount`; kho tiếp nhận `Sales_Returns.Warehouse_ID`; trạng thái `DRAFT` chờ duyệt; in phiếu trả hàng/đổi hàng + phiếu bảo hành theo biểu mẫu 10 (`BIEU_MAU.md`, `GET /sales-returns/{id}/print`).
 
 **BH-12 — Duyệt trả hàng bán** _(vai trò chính: Quản lý)_
 
@@ -426,27 +455,26 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **QL-01 — Duyệt phiếu xuất**
 
 - P1 · GD6 (tuần 10) · `PUT /export-receipts/{id}/confirm`
-- AC: _Chờ xác nhận → Đã xác nhận_; không nhảy trạng thái sai; mọi bước ghi audit (TC-EXP-03).
+- AC: `PENDING` → `CONFIRMED`; không nhảy trạng thái sai; Quản lý duyệt được phiếu của mọi kho; mọi bước ghi audit (TC-EXP-03).
 
 **QL-02 — Duyệt / giám sát phiếu nhập**
 
 - P1 · GD5 · `PUT /import-receipts/{id}/confirm`, `DELETE /import-receipts/{id}` (quyền Thủ kho + Quản lý)
-- AC: xác nhận cùng AC với `TK-07`; có thể giám sát, huỷ phiếu sai phạm; ghi audit.
+- AC: xác nhận `PENDING` → `CONFIRMED` (cùng AC với `TK-07`); có thể giám sát, huỷ phiếu chưa xác nhận; ghi audit.
 
 **QL-03 — Chốt kiểm kê → tự tạo phiếu điều chỉnh**
 
 - P1 · GD8 (tuần 11) · `POST /stocktakes/{id}/approve`
-- AC: SL thực tế ≠ SL hệ thống → tự sinh phiếu điều chỉnh, tồn khớp số thực tế (TC-STK-01); không chênh lệch → chốt không sinh phiếu.
+- AC: chốt = duyệt (`DRAFT` → `COMPLETED`). SL thực tế ≠ SL hệ thống → tự sinh `Stock_Adjustments` (`Adjust_Qty` = `Difference`, `Reason`) và áp vào `Inventory`/`Stock_Summary` của kho kiểm kê trong cùng transaction, tồn khớp số thực tế (TC-STK-01); không chênh lệch → chốt không sinh dòng điều chỉnh; ghi audit.
 
-**QL-04 — Duyệt phiếu điều chỉnh tồn**
+**QL-04 — ~~Duyệt phiếu điều chỉnh tồn~~ (đã gộp vào QL-03 — G-14)**
 
-- P1 · GD8 (tuần 12) · `PUT /stock-adjustments/{id}/approve`
-- AC: duyệt → áp dụng vào tồn kho ngay; từ chối → phiếu về trạng thái tương ứng; cả hai đều ghi audit.
+- ERD v6: phiếu điều chỉnh không có trạng thái duyệt; duyệt = chốt phiếu kiểm kê (`QL-03`). Endpoint `PUT /stock-adjustments/{id}/approve` bỏ. Không tính vào tổng story.
 
 **QL-05 — Duyệt trả hàng bán (P2)**
 
 - P2 · `PUT /sales-returns/{id}/approve`
-- AC: duyệt → hoàn tiền/đổi hàng theo phí `return_fee_policies`; ghi audit.
+- AC: `DRAFT` → `CONFIRMED` → `COMPLETED` (hoặc `REJECTED`); hoàn tiền/đổi hàng theo `Return_Fee_Policy`, đổi hàng sinh phiếu xuất mới (`New_Export_Receipt_ID`); hàng nhập lại kho theo `Return_Condition`; ghi audit.
 
 ### Epic QL-B — Danh mục: quyền nâng cao
 
@@ -458,7 +486,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **QL-07 — Xoá mềm dữ liệu đối tác**
 
 - P1 · GD4 · `DELETE /products/{id}`, `DELETE /suppliers/{id}`, `DELETE /customers/{id}`, `DELETE /receivers/{receiverId}`, `DELETE /suppliers/{id}/documents/{docId}`
-- AC: mọi xoá là `is_deleted` (không xoá vật lý); bản ghi còn phát sinh giao dịch → 409; ghi audit.
+- AC: mọi xoá là `Is_Deleted` (không xoá vật lý); bản ghi còn phát sinh giao dịch → 409; ghi audit.
 
 **QL-08 — Xem người dùng, phân quyền & lịch sử hoạt động**
 
@@ -469,8 +497,8 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 **QL-09 — Báo cáo cho thuê, cho mượn & tình trạng trả hàng**
 
-- P1 · GD9 (tuần 12–13) · `GET /reports/rental` (lọc `type=RENT|LOAN`)
-- AC: phiếu đang thuê/mượn, quá hạn, đã trả — **tách riêng thuê và mượn**; tổng tiền thuê, phạt (cả thuê và mượn), bồi thường hư hỏng/mất (cả hai).
+- P1 · GD9 (tuần 12–13) · `GET /reports/rental` (lọc `type=RENT|LEND`, kho)
+- AC: phiếu đang thuê/mượn, quá hạn, đã trả — **tách riêng thuê và mượn**; tổng tiền thuê, phạt (cả thuê và mượn); hàng trả về hư/mất liệt kê theo `Condition_Note` (không có số tiền bồi thường — G-14).
 
 **QL-10 — Báo cáo nhập/xuất & công nợ (xem chung)**
 
@@ -479,7 +507,16 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **QL-11 — Quy tắc thuê (cảnh báo 7 ngày, ngưỡng phạt 10 ngày)**
 
 - P1 · GD7 · `GET /config/rental-rules`
-- AC: xem giá trị quy tắc đang áp dụng (đọc từ `system_settings`: `rental.expiry_warning_days`, `rental.penalty_min_overdue_days`); **gap G-2:** chưa có API sửa — P2 thêm `PUT` (đề xuất mở rộng story này).
+- AC: xem giá trị quy tắc đang áp dụng (đọc từ cấu hình ứng dụng `tigernet.rental.expiry-warning-days` = 7, `tigernet.rental.penalty-min-overdue-days` = 10 — ERD v6 không có bảng cấu hình); **gap G-2:** chưa có API sửa — P2 thêm `PUT` (cần bổ sung nơi lưu).
+
+**QL-12 — Quản lý danh mục kho (G-15)**
+
+- P1 · GD4 (tuần 6–7) · `GET /warehouses`, `POST /warehouses`, `GET /warehouses/{id}`, `PUT /warehouses/{id}`, `DELETE /warehouses/{id}` (ngoài 112 endpoint)
+- _Với tư cách Quản lý, tôi muốn khai báo các kho ở các địa chỉ khác nhau để theo dõi tồn và chứng từ theo từng kho._
+- AC:
+  1. `Warehouse_Code` (tiền tố số phiếu, không sửa khi kho đã có phiếu) và `Warehouse_Name` không trùng; `Address` bắt buộc; chọn người phụ trách `Manager_ID`.
+  2. `DELETE` = ngừng hoạt động (`Is_Active = FALSE`), không xoá cứng; kho còn tồn (`Stock_Summary` > 0) → 409; kho ngừng hoạt động không chọn được khi lập phiếu.
+  3. Tenant mới có sẵn kho `MAIN` (seed V2). Quản trị hệ thống cùng quyền; mọi thay đổi ghi audit.
 
 ## 5. QUẢN TRỊ HỆ THỐNG (QT) — quản trị trong tenant
 
@@ -488,9 +525,9 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 - P1 · GD3 (tuần 6–7) · `POST /identity/users`, `PUT /identity/users/{userId}`, `DELETE /identity/users/{userId}`
 - AC:
   1. Chỉ Quản trị được tạo/sửa/vô hiệu hoá user (403 vai trò khác).
-  2. `PUT` không có field `username` (theo `CRUD_ANALYSIS.md`) — username chỉ set lúc tạo.
+  2. `PUT` không có field `username` — username chỉ set lúc tạo.
   3. `DELETE` là xoá mềm/khoá tài khoản, không mất lịch sử giao dịch.
-  4. Gán đúng 1 trong 5 vai trò; mọi thay đổi ghi audit.
+  4. Gán đúng 1 trong 5 vai trò (`WAREHOUSE`, `ACCOUNTANT`, `SALES`, `MANAGER`, `ADMIN`); mọi thay đổi ghi audit.
 
 **QT-02 — Ma trận phân quyền (RBAC)**
 
@@ -505,24 +542,32 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **QT-04 — Cấu hình mẫu VAT**
 
 - P1: `GET /config/vat-options` (mọi vai trò) · P2: `POST /config/vat-options`, `PUT /config/vat-options/{id}` (Quản trị)
-- AC: mẫu VAT (`vat_rates`: KCT, VAT0, VAT5, VAT8, VAT10) áp cho phiếu xuất (`TC-EXP-02`); sửa mẫu không làm thay đổi phiếu đã phát sinh (phiếu lưu snapshot `vat_percent`).
+- AC: mức VAT (`VAT_Options`: NO, 0%, 5%, 8%, 10%) áp cho phiếu xuất (`TC-EXP-02`); phiếu trỏ `VAT_ID` nên không cho sửa `Rate` của mức đã dùng — đổi thuế suất = thêm mức mới (G-14).
 
 **QT-05 — Danh mục loại giao dịch & trạng thái thanh toán**
 
 - P1 · `GET /config/transaction-types`, `GET /config/payment-statuses`
-- AC: trả danh sách **enum trong code** (không có bảng tra cứu — theo SQL): loại biến động `stock_movements.movement_type` (IMPORT, EXPORT, RENTAL_OUT, RENTAL_RETURN, SALES_RETURN, ADJUSTMENT_IN/OUT, DAMAGE, REPAIRED, OPENING_BALANCE) và `payment_status` (UNPAID, PARTIAL, PAID); đọc-only.
+- AC: `transaction-types` trả **enum trong code** (ERD v6 không có bảng `Transaction_Types`): loại chứng từ (IMPORT, EXPORT, RENTAL, RETURN, SALES_RETURN, STOCKTAKE, TRANSFER) và `Rental_Type` (RENT, LEND); `payment-statuses` đọc bảng `Payment_Statuses` (PAID, UNPAID, PARTIAL, RENTING, RETURNED, CANCELLED); đọc-only.
 
 **QT-06 — Trang admin thống kê truy cập (G-4)**
 
 - P2 · tuần 1 chốt phạm vi · FE + BE (chưa có endpoint)
 - AC (đề xuất): thống kê người dùng, thông tin hiển thị theo từng trang, lượt truy cập theo tháng (NOTE UXUI #9).
 
+**QT-07 — Phân công nhân viên vào kho (G-15)**
+
+- P1 · GD3–GD4 (tuần 6–7) · `GET /identity/users/{userId}/warehouses`, `PUT /identity/users/{userId}/warehouses` (ngoài 112 endpoint)
+- AC:
+  1. Gán một user vào nhiều kho (`User_Warehouses`), đúng một kho mặc định (`Is_Default`).
+  2. Thủ kho và Bán hàng phải có ít nhất một kho mới thao tác được; Quản lý, Quản trị, Kế toán xem mọi kho, không cần phân công.
+  3. Thay đổi có hiệu lực ở lần gọi API kế tiếp (không cần đăng nhập lại); ghi audit.
+
 ## 6. ADMIN VẬN HÀNH (OPS) — công ty vận hành SaaS (tách khỏi QT)
 
 **OPS-01 — Tự động provisioning tenant**
 
 - P1 · How_To_Sale.md §2.1 · Control Plane
-- AC: khách mới → tự tạo database, chạy Flyway `database/tenant/V1__init_schema.sql` + `V2__seed_reference_data.sql` (roles, vat_rates, system_settings, kho mặc định); tạo tài khoản Quản trị đầu tiên với mật khẩu ngẫu nhiên gửi qua email (không seed mật khẩu mặc định); ghi `tenant_operations` (PROVISION).
+- AC: khách mới → tự tạo database (`utf8mb4_unicode_ci`), chạy Flyway `database/tenant/`: V1 (bảng ERD v6) + V2 (Roles, Product_Groups, VAT_Options, Payment_Statuses, Return_Fee_Policy, kho `MAIN`) + V3 (view); tạo tài khoản Quản trị đầu tiên với mật khẩu ngẫu nhiên gửi qua email (không seed mật khẩu mặc định); ghi `tenant_operations` (PROVISION).
 
 **OPS-02 — Quản lý danh sách tenant & gói dịch vụ**
 
@@ -564,7 +609,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | ID     | Việc                                                                                  | Ưu tiên | GĐ / Tuần    | Deliverable            |
 | ------ | ------------------------------------------------------------------------------------- | ------- | ------------ | ---------------------- |
 | DEV-01 | Chốt kiến trúc Flutter + Spring Boot + MySQL database-per-tenant                      | P1      | GD1 / 2      | Architecture decision  |
-| DEV-02 | Thiết kế ERD & mapping schema theo `tigernet_erd_final.png`                           | P1      | GD1 / 2–3    | ERD + schema draft     |
+| DEV-02 | Thiết kế ERD & schema: ERD v6 (`TIGERNET_ERD_v6_dark.png`) → `database/tenant/` — **xong 06/10/2026** | P1      | GD1 / 2–3    | ERD + schema           |
 | DEV-03 | Quy chuẩn code, Git flow, môi trường Dev/Test                                         | P1      | GD1 / 2–3    | Development guideline  |
 | DEV-04 | UI Dashboard/đăng nhập/SP/nhập/xuất/báo cáo (baseline)                                | P1      | GD2 / 1–4    | UI screens baseline    |
 | DEV-05 | Khởi tạo Flutter project, kiến trúc module                                            | P1      | GD2 / 2–3    | Flutter skeleton       |
@@ -596,7 +641,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | G. Xuất kho & bán hàng               | 57–66   | TK-10, TK-11, BH-03 → BH-06, QL-01, KT-03, KT-04         |
 | H. Cho thuê, mượn, hoàn trả          | 67–76   | BH-07 → BH-10, TK-12                                     |
 | H. Sales returns & fee policy (P2)   | 77–82   | BH-11, BH-12, QL-05                                      |
-| I. Kiểm kê & điều chỉnh              | 83–91   | TK-13, TK-14, QL-03, QL-04, KT-07                        |
+| I. Kiểm kê & điều chỉnh              | 83–91   | TK-13, QL-03, KT-07 (TK-14, QL-04 đã gộp — 2 endpoint bỏ) |
 | J. Dashboard, báo cáo, cảnh báo      | 92–101  | CHUNG-03, CHUNG-04, CHUNG-05, TK-15, KT-05, KT-06, QL-09 |
 | K. Cấu hình & hệ thống               | 102–112 | QT-04, QT-05, QL-11, PUB-05, PUB-06, OPS-07, OPS-05      |
 
@@ -622,20 +667,25 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | 84, 85 | `GET /stocktakes`, `GET /stocktakes/{id}`                         | TK-13      |
 
 - **4 tham chiếu chéo sai đã sửa:** `KT-08` và `BH-02` trỏ `QL-10` (báo cáo) → đúng `QL-07` (xoá mềm); `BH-12` trỏ `QL-07` → đúng `QL-05` (duyệt trả hàng bán); mục `G-2` trỏ `QL-09` → đúng `QL-11` (quy tắc thuê).
+- **Bản rà soát 3 (ERD v6):** bỏ 2 endpoint `POST /stock-adjustments`, `PUT /stock-adjustments/{id}/approve` (G-14) → 110/112 endpoint gốc còn dùng, đều có story. `GET /alerts/unread-count`, `PUT /alerts/{id}/read` giữ đường dẫn nhưng làm việc trên `Alerts.Is_Resolved`.
 - **Endpoint ngoài 112:** `POST /identity/auth/register` (chưa chốt — G-1), `PUT /config/rental-rules` (P2 — G-2), endpoint trang admin thống kê (P2 — G-4).
 - **Endpoint ngoài 112 bổ sung ở bản rà soát 2:**
 
 | Endpoint / tham số                                                                                                         | Story               | Ưu tiên | Gap |
 | -------------------------------------------------------------------------------------------------------------------------- | ------------------- | ------- | --- |
-| `rentalType=RENT\|LOAN` (body `POST /rental-receipts`), `?type=RENT\|LOAN` (`GET /rental-receipts`, `GET /reports/rental`) | BH-07, BH-09, QL-09 | P1      | G-8 |
+| `rentalType=RENT\|LEND` (body `POST /rental-receipts`), `?type=RENT\|LEND` (`GET /rental-receipts`, `GET /reports/rental`) | BH-07, BH-09, QL-09 | P1      | G-8 |
 | `GET /export-receipts/{id}/print?template=delivery`                                                                        | BH-13               | P1      | G-9 |
 | `GET /rental-receipts/{id}/print`                                                                                          | TK-16               | P1      | G-9 |
-| `GET /rental-returns/{id}/print`                                                                                           | TK-16               | P1      | G-9 |
+| `GET /return-receipts/{id}/print`                                                                                          | TK-16               | P1      | G-9 |
 | `GET /stocktakes/{id}/print`                                                                                               | TK-16               | P1      | G-9 |
-| `GET /stock-adjustments/{id}/print`                                                                                        | TK-16               | P1      | G-9 |
-| `GET /payments/{id}/print`                                                                                                 | KT-09               | P1      | G-9 |
-| `GET /reports/reconciliation?partnerId=&from=&to=`                                                                         | KT-09               | P1      | G-9 |
+| `GET /stocktakes/{id}/print?template=adjustment`                                                                           | TK-16               | P1      | G-9 |
+| `GET /reports/reconciliation?customerId=&from=&to=`                                                                        | KT-09               | P1      | G-9 |
+| `GET /export-receipts/{id}/payments`, `GET /payments/{id}/print`                                                           | KT-10               | P2      | G-13 |
 | `GET /sales-returns/{id}/print`                                                                                            | BH-11               | P2      | G-9 |
+| Tham số `warehouseId` trên API danh sách/báo cáo/cảnh báo; `GET /identity/me` trả danh sách kho                            | CHUNG-07            | P1      | G-15 |
+| `GET/POST /warehouses`, `GET/PUT/DELETE /warehouses/{id}`                                                                  | QL-12               | P1      | G-15 |
+| `GET/PUT /identity/users/{userId}/warehouses`                                                                              | QT-07               | P1      | G-15 |
+| `/stock-transfers` (list, create, detail, update, `ship`, `receive`, delete, `print`)                                      | TK-17               | P2      | G-15 |
 
 > Cần thêm các dòng này vào sheet _API & Testing_ của `Kế hoạch TigerNet.xlsx` khi khoá endpoint ở M1.
 
@@ -656,6 +706,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | TK-12                          | TC-RENT-02                                |
 | BH-09                          | TC-RENT-03                                |
 | TK-13, QL-03                   | TC-STK-01, TC-STK-02                      |
+| CHUNG-07, QT-07, QL-12         | TC-RBAC-01 (ngoài kho được phân công → 403) |
 | TK-02 / CHUNG-04               | TC-ALERT-01                               |
 | CHUNG-05, TK-16, KT-09, BH-13  | TC-REP-01 (file mở được, số liệu khớp DB) |
 | OPS-01…03, database-per-tenant | TC-TENANT-01                              |
@@ -668,34 +719,34 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 | Nhóm                   | Số story | P1     | P2     | Story tính P2  |
 | ---------------------- | -------- | ------ | ------ | -------------- |
-| PUB & CHUNG            | 12       | 11     | 1      | PUB-05         |
-| Thủ kho (TK)           | 16       | 15     | 1      | TK-04          |
-| Kế toán (KT)           | 9        | 8      | 1      | KT-08          |
+| PUB & CHUNG            | 13       | 12     | 1      | PUB-05         |
+| Thủ kho (TK)           | 16       | 14     | 2      | TK-04, TK-17   |
+| Kế toán (KT)           | 10       | 8      | 2      | KT-08, KT-10   |
 | Bán hàng (BH)          | 13       | 11     | 2      | BH-11, BH-12   |
 | Quản lý (QL)           | 11       | 10     | 1      | QL-05          |
-| Quản trị hệ thống (QT) | 6        | 5      | 1      | QT-06          |
+| Quản trị hệ thống (QT) | 7        | 6      | 1      | QT-06          |
 | Admin vận hành (OPS)   | 8        | 6      | 2      | OPS-07, OPS-08 |
 | DEV (nền tảng)         | 12       | 11     | 1      | DEV-09 (P1/P2) |
-| **Tổng**               | **87**   | **77** | **10** |                |
+| **Tổng**               | **90**   | **78** | **12** |                |
 
-> **Ghi chú tính điểm:** `PUB-04` và `DEV-09` đang tính vào P1. Nếu chốt bỏ self-register (G-1) thì `PUB-04` chuyển sang P2 → **P1 = 76, P2 = 11**. Bản rà soát 2 thêm `TK-16`, `KT-09`, `BH-13` (P1).
+> **Ghi chú tính điểm:** `PUB-04` tính vào P1, `DEV-09` tính vào P2. Nếu chốt bỏ self-register (G-1) thì `PUB-04` chuyển sang P2 → **P1 = 77, P2 = 13**. Bản rà soát 3: `TK-14`, `QL-04` đã gộp (không tính); thêm `CHUNG-07`, `QL-12`, `QT-07` (P1), `TK-17`, `KT-10` (P2).
 
-**Exit criteria của backlog này:** 112 endpoint đều có story nhận (xem 3.1 – 3.1.1) · mọi story P1 có AC · 20 test case trọng tâm đối chiếu đủ 11 nhóm test (3.2) · 12 gap G-1→G-12 được chốt trong tuần 1 (28/09–04/10/2026).
+**Exit criteria của backlog này:** 112 endpoint đều có story nhận (xem 3.1 – 3.1.1) · mọi story P1 có AC · 20 test case trọng tâm đối chiếu đủ 11 nhóm test (3.2) · 15 gap G-1→G-15 được chốt (G-1→G-12 trong tuần 1, G-13→G-15 ngày 06/10/2026).
 
 ---
 
 # PHẦN 4 — GÓI PHÁT HÀNH THEO TUẦN (MILESTONE)
 
-> Cắt 87 story thành 6 lát theo đúng lịch GD1→GD12 trong `Kế hoạch TigerNet.xlsx`. M1–M5 là Phase 1 (nghiệm thu 27/12/2026); M6 là Phase 2, **không chặn nghiệm thu**.
+> Cắt 90 story thành 6 lát theo đúng lịch GD1→GD12 trong `Kế hoạch TigerNet.xlsx`. M1–M5 là Phase 1 (nghiệm thu 27/12/2026); M6 là Phase 2, **không chặn nghiệm thu**.
 
 | Milestone                                | Tuần           | Giai đoạn | Nội dung (story)                                                                                                                                            | Exit condition                                                                                                                                                                                                                                                 |
 | ---------------------------------------- | -------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **M1 — Nền tảng & xác thực**             | 1–5            | GD1–GD3   | `PUB-01`, `PUB-02`, `PUB-04` (chốt G-1), `PUB-06`, `CHUNG-01`, `CHUNG-02`, `CHUNG-06`, `DEV-01`→`DEV-08`                                                    | Chốt 12 gap; đăng nhập JWT + refresh + khóa 15’ sau 5 lần sai; menu render theo vai trò qua `/identity/me`; API contract + format lỗi chuẩn hoá; `/system/health` xanh; **khoá 112 endpoint**                                                                  |
-| **M2 — Danh mục, phân quyền & quản trị** | 6–8            | GD3–GD4   | `PUB-03`, `QT-01`, `QT-02`, `QT-03`, `QL-06`, `QL-07`, `QL-08`, `TK-01`, `TK-02`, `TK-03`, `KT-02`, `BH-01`, `BH-02`                                        | CRUD SP/nhóm/NCC/KH/người nhận + serial; tồn kho & cảnh báo low-stock; màn hình user/role/audit-log; `TC-PROD-01`, `TC-AUTH-02`, `TC-RBAC-01`, `TC-SEC-01` xanh                                                                                                |
-| **M3 — Nhập & xuất kho**                 | 8–10           | GD5–GD6   | `TK-05`→`TK-11`, `KT-01`, `KT-03`, `KT-04`, `BH-03`→`BH-06`, `BH-13`, `QL-01`, `QL-02`                                                                      | Phiếu nhập/xuất đủ luồng xác nhận-huỷ-in, in phiếu giao hàng; tồn tăng/trừ đúng; VAT/công nợ tính đúng; `TC-IMP-01`, `TC-IMP-02`, `TC-EXP-01`, `TC-EXP-02`, `TC-EXP-03` xanh                                                                                   |
-| **M4 — Cho thuê, kiểm kê & điều chỉnh**  | 10–12          | GD7–GD8   | `BH-07`→`BH-10`, `TK-12`, `TK-13`, `TK-14`, `TK-16`, `QL-03`, `QL-04`, `KT-07`, `QL-11`                                                                     | Thuê và mượn (`RENT`/`LOAN`) đủ luồng; serial chuyển "đang thuê/mượn"; in phiếu thuê/mượn, biên bản trả, kiểm kê, điều chỉnh; cảnh báo trước 7 ngày; phạt ≥10 ngày đúng công thức; kiểm kê → phiếu điều chỉnh → duyệt; `TC-RENT-01/02/03`, `TC-STK-01/02` xanh |
-| **M5 — Dashboard, báo cáo & nghiệm thu** | 11–13          | GD9–GD12  | `CHUNG-03`, `CHUNG-04`, `CHUNG-05`, `TK-15`, `KT-05`, `KT-06`, `KT-09`, `QL-09`, `QL-10`, `QT-04`, `QT-05`, `DEV-10`, `DEV-11`, `DEV-12`, `OPS-01`→`OPS-06` | Dashboard + 4 nhóm báo cáo + xuất Excel/PDF; phiếu thu/chi + đối chiếu công nợ; trung tâm cảnh báo 3 loại; backup/restore chạy được; perf + security + cách ly tenant đạt; UAT 5 vai trò sign-off **27/12/2026**                                               |
-| **M6 — Phase 2**                         | Sau nghiệm thu | —         | `PUB-05`, `TK-04`, `KT-08`, `BH-11`, `BH-12`, `QL-05`, `QT-06`, `OPS-07`, `OPS-08`, `DEV-09` (+ `PUB-04` nếu giữ, `PUT /config/rental-rules` của `QL-11`)   | Branding tenant, tài liệu/TK ngân hàng NCC, trả hàng bán + phí hoàn, trang admin thống kê, License Server, đóng gói On-Premise                                                                                                                                 |
+| **M1 — Nền tảng & xác thực**             | 1–5            | GD1–GD3   | `PUB-01`, `PUB-02`, `PUB-04` (chốt G-1), `PUB-06`, `CHUNG-01`, `CHUNG-02`, `CHUNG-06`, `DEV-01`→`DEV-08`                                                    | Chốt 15 gap; đăng nhập JWT + refresh + khóa 15’ sau 5 lần sai; menu render theo vai trò qua `/identity/me`; API contract + format lỗi chuẩn hoá; `/system/health` xanh; **khoá danh sách endpoint** (110 gốc + endpoint bổ sung ở 3.1.1)                                                                  |
+| **M2 — Danh mục, phân quyền & quản trị** | 6–8            | GD3–GD4   | `PUB-03`, `QT-01`, `QT-02`, `QT-03`, `QL-06`, `QL-07`, `QL-08`, `QL-12`, `QT-07`, `CHUNG-07`, `TK-01`, `TK-02`, `TK-03`, `KT-02`, `BH-01`, `BH-02`                                        | CRUD SP/nhóm/NCC/KH/người nhận + serial; danh mục kho + phân công, dữ liệu lọc theo kho; tồn kho theo kho & cảnh báo low-stock; màn hình user/role/audit-log; `TC-PROD-01`, `TC-AUTH-02`, `TC-RBAC-01`, `TC-SEC-01` xanh                                                                                                |
+| **M3 — Nhập & xuất kho**                 | 8–10           | GD5–GD6   | `TK-05`→`TK-11`, `KT-01`, `KT-03`, `KT-04`, `BH-03`→`BH-06`, `BH-13`, `QL-01`, `QL-02`                                                                      | Phiếu nhập/xuất đủ luồng xác nhận-huỷ-in, in phiếu giao hàng; tồn tăng/trừ đúng theo kho; VAT/đã trả/còn lại tính đúng; `TC-IMP-01`, `TC-IMP-02`, `TC-EXP-01`, `TC-EXP-02`, `TC-EXP-03` xanh                                                                                   |
+| **M4 — Cho thuê, kiểm kê & điều chỉnh**  | 10–12          | GD7–GD8   | `BH-07`→`BH-10`, `TK-12`, `TK-13`, `TK-16`, `QL-03`, `KT-07`, `QL-11`                                                                     | Thuê và mượn (`RENT`/`LEND`) đủ luồng; serial chuyển `RENTED`/`LENT`; in phiếu thuê/mượn, biên bản trả, kiểm kê, điều chỉnh; cảnh báo trước 7 ngày; phạt ≥10 ngày đúng công thức; kiểm kê → Quản lý chốt → tự sinh điều chỉnh; `TC-RENT-01/02/03`, `TC-STK-01/02` xanh |
+| **M5 — Dashboard, báo cáo & nghiệm thu** | 11–13          | GD9–GD12  | `CHUNG-03`, `CHUNG-04`, `CHUNG-05`, `TK-15`, `KT-05`, `KT-06`, `KT-09`, `QL-09`, `QL-10`, `QT-04`, `QT-05`, `DEV-10`, `DEV-11`, `DEV-12`, `OPS-01`→`OPS-06` | Dashboard + 4 nhóm báo cáo + xuất Excel/PDF; biên bản đối chiếu công nợ; trung tâm cảnh báo 3 loại; backup/restore chạy được; perf + security + cách ly tenant đạt; UAT 5 vai trò sign-off **27/12/2026**                                               |
+| **M6 — Phase 2**                         | Sau nghiệm thu | —         | `PUB-05`, `TK-04`, `TK-17`, `KT-08`, `KT-10`, `BH-11`, `BH-12`, `QL-05`, `QT-06`, `OPS-07`, `OPS-08`, `DEV-09` (+ `PUB-04` nếu giữ, `PUT /config/rental-rules` của `QL-11`)   | Branding tenant, tài liệu/TK ngân hàng NCC, chuyển kho, phiếu thu/chi + lịch sử thanh toán, trả hàng bán + phí hoàn, trang admin thống kê, License Server, đóng gói On-Premise                                                                                                                                 |
 
 **Ràng buộc thứ tự:** M2 chặn M3 (không có danh mục + tồn thì không nhập/xuất) · M3 chặn M4 (không có phiếu xuất thì không có luồng thuê/trả) · M4 chặn M5 (báo cáo cần dữ liệu nghiệp vụ) · `OPS-01`→`OPS-06` chạy **song song từ tuần 11** (backup + CI/CD không phụ thuộc chức năng).
 
@@ -707,7 +758,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 1. Endpoint, method, query param đã chốt theo sheet _API & Testing_ (112 endpoint khoá ở M1).
 2. AC ghi rõ điều kiện đạt; có test case đối chiếu (TC riêng hoặc ca kiểm thử chung ở 3.2).
-3. Schema/ERD tương ứng đã map (xem `tigernet_erd_final (1).png`).
+3. Schema/ERD tương ứng đã map (ERD v6 `TIGERNET_ERD_v6_dark.png`, `Database_Design_v6.md`).
 4. Story Phase 2 chỉ mở khi story P1 cùng chuỗi đã done.
 
 ## 5.2 Definition of Done (story "Hoàn thành")
@@ -724,14 +775,17 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 - [ ] G-1 — self-register: bỏ hay bổ sung `POST /identity/auth/register`
 - [ ] G-2 — giá trị thuê (7 ngày / 10 ngày phạt) hard-code P1
-- [ ] G-3 — bảo hành/hư hỏng gộp qua `POST /return-receipts` + `stock_movements.movement_type`
+- [x] G-3 — bảo hành/hư hỏng gộp qua `POST /return-receipts` + `Inventory.Status = DAMAGED`
 - [ ] G-4 — trang admin thống kê (NOTE UXUI #9) xác nhận P2
 - [ ] G-5 — 5 mục NOTE UXUI chưa fixed gán rõ story + tuần
 - [x] G-6 — xoá/bỏ dùng `Kế hoạch TigerNet.backup.xlsx` (đã xoá)
 - [ ] G-7 — điều chỉnh tải tuần 11–13 (kéo perf/security về tuần 11–12) — 1 người
 - [x] G-8 — cho mượn: đã chốt — hàng mượn quá hạn tính phạt như hàng thuê (≥10 ngày)
 - [ ] G-9 — duyệt danh sách biểu mẫu `BIEU_MAU.md` + thêm endpoint in vào sheet _API & Testing_; kế toán xác nhận chế độ kế toán (mẫu số 01-VT, 02-VT, 05-VT, 01-TT, 02-TT)
-- [ ] G-10 — cập nhật ERD PNG theo schema SQL
+- [x] G-10 — chốt ERD v6 là nguồn chuẩn; `database/tenant/` viết lại theo v6 (06/10)
 - [x] G-11 — Control Plane P1 tối thiểu (đã chốt)
-- [ ] G-12 — bổ sung hoặc bỏ tham chiếu `CRUD_ANALYSIS.md`, `Database_Design.docx`, SRS
+- [ ] G-12 — bổ sung hoặc bỏ tham chiếu `Database_Design.docx`, SRS
+- [x] G-13 — giữ đúng ERD v6: không bảng thanh toán, phiếu thu/chi sang P2 (`KT-10`)
+- [x] G-14 — xử lý các chỗ ERD v6 thiếu theo `Database_Design_v6.md` mục "Phạm vi triển khai"
+- [x] G-15 — đa kho P1 (`CHUNG-07`, `QL-12`, `QT-07`), chuyển kho P2 (`TK-17`)
 - [ ] Duyệt milestone M1–M6 và thứ tự chặn ở Phần 4

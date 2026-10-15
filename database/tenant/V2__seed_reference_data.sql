@@ -1,29 +1,52 @@
 -- =====================================================================
--- TIGERNET — Dữ liệu chuẩn nạp khi tạo tenant mới
+-- TIGERNET — Tenant database v6 — Flyway V2: dữ liệu danh mục bắt buộc
+-- Nguồn: docs/Database_Design_v6.md (Phần 4 — "Dữ liệu mặc định")
 -- Tài khoản quản trị đầu tiên KHÔNG seed ở đây (tránh mật khẩu mặc định);
--- ứng dụng tạo khi provisioning tenant, mật khẩu ngẫu nhiên gửi qua email.
+-- ứng dụng tạo khi provisioning tenant (OPS-01), mật khẩu ngẫu nhiên gửi qua email.
 -- =====================================================================
 
-INSERT INTO roles (code, name, description) VALUES
-    ('STOREKEEPER', 'Thủ kho',           'Hàng vào/ra kho, serial, kiểm kê'),
-    ('ACCOUNTANT',  'Kế toán',           'Thanh toán, công nợ, đối soát'),
-    ('SALES',       'Bán hàng',          'Khách hàng, phiếu xuất bán, phiếu thuê'),
-    ('MANAGER',     'Quản lý',           'Duyệt phiếu, báo cáo, giám sát'),
-    ('ADMIN',       'Quản trị hệ thống', 'Người dùng, vai trò, cấu hình');
+INSERT INTO Roles (Role_Name, Description) VALUES
+    ('WAREHOUSE',  'Thủ kho'),
+    ('ACCOUNTANT', 'Kế toán'),
+    ('SALES',      'Nhân viên bán hàng'),
+    ('MANAGER',    'Nhà quản lý'),
+    ('ADMIN',      'Quản trị hệ thống');
 
-INSERT INTO vat_rates (code, name, rate_percent, is_default) VALUES
-    ('KCT',   'Không chịu thuế', 0.00,  FALSE),
-    ('VAT0',  'Thuế suất 0%',    0.00,  FALSE),
-    ('VAT5',  'Thuế suất 5%',    5.00,  FALSE),
-    ('VAT8',  'Thuế suất 8%',    8.00,  FALSE),
-    ('VAT10', 'Thuế suất 10%',   10.00, TRUE);
+INSERT INTO Product_Groups (Group_Name) VALUES
+    ('TOTAL_PRODUCTS_LIST'),
+    ('CISCO_ROUTER'),
+    ('SFP_3RD'),
+    ('CISCO_ARUBA_WIFI'),
+    ('CISCO_CATALYST'),
+    ('CISCO_COMPONENT'),
+    ('CISCO_SFP'),
+    ('CISCO_SMB_CBS'),
+    ('CISCO_VOIP_CONFERENCE'),
+    ('FIREWALL'),
+    ('NEXUS_JUNIPER_OTHER_SWITCH'),
+    ('OTHERS_COMPONENT');
 
-INSERT INTO system_settings (setting_key, setting_value, value_type, description) VALUES
-    ('rental.expiry_warning_days',   '7',  'INT', 'Cảnh báo trước khi hết hạn thuê (ngày)'),
-    ('rental.penalty_min_overdue_days', '10', 'INT', 'Quá hạn từ số ngày này trở lên thì tính phạt'),
-    ('auth.max_failed_logins',       '5',  'INT', 'Số lần đăng nhập sai liên tiếp trước khi khoá'),
-    ('auth.lock_minutes',            '15', 'INT', 'Thời gian khoá tài khoản (phút)'),
-    ('auth.otp_ttl_minutes',         '10', 'INT', 'Hiệu lực OTP đặt lại mật khẩu (phút)');
+INSERT INTO VAT_Options (VAT, Rate) VALUES
+    ('NO',  NULL),
+    ('0%',  0.00),
+    ('5%',  5.00),
+    ('8%',  8.00),
+    ('10%', 10.00);
 
-INSERT INTO warehouses (code, name) VALUES
-    ('KHO-01', 'Kho chính');
+INSERT INTO Payment_Statuses (Payment_Status) VALUES
+    ('PAID'), ('UNPAID'), ('PARTIAL'), ('RENTING'), ('RETURNED'), ('CANCELLED');
+
+INSERT INTO Return_Fee_Policy (Tier_Name, Max_Days, Action_Type, Fee_Percent) VALUES
+    ('WITHIN_1_WEEK',  7,  'REFUND',                 0.00),
+    ('WITHIN_1_WEEK',  7,  'EXCHANGE_EQUAL_HIGHER',  0.00),
+    ('WITHIN_1_WEEK',  7,  'EXCHANGE_LOWER',        10.00),
+    ('WITHIN_2_WEEKS', 14, 'REFUND',                20.00),
+    ('WITHIN_2_WEEKS', 14, 'EXCHANGE_EQUAL_HIGHER',  0.00),
+    ('WITHIN_2_WEEKS', 14, 'EXCHANGE_LOWER',        10.00),
+    ('WITHIN_1_MONTH', 30, 'REFUND',                30.00),
+    ('WITHIN_1_MONTH', 30, 'EXCHANGE_EQUAL_HIGHER', 10.00),
+    ('WITHIN_1_MONTH', 30, 'EXCHANGE_LOWER',        20.00);
+
+-- Kho mặc định (mục 4.2a). Quản trị sửa địa chỉ thật sau khi nhận tenant.
+INSERT INTO Warehouses (Warehouse_Code, Warehouse_Name, Address) VALUES
+    ('MAIN', 'Kho tổng', 'Chưa cập nhật địa chỉ');

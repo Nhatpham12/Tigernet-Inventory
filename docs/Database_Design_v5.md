@@ -1,5 +1,7 @@
 # THIẾT KẾ CƠ SỞ DỮ LIỆU – HỆ THỐNG QUẢN LÝ KHO HÀNG (TIGERNET)
 
+> ⚠️ **ĐÃ THAY THẾ** bởi `Database_Design_v6.md` (ERD v6 — đa kho). Chỉ giữ để tra lịch sử, không dùng để code.
+
 > Tài liệu này được xây dựng bám sát **SRS_He_Thong_Quan_Ly_Kho.docx** và kế thừa danh mục/dữ liệu mẫu từ **Database_Design.docx**.
 > DBMS: **MySQL 5.7+**, charset `utf8mb4`, collation `utf8mb4_unicode_ci` (theo mục 1.4 & 8.4 SRS, và cấu hình trong file phân tích cũ).
 > Mọi quyết định thiết kế đều tham chiếu tới mục cụ thể trong SRS (ký hiệu §).
