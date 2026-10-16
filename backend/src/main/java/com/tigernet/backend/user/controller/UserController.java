@@ -1,9 +1,11 @@
 package com.tigernet.backend.user.controller;
 
+import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.user.dto.request.UserCreationRequest;
 import com.tigernet.backend.user.dto.request.UserUpdateRequest;
-import com.tigernet.backend.user.entity.UserEntity;
+import com.tigernet.backend.user.dto.response.UserResponse;
 import com.tigernet.backend.user.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,27 +18,28 @@ public class UserController {
     private UserService userService;
 
     @PostMapping
-    UserEntity createUser(@RequestBody UserCreationRequest request) {
-        return userService.createUser(request);
+    ApiResponse<UserResponse> createUser(@RequestBody @Valid UserCreationRequest request) {
+        return ApiResponse.success(userService.createUser(request));
     }
 
     @GetMapping //lấy toàn bộ người dùng
-    List<UserEntity> getUsers() {
-        return userService.getUsers();
+    ApiResponse<List<UserResponse>> getUsers() {
+        return ApiResponse.success(userService.getUsers());
     }
 
     @GetMapping("/{userId}") //tìm người dùng theo ID
-    UserEntity getUser(@PathVariable Integer userId) {
-        return userService.getUserById(userId);
+    ApiResponse<UserResponse> getUser(@PathVariable Integer userId) {
+        return ApiResponse.success(userService.getUserById(userId));
     }
 
     @PutMapping("/{userId}")
-    UserEntity updateUser(@PathVariable Integer userId, @RequestBody UserUpdateRequest request){
-        return userService.updateUser(userId, request);
+    ApiResponse<UserResponse> updateUser(@PathVariable Integer userId, @RequestBody @Valid UserUpdateRequest request){
+        return ApiResponse.success(userService.updateUser(userId, request));
     }
+
     @DeleteMapping("/{userId}")
-    String deleteUser(@PathVariable Integer userId){
+    ApiResponse<Void> deleteUser(@PathVariable Integer userId){
         userService.deleteUser(userId);
-        return "User has been deleted";
+        return ApiResponse.success("User has been deleted", null);
     }
 }

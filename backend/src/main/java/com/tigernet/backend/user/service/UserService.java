@@ -4,19 +4,22 @@ import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.user.dto.request.UserCreationRequest;
 import com.tigernet.backend.user.dto.request.UserUpdateRequest;
+import com.tigernet.backend.user.dto.response.UserResponse;
 import com.tigernet.backend.user.entity.RoleEntity;
 import com.tigernet.backend.user.entity.UserEntity;
+import com.tigernet.backend.user.mapper.UserMapper;
 import com.tigernet.backend.user.repository.RoleRepository;
 import com.tigernet.backend.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Transactional
 public class UserService {
     @Autowired
     private UserRepository userRepository;
@@ -24,46 +27,45 @@ public class UserService {
     @Autowired
     private RoleRepository roleRepository;
 
-    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    @Autowired
+    private UserMapper userMapper;
 
-    public UserEntity createUser(UserCreationRequest request){
-        UserEntity user = new UserEntity();
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
+    public UserResponse createUser(UserCreationRequest request){
         if(userRepository.existsByUsername(request.getUsername())) {
             throw new AppException(ErrorCode.USERNAME_EXISTED);
         }
-        user.setFullName(request.getFullName());
-        user.setEmail(request.getEmail());
-        user.setIsActive(request.getIsActive());
+
+        UserEntity user = userMapper.toUser(request);
         user.setCreatedAt(LocalDateTime.now()); // server tự set thời điểm tạo
         user.setPasswordHash(passwordEncoder.encode(request.getPassword())); // mã hóa BCrypt trước khi lưu
-        user.setUsername(request.getUsername());
         if(request.getRoleId() != null){
             user.setRole(findRoleById(request.getRoleId()));
         }
 
-        return userRepository.save(user);
+        return userMapper.toUserResponse(userRepository.save(user));
     }
 
-    public List<UserEntity> getUsers(){
-        return userRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<UserResponse> getUsers(){
+        return userMapper.toUserResponses(userRepository.findAll());
     }
 
-    public UserEntity getUserById(Integer userId){
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+    @Transactional(readOnly = true)
+    public UserResponse getUserById(Integer userId){
+        return userMapper.toUserResponse(findUserById(userId));
     }
 
-    public UserEntity updateUser(Integer userId, UserUpdateRequest request){
-        UserEntity user = getUserById(userId);
-        user.setFullName(request.getFullName());
-        user.setEmail(request.getEmail());
-        user.setIsActive(request.getIsActive());
+    public UserResponse updateUser(Integer userId, UserUpdateRequest request){
+        UserEntity user = findUserById(userId);
+        userMapper.updateUser(user, request); // chỉ cập nhật các trường không null
         if(request.getRoleId() != null){
             user.setRole(findRoleById(request.getRoleId()));
         }
 
-        return userRepository.save(user);
+        return userMapper.toUserResponse(userRepository.save(user));
     }
 
     public void deleteUser(Integer userId) {
@@ -71,6 +73,11 @@ public class UserService {
             throw new AppException(ErrorCode.USER_NOT_FOUND);
         }
         userRepository.deleteById(userId);
+    }
+
+    private UserEntity findUserById(Integer userId){
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 
     private RoleEntity findRoleById(Integer roleId){

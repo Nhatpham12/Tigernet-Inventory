@@ -8,6 +8,8 @@ public enum ErrorCode {
     // 1xxx: user
     USER_NOT_FOUND(1001, "User not found", HttpStatus.NOT_FOUND),
     USERNAME_EXISTED(1002, "Username already exists", HttpStatus.CONFLICT),
+    UNAUTHENTICATED(1003, "Invalid username or password", HttpStatus.UNAUTHORIZED), // dùng chung cho sai username và sai mật khẩu
+    USER_INACTIVE(1004, "User account is inactive", HttpStatus.FORBIDDEN),
 
     // 11xx: role
     ROLE_NOT_FOUND(1101, "Role not found", HttpStatus.NOT_FOUND),

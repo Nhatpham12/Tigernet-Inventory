@@ -6,6 +6,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -14,6 +16,7 @@ public class SecurityConfig {
 
     // các endpoint chưa cần đăng nhập (tạm thời cho dev, khi có JWT sẽ siết lại)
     private static final String[] PUBLIC_ENDPOINTS = {
+            "/auth/**",
             "/users/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -32,5 +35,11 @@ public class SecurityConfig {
                 .httpBasic(Customizer.withDefaults());
 
         return http.build();
+    }
+
+    // dùng chung cho mã hóa (UserService) và kiểm tra mật khẩu (AuthenticationService)
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(10);
     }
 }
