@@ -1,0 +1,28 @@
+$kind: http-request
+description: Username NOT NULL — thiếu username phải bị từ chối.
+url: '{{base_url}}{{users_path}}'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "password": "Tiger@123",
+      "fullName": "QA No Username",
+      "email": "qa_nouser_{{run_id}}@tigernet.test",
+      "isActive": true,
+      "roleId": {{role_id}}
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Không cho tạo user thiếu username", function () {
+          pm.expect(pm.response.code).to.be.at.least(400);
+      });
+      pm.test("[Docs] Trả 400 Bad Request", function () {
+          pm.response.to.have.status(400);
+      });
+    language: text/javascript
+order: 4000

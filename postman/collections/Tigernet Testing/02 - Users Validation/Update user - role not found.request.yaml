@@ -1,0 +1,27 @@
+$kind: http-request
+description: PUT user gốc với roleId không tồn tại phải bị từ chối.
+url: '{{base_url}}{{users_path}}/{{base_user_id}}'
+method: PUT
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fullName": "QA Base {{run_id}}",
+      "email": "{{base_email}}",
+      "isActive": true,
+      "roleId": {{not_found_id}}
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Không cho đổi sang role không tồn tại", function () {
+          pm.expect(pm.response.code).to.be.at.least(400);
+      });
+      pm.test("[Docs] Trả 400 hoặc 404", function () {
+          pm.expect(pm.response.code).to.be.oneOf([400, 404]);
+      });
+    language: text/javascript
+order: 11000

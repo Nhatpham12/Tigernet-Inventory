@@ -1,0 +1,14 @@
+$kind: collection
+description: |-
+  Luồng chính: tạo → xem danh sách → xem chi tiết → cập nhật → xác nhận cập nhật → xoá → xác nhận đã xoá.
+  Chạy theo thứ tự; request đầu tiên lưu `user_id` cho các request sau.
+order: 1000
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      // Tạo user thất bại thì bỏ qua các bước sau, tránh gọi {{users_path}}/ với id rỗng
+      if (pm.info.requestName !== "Create user" && !pm.collectionVariables.get("user_id")) {
+          console.warn(`Bỏ qua "${pm.info.requestName}": chưa có user_id (Create user thất bại)`);
+          pm.execution.skipRequest();
+      }
+    language: text/javascript

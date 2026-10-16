@@ -1,0 +1,30 @@
+$kind: http-request
+description: Xoá user gốc, sau đó xoá các user lỡ được tạo thành công trong folder này (`cleanup_ids`).
+url: '{{base_url}}{{users_path}}/{{base_user_id}}'
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Xoá user gốc thành công", function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 204]);
+      });
+
+      const ids = JSON.parse(pm.collectionVariables.get("cleanup_ids") || "[]");
+      const baseUrl = pm.variables.replaceIn("{{base_url}}{{users_path}}");
+      const authUser = pm.variables.get("auth_username");
+      const authPass = pm.variables.get("auth_password");
+      const header = authUser && authPass
+          ? { Authorization: "Basic " + btoa(`${authUser}:${authPass}`) }
+          : {};
+      ids.forEach(id => {
+          pm.sendRequest({
+              url: `${baseUrl}/${id}`,
+              method: "DELETE",
+              header
+          }, function (err, res) {
+              console.log(`Cleanup user ${id}:`, err ? err : res.code);
+          });
+      });
+      pm.collectionVariables.set("cleanup_ids", "[]");
+    language: text/javascript
+order: 13000

@@ -1,0 +1,64 @@
+$kind: collection
+description: |-
+  # Tigernet Testing
+
+  Bộ test API cho backend TIGERNET (Spring Boot), viết theo code hiện có trong `backend/` và tài liệu trong `docs/`:
+  - `Database_Design_v6.md` §1.1, §4.1–4.2: ràng buộc bảng `Users` / `Roles`
+  - `BACKLOG.md` QT-01, QL-08: API quản lý người dùng
+  - `database/tenant/V2__seed_reference_data.sql`: Roles mặc định (1 WAREHOUSE, 2 ACCOUNTANT, 3 SALES, 4 MANAGER, 5 ADMIN)
+
+  ## Cách chạy
+  1. Bật MySQL (database `tigernet` đã có Roles) và backend (`mvnw spring-boot:run`, mặc định `http://localhost:8080`).
+  2. Chọn environment **Tigernet Local**. Nếu Spring Security đang để mặc định, điền `auth_password` bằng mật khẩu in trong log khi khởi động (user là `user`).
+  3. Run collection theo thứ tự: folder `01` (luồng CRUD), sau đó `02` (validation & lỗi). Mỗi folder tự tạo và tự dọn dữ liệu test của nó.
+
+  ## Biến
+  | Biến | Ý nghĩa |
+  |---|---|
+  | `base_url` | Địa chỉ backend |
+  | `users_path` | `/users` (code hiện tại); docs dự kiến đổi thành `/identity/users` |
+  | `role_id` / `role_id_updated` | Role dùng khi tạo / cập nhật user |
+  | `not_found_id` | ID chắc chắn không tồn tại |
+  | `user_id`, `run_id`, `base_*` | Script tự sinh khi chạy, không cần điền |
+
+  ## Quy ước test
+  Test có tiền tố **[Docs]** kiểm tra hành vi theo tài liệu mà code hiện tại có thể chưa làm (mã lỗi 400/404/409, không trả `passwordHash`, xoá mềm...). Test này fail nghĩa là backend chưa đáp ứng tài liệu, không phải collection sai.
+auth:
+  type: basic
+  credentials:
+    - key: username
+      value: '{{auth_username}}'
+    - key: password
+      value: '{{auth_password}}'
+variables:
+  - key: base_url
+    value: 'http://localhost:8080'
+    description: Địa chỉ backend (environment ghi đè nếu có)
+  - key: users_path
+    value: /users
+    description: Đường dẫn API người dùng; docs dự kiến /identity/users
+  - key: role_id
+    value: '3'
+    description: Role khi tạo user (3 = SALES)
+  - key: role_id_updated
+    value: '4'
+    description: Role khi cập nhật user (4 = MANAGER)
+  - key: not_found_id
+    value: '999999999'
+    description: ID chắc chắn không tồn tại
+  - key: user_id
+    value: ''
+    description: Script tự gán sau khi tạo user
+  - key: run_id
+    value: ''
+    description: Script tự gán để username/email không trùng giữa các lần chạy
+scripts:
+  - type: http:afterResponse
+    code: |-
+      pm.test("Thời gian phản hồi < 3000ms", function () {
+          pm.expect(pm.response.responseTime).to.be.below(3000);
+      });
+      pm.test("Không bị Spring Security chặn (401/403)", function () {
+          pm.expect(pm.response.code, "Kiểm tra auth_username/auth_password hoặc SecurityConfig (CSRF chặn POST/PUT/DELETE)").to.not.be.oneOf([401, 403]);
+      });
+    language: text/javascript

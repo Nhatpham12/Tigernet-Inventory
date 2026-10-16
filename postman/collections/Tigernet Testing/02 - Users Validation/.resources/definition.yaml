@@ -1,0 +1,44 @@
+$kind: collection
+description: |-
+  Kiểm tra ràng buộc và xử lý lỗi theo `Database_Design_v6.md` §4.2:
+  Username UNIQUE NOT NULL, Email UNIQUE, Password_Hash NOT NULL, Role_ID NOT NULL FK→Roles.
+
+  `Setup` tạo một user gốc để thử trùng username/email; `Cleanup` xoá user gốc và mọi user lỡ được tạo thành công
+  trong folder này (script folder tự ghi id vào `cleanup_ids`).
+
+  Mỗi trường hợp có 2 mức kiểm tra:
+  - **Bắt buộc**: request không được thành công (không 2xx) — đây là ràng buộc dữ liệu.
+  - **[Docs]**: mã lỗi đúng chuẩn (400/404/409). Code hiện ném `RuntimeException` → Spring trả 500, nên test này sẽ fail cho tới khi có `GlobalExceptionHandler`.
+order: 2000
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      // Request dùng user gốc mà Setup thất bại thì bỏ qua
+      const needsBase = pm.request.url.toString().includes("{{base_user_id}}");
+      if (needsBase && !pm.collectionVariables.get("base_user_id")) {
+          console.warn(`Bỏ qua "${pm.info.requestName}": chưa có base_user_id (Setup thất bại)`);
+          pm.execution.skipRequest();
+      }
+    language: text/javascript
+  - type: http:afterResponse
+    code: |-
+      const isSetup = pm.info.requestName.startsWith("Setup");
+      if (pm.request.method === "POST" && !isSetup && pm.response.code < 300) {
+          try {
+              const j = pm.response.json();
+              const u = j.result ?? j.data ?? j;
+              const id = u.userId ?? u.id;
+              if (id) {
+                  const ids = JSON.parse(pm.collectionVariables.get("cleanup_ids") || "[]");
+                  ids.push(id);
+                  pm.collectionVariables.set("cleanup_ids", JSON.stringify(ids));
+              }
+          } catch (e) { /* body không phải JSON */ }
+      }
+
+      if (pm.response.code >= 400) {
+          pm.test("Lỗi không lộ stack trace", function () {
+              pm.expect(pm.response.text()).to.not.match(/at (com|org|java)\.[\w.$]+\(/);
+          });
+      }
+    language: text/javascript

@@ -1,0 +1,15 @@
+$kind: http-request
+description: DELETE user với id không tồn tại.
+url: '{{base_url}}{{users_path}}/{{not_found_id}}'
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Không báo xoá thành công với id không tồn tại", function () {
+          pm.expect(pm.response.code).to.be.at.least(400);
+      });
+      pm.test("[Docs] Trả 404 Not Found", function () {
+          pm.response.to.have.status(404);
+      });
+    language: text/javascript
+order: 12000

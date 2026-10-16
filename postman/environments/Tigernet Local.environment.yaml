@@ -1,0 +1,17 @@
+name: Tigernet Local
+values:
+  - key: base_url
+    value: 'http://localhost:8080'
+    enabled: true
+    type: default
+    description: Backend chạy local
+  - key: auth_username
+    value: user
+    enabled: true
+    type: default
+    description: User mặc định của Spring Security (không cần nếu SecurityConfig đã permitAll)
+  - key: auth_password
+    value: ''
+    enabled: true
+    type: secret
+    description: 'Mật khẩu trong log khởi động: "Using generated security password"'

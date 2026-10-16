@@ -1,0 +1,10 @@
+cloudResources:
+  collections:
+    ../postman/collections/My Collection: 57175725-8f33ee5e-a190-45d7-a8b2-b4c7ccae74d9
+    ../postman/collections/Tigernet Testing: 57175725-4609c6fb-e23e-4fda-9e28-b559fc077f7d
+  environments:
+    ../postman/environments/Tigernet Local.environment.yaml: 57175725-7c94a3fe-5d46-4a21-b76d-86c7a380e4a0
+  globals:
+    ../postman/globals/workspace.globals.yaml: 4aff342b-6f8e-4f7c-8e03-248d0e904503
+workspace:
+  id: df5d5d25-e7e3-4df1-8209-59240163abfd

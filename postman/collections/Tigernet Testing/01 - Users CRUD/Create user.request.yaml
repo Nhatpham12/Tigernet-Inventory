@@ -1,0 +1,69 @@
+$kind: http-request
+description: |-
+  POST {{users_path}} — tạo user mới. Username/email gắn `run_id` nên mỗi lần chạy không trùng nhau.
+  Backend mã hoá mật khẩu bằng BCrypt và tự set `createdAt`.
+url: '{{base_url}}{{users_path}}'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "qa_{{run_id}}",
+      "password": "Tiger@123",
+      "fullName": "QA Tester {{run_id}}",
+      "email": "qa_{{run_id}}@tigernet.test",
+      "isActive": true,
+      "roleId": {{role_id}}
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      pm.collectionVariables.set("run_id", Date.now().toString());
+      pm.collectionVariables.set("user_id", "");
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      const runId = pm.collectionVariables.get("run_id");
+      const roleId = Number(pm.collectionVariables.get("role_id"));
+
+      pm.test("Status 200 hoặc 201", function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201]);
+      });
+
+      const json = pm.response.json();
+      const user = json.result ?? json.data ?? json;
+      const id = user.userId ?? user.id;
+
+      pm.test("Có userId và lưu lại cho các request sau", function () {
+          pm.expect(id, "userId").to.be.a("number");
+          pm.collectionVariables.set("user_id", id);
+      });
+
+      pm.test("Dữ liệu trả về khớp request", function () {
+          pm.expect(user.username).to.eql(`qa_${runId}`);
+          pm.expect(user.fullName).to.eql(`QA Tester ${runId}`);
+          pm.expect(user.email).to.eql(`qa_${runId}@tigernet.test`);
+          pm.expect(user.isActive).to.eql(true);
+      });
+
+      pm.test("Được gán đúng role", function () {
+          const rid = user.role ? (user.role.id ?? user.role.roleId) : user.roleId;
+          pm.expect(rid).to.eql(roleId);
+      });
+
+      pm.test("createdAt do server tự sinh", function () {
+          pm.expect(user.createdAt).to.be.a("string").and.not.empty;
+      });
+
+      pm.test("Không trả mật khẩu thô", function () {
+          pm.expect(pm.response.text()).to.not.include("Tiger@123");
+      });
+
+      pm.test("[Docs] Không trả passwordHash ra API (Database_Design_v6 §4.2)", function () {
+          pm.expect(user).to.not.have.property("passwordHash");
+      });
+    language: text/javascript
+order: 1000

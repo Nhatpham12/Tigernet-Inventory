@@ -1,0 +1,29 @@
+$kind: http-request
+description: Email UNIQUE (Database_Design_v6 §4.2) — tạo trùng email của user gốc phải bị từ chối.
+url: '{{base_url}}{{users_path}}'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "qa_dupmail_{{run_id}}",
+      "password": "Tiger@123",
+      "fullName": "QA Dup Email",
+      "email": "{{base_email}}",
+      "isActive": true,
+      "roleId": {{role_id}}
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Không cho tạo trùng email", function () {
+          pm.expect(pm.response.code).to.be.at.least(400);
+      });
+      pm.test("[Docs] Trả 409 Conflict hoặc 400", function () {
+          pm.expect(pm.response.code).to.be.oneOf([409, 400]);
+      });
+    language: text/javascript
+order: 3000

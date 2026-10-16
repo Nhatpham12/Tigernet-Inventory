@@ -1,0 +1,38 @@
+$kind: http-request
+description: Tạo user gốc để các request sau thử trùng username/email.
+url: '{{base_url}}{{users_path}}'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "qa_base_{{run_id}}",
+      "password": "Tiger@123",
+      "fullName": "QA Base {{run_id}}",
+      "email": "qa_base_{{run_id}}@tigernet.test",
+      "isActive": true,
+      "roleId": {{role_id}}
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      const runId = Date.now().toString();
+      pm.collectionVariables.set("run_id", runId);
+      pm.collectionVariables.set("base_username", `qa_base_${runId}`);
+      pm.collectionVariables.set("base_email", `qa_base_${runId}@tigernet.test`);
+      pm.collectionVariables.set("base_user_id", "");
+      pm.collectionVariables.set("cleanup_ids", "[]");
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Tạo user gốc thành công", function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 201]);
+          const j = pm.response.json();
+          const u = j.result ?? j.data ?? j;
+          pm.collectionVariables.set("base_user_id", u.userId ?? u.id);
+      });
+    language: text/javascript
+order: 1000

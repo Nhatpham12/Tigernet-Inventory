@@ -1,0 +1,29 @@
+$kind: http-request
+description: Role_ID FK→Roles — roleId không tồn tại phải bị từ chối ("Role not found").
+url: '{{base_url}}{{users_path}}'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "qa_badrole_{{run_id}}",
+      "password": "Tiger@123",
+      "fullName": "QA Bad Role",
+      "email": "qa_badrole_{{run_id}}@tigernet.test",
+      "isActive": true,
+      "roleId": {{not_found_id}}
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Không cho tạo user với role không tồn tại", function () {
+          pm.expect(pm.response.code).to.be.at.least(400);
+      });
+      pm.test("[Docs] Trả 400 hoặc 404", function () {
+          pm.expect(pm.response.code).to.be.oneOf([400, 404]);
+      });
+    language: text/javascript
+order: 7000

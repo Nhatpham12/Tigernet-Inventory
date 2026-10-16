@@ -1,0 +1,28 @@
+$kind: http-request
+description: 'GET {{users_path}}/{userId} — xem chi tiết user vừa tạo.'
+url: '{{base_url}}{{users_path}}/{{user_id}}'
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      const runId = pm.collectionVariables.get("run_id");
+
+      pm.test("Status 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      const json = pm.response.json();
+      const user = json.result ?? json.data ?? json;
+
+      pm.test("Đúng user theo id", function () {
+          pm.expect(user.userId ?? user.id).to.eql(Number(pm.collectionVariables.get("user_id")));
+          pm.expect(user.username).to.eql(`qa_${runId}`);
+          pm.expect(user.email).to.eql(`qa_${runId}@tigernet.test`);
+      });
+
+      pm.test("Có thông tin role hợp lệ", function () {
+          pm.expect(user.role, "role").to.be.an("object");
+          pm.expect(user.role.roleName).to.be.oneOf(["WAREHOUSE", "ACCOUNTANT", "SALES", "MANAGER", "ADMIN"]);
+      });
+    language: text/javascript
+order: 3000

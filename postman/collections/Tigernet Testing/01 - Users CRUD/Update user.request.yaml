@@ -1,0 +1,47 @@
+$kind: http-request
+description: |-
+  PUT {{users_path}}/{userId} — cập nhật họ tên, email, trạng thái, role.
+  Body cố tình gửi kèm `username`: theo BACKLOG QT-01, PUT không được đổi username.
+url: '{{base_url}}{{users_path}}/{{user_id}}'
+method: PUT
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "hacked_{{run_id}}",
+      "fullName": "QA Tester Updated {{run_id}}",
+      "email": "qa_updated_{{run_id}}@tigernet.test",
+      "isActive": false,
+      "roleId": {{role_id_updated}}
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      const runId = pm.collectionVariables.get("run_id");
+
+      pm.test("Status 200", function () {
+          pm.response.to.have.status(200);
+      });
+
+      const json = pm.response.json();
+      const user = json.result ?? json.data ?? json;
+
+      pm.test("Các trường được cập nhật", function () {
+          pm.expect(user.fullName).to.eql(`QA Tester Updated ${runId}`);
+          pm.expect(user.email).to.eql(`qa_updated_${runId}@tigernet.test`);
+          pm.expect(user.isActive).to.eql(false);
+      });
+
+      pm.test("Role được đổi", function () {
+          const rid = user.role ? (user.role.id ?? user.role.roleId) : user.roleId;
+          pm.expect(rid).to.eql(Number(pm.collectionVariables.get("role_id_updated")));
+      });
+
+      pm.test("Username không đổi qua PUT (BACKLOG QT-01)", function () {
+          pm.expect(user.username).to.eql(`qa_${runId}`);
+      });
+    language: text/javascript
+order: 4000

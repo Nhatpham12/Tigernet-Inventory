@@ -1,0 +1,19 @@
+$kind: http-request
+description: 'DELETE {{users_path}}/{userId} — xoá user test.'
+url: '{{base_url}}{{users_path}}/{{user_id}}'
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status 200 hoặc 204", function () {
+          pm.expect(pm.response.code).to.be.oneOf([200, 204]);
+      });
+
+      const contentType = pm.response.headers.get("Content-Type") || "";
+      if (pm.response.code === 200 && !contentType.includes("json")) {
+          pm.test("Thông báo xoá thành công", function () {
+              pm.expect(pm.response.text()).to.include("User has been deleted");
+          });
+      }
+    language: text/javascript
+order: 6000
