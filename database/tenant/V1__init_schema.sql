@@ -1,10 +1,10 @@
 -- =====================================================================
--- TIGERNET — Tenant database schema v6 (ĐA KHO) — Flyway V1
--- Nguồn: docs/Database_Design_v6.md + docs/TIGERNET_ERD_v6_dark.png
+-- TIGERNET — Tenant database schema v7 (ĐA KHO) — Flyway V1
+-- Nguồn: docs/Database_Design_v7.md + docs/tigernetFinal.drawio.png (ERD v7)
 -- Mỗi khách hàng (tenant) có 1 database riêng dùng schema này.
 -- DBMS : MySQL 8.0.16+ (CHECK được thực thi). Charset utf8mb4 / utf8mb4_unicode_ci.
 -- Database do Control Plane tạo khi provisioning (OPS-01), file này KHÔNG
--- tạo database. Chạy tay toàn bộ: docs/Database_Script_v6.sql.
+-- tạo database. Chạy tay toàn bộ: docs/Database_Script_v7.sql.
 --
 -- Quy ước FK (Phần 4 của tài liệu):
 --   * ON UPDATE CASCADE cho mọi FK
@@ -132,6 +132,20 @@ CREATE TABLE User_Warehouses (
 
 CREATE INDEX IX_UW_Warehouse ON User_Warehouses (Warehouse_ID);
 
+-- 4.2c Warehouse_Locations [v7] ---------------------------------------
+-- Vị trí trong kho (kệ/ô/bin). Inventory.Location_ID phải thuộc đúng
+-- Inventory.Warehouse_ID: kiểm tra ở tầng service.
+CREATE TABLE Warehouse_Locations (
+    ID            INT          NOT NULL AUTO_INCREMENT,
+    Warehouse_ID  INT          NOT NULL,
+    Location_Code VARCHAR(30)  NOT NULL,
+    Description   VARCHAR(255) NULL,
+    CONSTRAINT PK_Warehouse_Locations PRIMARY KEY (ID),
+    CONSTRAINT UQ_Warehouse_Locations UNIQUE (Warehouse_ID, Location_Code),
+    CONSTRAINT FK_WL_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- 4.4 Products --------------------------------------------------------
 CREATE TABLE Products (
     ID                INT           NOT NULL AUTO_INCREMENT,
@@ -155,6 +169,29 @@ CREATE TABLE Products (
 
 CREATE INDEX IX_Products_Name     ON Products (Product_Name);
 CREATE INDEX IX_Products_Group_ID ON Products (Group_ID);
+
+-- 4.4a Product_Warehouse_Settings [v7] --------------------------------
+-- Ngưỡng tồn riêng theo (SP, kho). Min_Stock NULL = dùng Products.Min_Stock_Level.
+CREATE TABLE Product_Warehouse_Settings (
+    ID            INT NOT NULL AUTO_INCREMENT,
+    Product_ID    INT NOT NULL,
+    Warehouse_ID  INT NOT NULL,
+    Min_Stock     INT NULL,
+    Max_Stock     INT NULL,
+    Reorder_Point INT NULL,
+    CONSTRAINT PK_Product_Warehouse_Settings PRIMARY KEY (ID),
+    CONSTRAINT UQ_PWS_Product_Warehouse UNIQUE (Product_ID, Warehouse_ID),
+    CONSTRAINT FK_PWS_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT FK_PWS_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT CK_PWS_Non_Negative CHECK ((Min_Stock IS NULL OR Min_Stock >= 0)
+                                      AND (Max_Stock IS NULL OR Max_Stock >= 0)
+                                      AND (Reorder_Point IS NULL OR Reorder_Point >= 0)),
+    CONSTRAINT CK_PWS_Min_Max CHECK (Min_Stock IS NULL OR Max_Stock IS NULL OR Max_Stock >= Min_Stock)
+) ENGINE=InnoDB;
+
+CREATE INDEX IX_PWS_Warehouse ON Product_Warehouse_Settings (Warehouse_ID);
 
 -- 4.5 Parties ---------------------------------------------------------
 CREATE TABLE Parties (
@@ -296,6 +333,7 @@ CREATE TABLE Inventory (
     ID               INT           NOT NULL AUTO_INCREMENT,
     Product_ID       INT           NOT NULL,
     Warehouse_ID     INT           NOT NULL,
+    Location_ID      INT           NULL,
     Serial           VARCHAR(255)  NULL,
     Import_Detail_ID INT           NULL,
     Quantity_On_Hand INT           NOT NULL DEFAULT 0,
@@ -304,12 +342,15 @@ CREATE TABLE Inventory (
     Note             TEXT          NULL,
     Date_In          DATETIME      NULL,
     Date_Out         DATETIME      NULL,
+    Version          INT           NOT NULL DEFAULT 0,  -- [v7] khóa lạc quan (JPA @Version)
     CONSTRAINT PK_Inventory PRIMARY KEY (ID),
     CONSTRAINT UQ_Inventory_Serial UNIQUE (Serial),
     CONSTRAINT FK_Inventory_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT FK_Inventory_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
         ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_Inventory_Location FOREIGN KEY (Location_ID) REFERENCES Warehouse_Locations(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT FK_Inventory_Import_Detail FOREIGN KEY (Import_Detail_ID) REFERENCES Import_Receipt_Details(ID)
         ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT CK_Inventory_Qty    CHECK (Quantity_On_Hand >= 0),
@@ -323,6 +364,7 @@ CREATE INDEX IX_Inventory_Date_Out         ON Inventory (Date_Out);
 CREATE INDEX IX_Inventory_Wh_Product_Status ON Inventory (Warehouse_ID, Product_ID, Status);
 
 -- 4.24 Stock_Summary [v6] ---------------------------------------------
+-- [v7] Ngưỡng tồn theo kho chuyển sang Product_Warehouse_Settings.
 CREATE TABLE Stock_Summary (
     Product_ID      INT      NOT NULL,
     Warehouse_ID    INT      NOT NULL,
@@ -331,17 +373,45 @@ CREATE TABLE Stock_Summary (
     Qty_Rented      INT      NOT NULL DEFAULT 0,
     Qty_Damaged     INT      NOT NULL DEFAULT 0,
     Qty_In_Transit  INT      NOT NULL DEFAULT 0,
-    Min_Stock_Level INT      NULL,
     Last_Updated    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT PK_Stock_Summary PRIMARY KEY (Product_ID, Warehouse_ID),
     CONSTRAINT FK_SS_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT FK_SS_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT CK_SS_Min_Stock CHECK (Min_Stock_Level IS NULL OR Min_Stock_Level >= 0)
+        ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE INDEX IX_SS_Warehouse ON Stock_Summary (Warehouse_ID);
+
+-- 4.25 Stock_Movements [v7] -------------------------------------------
+-- Sổ cái biến động tồn: mỗi lần Qty_On_Hand của (SP, kho) thay đổi ghi 1 dòng.
+-- Balance_After = Stock_Summary.Qty_On_Hand ngay sau biến động.
+-- (Reference_Type, Reference_ID) trỏ mềm tới phiếu gây biến động.
+CREATE TABLE Stock_Movements (
+    ID             BIGINT      NOT NULL AUTO_INCREMENT,
+    Product_ID     INT         NOT NULL,
+    Warehouse_ID   INT         NOT NULL,
+    Movement_Type  VARCHAR(10) NOT NULL,
+    Quantity       INT         NOT NULL,
+    Balance_After  INT         NOT NULL,
+    Reference_Type VARCHAR(30) NOT NULL,
+    Reference_ID   INT         NOT NULL,
+    Created_At     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT PK_Stock_Movements PRIMARY KEY (ID),
+    CONSTRAINT FK_SM_Product FOREIGN KEY (Product_ID) REFERENCES Products(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_SM_Warehouse FOREIGN KEY (Warehouse_ID) REFERENCES Warehouses(ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT CK_SM_Type     CHECK (Movement_Type IN ('IN','OUT')),
+    CONSTRAINT CK_SM_Quantity CHECK (Quantity > 0),
+    CONSTRAINT CK_SM_Balance  CHECK (Balance_After >= 0),
+    CONSTRAINT CK_SM_Ref_Type CHECK (Reference_Type IN
+        ('Import_Receipts','Export_Receipts','Rental_Receipts','Return_Receipts',
+         'Sales_Returns','Stock_Transfers','Stock_Adjustments'))
+) ENGINE=InnoDB;
+
+CREATE INDEX IX_SM_Wh_Product_Time ON Stock_Movements (Warehouse_ID, Product_ID, Created_At);
+CREATE INDEX IX_SM_Reference       ON Stock_Movements (Reference_Type, Reference_ID);
 
 -- =====================================================================
 -- 4. XUẤT KHO
@@ -559,6 +629,8 @@ CREATE TABLE Sales_Returns (
     Created_At            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT PK_Sales_Returns PRIMARY KEY (ID),
     CONSTRAINT UQ_Sales_Returns_Code UNIQUE (Receipt_Code),
+    -- [v7] issues_exchange 1:1 — mỗi phiếu xuất đổi hàng chỉ thuộc 1 phiếu đổi/trả
+    CONSTRAINT UQ_Sales_Returns_New_Export UNIQUE (New_Export_Receipt_ID),
     CONSTRAINT FK_SR_Export FOREIGN KEY (Export_Receipt_ID) REFERENCES Export_Receipts(ID)
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT FK_SR_Party FOREIGN KEY (Party_ID) REFERENCES Parties(ID)
@@ -673,13 +745,15 @@ CREATE TABLE Stock_Transfers (
     Transfer_Code     VARCHAR(30) NOT NULL,
     From_Warehouse_ID INT         NOT NULL,
     To_Warehouse_ID   INT         NOT NULL,
-    Transfer_Date     DATETIME    NOT NULL,
-    Received_Date     DATETIME    NULL,
     Status            VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
     Note              TEXT        NULL,
     Created_By        INT         NOT NULL,
+    Approved_By       INT         NULL,
     Received_By       INT         NULL,
     Created_At        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Approved_At       DATETIME    NULL,
+    Shipped_At        DATETIME    NULL,
+    Received_At       DATETIME    NULL,
     CONSTRAINT PK_Stock_Transfers PRIMARY KEY (ID),
     CONSTRAINT UQ_Stock_Transfers_Code UNIQUE (Transfer_Code),
     -- ON UPDATE RESTRICT: MySQL 8 không cho cột trong CHECK nằm ở FK có ON UPDATE CASCADE.
@@ -689,10 +763,13 @@ CREATE TABLE Stock_Transfers (
         ON UPDATE RESTRICT ON DELETE RESTRICT,
     CONSTRAINT FK_ST_Created_By FOREIGN KEY (Created_By) REFERENCES Users(ID)
         ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT FK_ST_Approved_By FOREIGN KEY (Approved_By) REFERENCES Users(ID)
+        ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT FK_ST_Received_By FOREIGN KEY (Received_By) REFERENCES Users(ID)
         ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT CK_ST_Diff_Warehouse CHECK (From_Warehouse_ID <> To_Warehouse_ID),
-    CONSTRAINT CK_ST_Status CHECK (Status IN ('DRAFT','IN_TRANSIT','RECEIVED','CANCELLED'))
+    CONSTRAINT CK_ST_Status CHECK (Status IN ('DRAFT','APPROVED','IN_TRANSIT','RECEIVED','CANCELLED')),
+    CONSTRAINT CK_ST_Dates CHECK (Received_At IS NULL OR Shipped_At IS NULL OR Received_At >= Shipped_At)
 ) ENGINE=InnoDB;
 
 CREATE INDEX IX_Transfer_From ON Stock_Transfers (From_Warehouse_ID, Status);
@@ -704,9 +781,10 @@ CREATE TABLE Stock_Transfer_Details (
     Stock_Transfer_ID INT          NOT NULL,
     Product_ID        INT          NOT NULL,
     Inventory_ID      INT          NULL,
-    Quantity          INT          NOT NULL,
-    Received_Qty      INT          NULL,
+    Qty_Sent          INT          NOT NULL,
+    Qty_Received      INT          NULL,
     Serial            VARCHAR(255) NULL,
+    Note              VARCHAR(255) NULL,
     CONSTRAINT PK_Stock_Transfer_Details PRIMARY KEY (ID),
     CONSTRAINT FK_STD2_Transfer FOREIGN KEY (Stock_Transfer_ID) REFERENCES Stock_Transfers(ID)
         ON UPDATE CASCADE ON DELETE CASCADE,
@@ -714,8 +792,8 @@ CREATE TABLE Stock_Transfer_Details (
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT FK_STD2_Inventory FOREIGN KEY (Inventory_ID) REFERENCES Inventory(ID)
         ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT CK_STD2_Quantity     CHECK (Quantity > 0),
-    CONSTRAINT CK_STD2_Received_Qty CHECK (Received_Qty IS NULL OR Received_Qty >= 0)
+    CONSTRAINT CK_STD2_Qty_Sent     CHECK (Qty_Sent > 0),
+    CONSTRAINT CK_STD2_Qty_Received CHECK (Qty_Received IS NULL OR Qty_Received >= 0)
 ) ENGINE=InnoDB;
 
 -- =====================================================================

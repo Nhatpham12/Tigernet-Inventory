@@ -1,6 +1,6 @@
 -- =====================================================================
--- TIGERNET — Tenant database v6 — Flyway V3: VIEW báo cáo & dashboard
--- Nguồn: docs/Database_Design_v6.md (Phụ lục: Các VIEW)
+-- TIGERNET — Tenant database v7 — Flyway V3: VIEW báo cáo & dashboard
+-- Nguồn: docs/Database_Design_v7.md (Phụ lục: Các VIEW)
 -- =====================================================================
 
 -- Số lượng thực của 1 dòng Inventory: hàng serial = 1 đơn vị, không serial = Quantity_On_Hand.
@@ -79,7 +79,8 @@ LEFT JOIN (
 ) ren ON ren.Group_ID = pg.ID
 WHERE   pg.Is_Deleted = FALSE;
 
--- View_Stock_By_Warehouse [v6] (§3.8 LOW_STOCK theo kho)
+-- View_Stock_By_Warehouse [v7] (§3.8 LOW_STOCK theo kho)
+-- Ngưỡng theo kho lấy từ Product_Warehouse_Settings, thiếu thì theo Products.
 CREATE OR REPLACE VIEW View_Stock_By_Warehouse AS
 SELECT  ss.Warehouse_ID,
         w.Warehouse_Code,
@@ -92,12 +93,17 @@ SELECT  ss.Warehouse_ID,
         ss.Qty_Rented,
         ss.Qty_Damaged,
         ss.Qty_In_Transit,
-        COALESCE(ss.Min_Stock_Level, p.Min_Stock_Level) AS Effective_Min_Stock,
-        (ss.Qty_On_Hand < COALESCE(ss.Min_Stock_Level, p.Min_Stock_Level)) AS Is_Low,
+        COALESCE(pws.Min_Stock, p.Min_Stock_Level) AS Effective_Min_Stock,
+        pws.Max_Stock,
+        pws.Reorder_Point,
+        (ss.Qty_On_Hand < COALESCE(pws.Min_Stock, p.Min_Stock_Level)) AS Is_Low,
+        (pws.Reorder_Point IS NOT NULL AND ss.Qty_On_Hand <= pws.Reorder_Point) AS Need_Reorder,
         ss.Last_Updated
 FROM    Stock_Summary ss
 JOIN    Products   p ON p.ID = ss.Product_ID
 JOIN    Warehouses w ON w.ID = ss.Warehouse_ID
+LEFT JOIN Product_Warehouse_Settings pws
+        ON pws.Product_ID = ss.Product_ID AND pws.Warehouse_ID = ss.Warehouse_ID
 WHERE   p.Is_Deleted = FALSE;
 
 -- View_Stock_Company_Total [v6] (§7.1.2 dashboard)

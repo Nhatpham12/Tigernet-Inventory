@@ -6,6 +6,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -57,6 +58,12 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiResponse<Void>> handlingDataIntegrity(DataIntegrityViolationException exception){
         log.warn("Data integrity violation: {}", exception.getMostSpecificCause().getMessage());
         return build(ErrorCode.DATA_CONFLICT);
+    }
+
+    // 2 giao dịch cùng sửa 1 bản ghi có @Version (Inventory): giao dịch sau bị từ chối
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    ResponseEntity<ApiResponse<Void>> handlingOptimisticLock(ObjectOptimisticLockingFailureException exception){
+        return build(ErrorCode.CONCURRENT_UPDATE);
     }
 
     // mọi lỗi không lường trước: ghi log đầy đủ, không trả chi tiết cho client

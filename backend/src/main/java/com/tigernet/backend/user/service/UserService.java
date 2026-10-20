@@ -75,7 +75,8 @@ public class UserService {
         userRepository.deleteById(userId);
     }
 
-    private UserEntity findUserById(Integer userId){
+    // module khác (kho, phiếu...) dùng để lấy user
+    public UserEntity findUserById(Integer userId){
         return userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }

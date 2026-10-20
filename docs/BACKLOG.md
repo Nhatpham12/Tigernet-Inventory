@@ -2,7 +2,7 @@
 
 Kết quả của **GD1 — "Phân rã yêu cầu thành backlog/use case cho từng vai trò"** (Kế hoạch chi tiết, việc #2, tuần 1–2).
 
-- **Nguồn:** `Kế hoạch TigerNet.xlsx` (Tổng Quan, Kế hoạch chi tiết — 57 việc, NOTE UXUI — 14 mục, API & Testing — 112 endpoint / 11 nhóm test / 20 test case), `TIGERNET_ERD_v6_dark.png` + `Database_Design_v6.md` (ERD v6 — đa kho, **nguồn chuẩn duy nhất về dữ liệu**), `database/tenant/*.sql` (Flyway, viết theo v6), `database/control-plane/*.sql`, `How_To_Sale.md`, `Deployment_Guide.md`, `BIEU_MAU.md` (biểu mẫu in).
+- **Nguồn:** `Kế hoạch TigerNet.xlsx` (Tổng Quan, Kế hoạch chi tiết — 57 việc, NOTE UXUI — 14 mục, API & Testing — 112 endpoint / 11 nhóm test / 20 test case), `tigernetFinal.drawio.png` + `Database_Design_v7.md` (ERD v7 — đa kho, **nguồn chuẩn duy nhất về dữ liệu**), `database/tenant/*.sql` (Flyway, viết theo v7), `database/control-plane/*.sql`, `How_To_Sale.md`, `Deployment_Guide.md`, `BIEU_MAU.md` (biểu mẫu in).
 - **Loại bỏ:** `Kế hoạch TigerNet.backup.xlsx` (bản cũ, NOTE UXUI còn nội dung dự án weather-map) — đã xoá khỏi repo.
 - **Ưu tiên:** **P1** = Phase 1 (bắt buộc trong 3 tháng / 13 tuần), **P2** = Phase 2 (mở rộng, không chặn nghiệm thu 27/12/2026).
 - **Mã story:** `PUB` (chưa đăng nhập) · `CHUNG` (mọi vai trò) · `TK` (Thủ kho) · `KT` (Kế toán) · `BH` (Bán hàng) · `QL` (Quản lý) · `QT` (Quản trị hệ thống) · `OPS` (Admin vận hành SaaS) · `DEV` (nền tảng kỹ thuật).
@@ -84,10 +84,11 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | G-9  | 112 endpoint chỉ có API in cho phiếu nhập & phiếu xuất; 7 biểu mẫu P1 khác chưa có endpoint                                                                                                                                                                                                                                                                                        | Thêm endpoint in (xem 3.1.1) + story `TK-16`, `KT-09`, `BH-13`; danh sách biểu mẫu ở `BIEU_MAU.md`                                                                                                                                                                                    |
 | G-10 | Ảnh ERD cũ (`tigernet_erd_final (1).png`), SQL cũ (`partners`, `stock_balances`, `payments`…) và thiết kế v6 lệch nhau | **Đã chốt lại 06/10/2026: ERD v6 (`TIGERNET_ERD_v6_dark.png`, `Database_Design_v6.md`) là nguồn chuẩn.** `database/tenant/` viết lại theo v6 (V1 bảng, V2 danh mục, V3 view); backlog đổi tham chiếu sang tên bảng v6; ERD cũ, SQL cũ và `Database_Design_v5.md` không dùng nữa |
 | G-11 | `V1__init_control_plane.sql` ghi "Phase 2" nhưng OPS-01…03 là P1                                                                                                                                                                                                                                                                                                                   | **Đã chốt:** P1 tối thiểu = `tenants` + `tenant_databases` + routing datasource; `tenant_branding`, `licenses` sang P2                                                                                                                                                                |
-| G-12 | Tài liệu được tham chiếu nhưng không có trong repo: `Database_Design.docx`, SRS | Bổ sung SRS vào repo hoặc chấp nhận chỉ trích dẫn (§) trong `Database_Design_v6.md` |
+| G-12 | Tài liệu được tham chiếu nhưng không có trong repo: `Database_Design.docx`, SRS | Bổ sung SRS vào repo hoặc chấp nhận chỉ trích dẫn (§) trong `Database_Design_v7.md` |
 | G-13 | ERD v6 không có bảng thanh toán: phiếu xuất chỉ lưu tổng `Paid`/`Remain`, phiếu nhập không có cột đã trả | **Đã chốt — giữ đúng ERD:** `KT-03` cập nhật `Paid`/`Remain`/`Payment_Status_ID`, từng lần thu ghi `Audit_Logs` (`PAYMENT`); phiếu thu/chi + lịch sử thanh toán + công nợ NCC → `KT-10` (P2, cần bổ sung bảng vào ERD khi làm); biên bản đối chiếu (`KT-09`) chỉ đối chiếu phải thu theo phiếu |
 | G-14 | ERD v6 không có: bước duyệt phiếu thuê, tiền bồi thường/hoàn cọc trên phiếu trả, trạng thái duyệt phiếu điều chỉnh, trạng thái hủy phiếu xuất/nhập, bảng cấu hình, bảng đã-đọc cảnh báo | **Đã chốt** theo `Database_Design_v6.md` mục "Phạm vi triển khai": phiếu thuê có hiệu lực khi tạo; bồi thường ghi chú; điều chỉnh qua chốt kiểm kê (gộp `TK-14`→`TK-13`, `QL-04`→`QL-03`, bỏ 2 endpoint); hủy phiếu = xóa + bản chụp vào audit; quy tắc thuê/khóa đăng nhập ở `application.yaml`; cảnh báo dùng cờ chung `Is_Resolved` |
 | G-15 | ERD v6 có đa kho (`Warehouses`, `User_Warehouses`, `Stock_Transfers`) nhưng backlog chưa có story | **Đã chốt:** kho + phân công + lọc theo kho là P1 (`CHUNG-07`, `QL-12`, `QT-07`); chuyển kho P2 (`TK-17`); mọi API danh sách/báo cáo nhận `warehouseId`; endpoint kho nằm ngoài 112 → thêm vào sheet _API & Testing_ |
+| G-16 | ERD v7 (16/10/2026) thêm `Warehouse_Locations`, `Product_Warehouse_Settings`, `Stock_Movements`, `Inventory.Version`, bước duyệt chuyển kho; nhưng thiếu một số cột schema đang cần (`Warehouses.Phone/Manager_ID`, `User_Warehouses.Is_Default/Assigned_At`, `Stock_Transfers.Received_By`, `Stock_Transfer_Details.Inventory_ID/Serial`, `Alerts.Warehouse_ID`, `Inventory.Import_Detail_ID/Location_ID`, `Stock_Movements.Reference_ID`) | **Đã chốt 16/10/2026:** ERD v7 là chuẩn; `database/tenant/` và `Database_Design_v7.md` cập nhật theo; các cột trên **giữ lại** và cần vẽ bổ sung vào ERD (danh sách ở cuối `Database_Design_v7.md`). `Stock_Movements`, `Product_Warehouse_Settings` là P1 (`TK-02`, `TK-07`); `Warehouse_Locations` và bước duyệt chuyển kho là P2 (`TK-17`). ERD v6, `Database_Design_v5/v6.md`, `Database_Script_v6.sql` đã xóa |
 
 > **Đã xử lý trong bản rà soát này:** 20 endpoint list/detail chưa có story nhận và 4 tham chiếu chéo sai (`KT-08`, `BH-02` → `QL-10` phải là `QL-07`; `BH-12` → `QL-07` phải là `QL-05`; `G-2` → `QL-09` phải là `QL-11`) — xem 3.1.1.
 
@@ -203,8 +204,8 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 **TK-02 — Xem tồn kho & cảnh báo dưới ngưỡng**
 
-- P1 · GD4 (tuần 7) · `GET /inventory`, `GET /inventory/{id}`, `GET /stock-summary`, `GET /inventory/low-stock`
-- AC: lọc theo kho (mặc định kho đang chọn), sản phẩm, serial, trạng thái, ngày nhập/ra; `GET /stock-summary` trả `Stock_Summary` theo (SP, kho) và tổng toàn công ty; dòng dưới ngưỡng (`Stock_Summary.Min_Stock_Level`, NULL thì lấy `Products.Min_Stock_Level`) hiện cờ đỏ và sinh alert LOW_STOCK của kho đó (ghép `CHUNG-04`).
+- P1 · GD4 (tuần 7) · `GET /inventory`, `GET /inventory/{id}`, `GET /stock-summary`, `GET /inventory/low-stock`; **[v7, ngoài 112 endpoint]** `GET /stock-settings`, `PUT /stock-settings` (ngưỡng theo kho), `GET /stock-movements` (thẻ kho)
+- AC: lọc theo kho (mặc định kho đang chọn), sản phẩm, serial, trạng thái, ngày nhập/ra; `GET /stock-summary` trả `Stock_Summary` theo (SP, kho) và tổng toàn công ty; dòng dưới ngưỡng (`Product_Warehouse_Settings.Min_Stock`, không có thì lấy `Products.Min_Stock_Level`) hiện cờ đỏ và sinh alert LOW_STOCK của kho đó (ghép `CHUNG-04`); dòng chạm `Reorder_Point` hiện gợi ý nhập/chuyển bổ sung. Quản lý/Thủ kho đặt Min/Max/Reorder theo (SP, kho). `GET /stock-movements` lọc theo kho, SP, khoảng ngày — hiện từng biến động kèm phiếu nguồn và `Balance_After`.
 - _Dùng chung: Kế toán (xem), Quản lý (xem)._
 
 **TK-03 — CRUD nhà cung cấp**
@@ -236,7 +237,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **TK-07 — Xác nhận phiếu nhập → cộng tồn**
 
 - P1 · GD5 (tuần 8–9) · `PUT /import-receipts/{id}/confirm`
-- AC: `DRAFT`/`PENDING` → `CONFIRMED`; sinh dòng `Inventory` tại kho của phiếu (serial: mỗi serial một dòng, trùng serial toàn hệ thống → 409; không serial: một dòng/lô với `Quantity_On_Hand`), cộng `Stock_Summary` (SP, kho) trong cùng transaction (TC-IMP-01); tồn vượt ngưỡng thì đóng cảnh báo LOW_STOCK đang mở; ghi audit.
+- AC: `DRAFT`/`PENDING` → `CONFIRMED`; sinh dòng `Inventory` tại kho của phiếu (serial: mỗi serial một dòng, trùng serial toàn hệ thống → 409; không serial: một dòng/lô với `Quantity_On_Hand`), cộng `Stock_Summary` (SP, kho) và ghi `Stock_Movements` (IN) trong cùng transaction (TC-IMP-01); tồn vượt ngưỡng thì đóng cảnh báo LOW_STOCK đang mở; ghi audit.
 
 **TK-08 — Huỷ phiếu nhập chưa xác nhận**
 
@@ -303,11 +304,12 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 **TK-17 — Chuyển hàng giữa các kho (G-15)**
 
-- P2 · `GET /stock-transfers`, `POST /stock-transfers`, `GET /stock-transfers/{id}`, `PUT /stock-transfers/{id}`, `PUT /stock-transfers/{id}/ship`, `PUT /stock-transfers/{id}/receive`, `DELETE /stock-transfers/{id}`, `GET /stock-transfers/{id}/print` (ngoài 112 endpoint)
+- P2 · `GET /stock-transfers`, `POST /stock-transfers`, `GET /stock-transfers/{id}`, `PUT /stock-transfers/{id}`, `PUT /stock-transfers/{id}/approve` **[v7]**, `PUT /stock-transfers/{id}/ship`, `PUT /stock-transfers/{id}/receive`, `DELETE /stock-transfers/{id}`, `GET /stock-transfers/{id}/print` (ngoài 112 endpoint)
 - AC:
-  1. `DRAFT` → `IN_TRANSIT` (kho nguồn xác nhận xuất): đủ tồn `IN_STOCK` tại kho nguồn; serial chuyển `IN_TRANSIT`, hàng không serial trừ ở kho nguồn; kho đích tăng `Qty_In_Transit`.
-  2. `IN_TRANSIT` → `RECEIVED` (kho đích xác nhận): nhập `Received_Qty`; hàng sang kho đích `IN_STOCK`; thiếu hụt ghi `DAMAGED` + cảnh báo `TRANSFER_PENDING`.
-  3. Hủy (`CANCELLED`) chỉ khi `DRAFT`; kho nguồn ≠ kho đích; người lập/người nhận phải được phân công kho tương ứng; in phiếu theo biểu mẫu 11; ghi audit.
+  1. `DRAFT` → `APPROVED` **[v7]** (Quản lý duyệt): ghi `Approved_By`, `Approved_At`; chưa động vào tồn.
+  2. `APPROVED` → `IN_TRANSIT` (kho nguồn xác nhận xuất, ghi `Shipped_At`): đủ tồn `IN_STOCK` tại kho nguồn; serial chuyển `IN_TRANSIT`, hàng không serial trừ ở kho nguồn; kho đích tăng `Qty_In_Transit`; ghi `Stock_Movements` OUT ở kho nguồn.
+  3. `IN_TRANSIT` → `RECEIVED` (kho đích xác nhận, ghi `Received_By`, `Received_At`): nhập `Qty_Received` từng dòng; hàng sang kho đích `IN_STOCK`; ghi `Stock_Movements` IN ở kho đích; thiếu hụt ghi `DAMAGED` + cảnh báo `TRANSFER_PENDING`.
+  4. Hủy (`CANCELLED`) chỉ khi `DRAFT`/`APPROVED`; kho nguồn ≠ kho đích; người lập/người nhận phải được phân công kho tương ứng; in phiếu theo biểu mẫu 11; ghi audit.
 
 ## 2. KẾ TOÁN (KT) — tiền, công nợ, đối soát
 
@@ -685,7 +687,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | Tham số `warehouseId` trên API danh sách/báo cáo/cảnh báo; `GET /identity/me` trả danh sách kho                            | CHUNG-07            | P1      | G-15 |
 | `GET/POST /warehouses`, `GET/PUT/DELETE /warehouses/{id}`                                                                  | QL-12               | P1      | G-15 |
 | `GET/PUT /identity/users/{userId}/warehouses`                                                                              | QT-07               | P1      | G-15 |
-| `/stock-transfers` (list, create, detail, update, `ship`, `receive`, delete, `print`)                                      | TK-17               | P2      | G-15 |
+| `/stock-transfers` (list, create, detail, update, `approve`, `ship`, `receive`, delete, `print`)                                      | TK-17               | P2      | G-15 |
 
 > Cần thêm các dòng này vào sheet _API & Testing_ của `Kế hoạch TigerNet.xlsx` khi khoá endpoint ở M1.
 
@@ -758,7 +760,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 1. Endpoint, method, query param đã chốt theo sheet _API & Testing_ (112 endpoint khoá ở M1).
 2. AC ghi rõ điều kiện đạt; có test case đối chiếu (TC riêng hoặc ca kiểm thử chung ở 3.2).
-3. Schema/ERD tương ứng đã map (ERD v6 `TIGERNET_ERD_v6_dark.png`, `Database_Design_v6.md`).
+3. Schema/ERD tương ứng đã map (ERD v7 `tigernetFinal.drawio.png`, `Database_Design_v7.md`).
 4. Story Phase 2 chỉ mở khi story P1 cùng chuỗi đã done.
 
 ## 5.2 Definition of Done (story "Hoàn thành")

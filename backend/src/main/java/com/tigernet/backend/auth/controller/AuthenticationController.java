@@ -21,8 +21,7 @@ public class AuthenticationController {
     AuthenticationService authenticationService;
     @PostMapping("/login")
     ApiResponse<AuthenticationResponse> authenticate(@RequestBody @Valid AuthenticationRequest request){
-        authenticationService.authenticate(request); // thất bại thì ném lỗi 401/403, không tới được dòng dưới
-        return ApiResponse.success(AuthenticationResponse.builder()
-                .authenticated(true).build());
+        // thất bại thì service ném lỗi 401/403
+        return ApiResponse.success(authenticationService.authenticate(request));
     }
 }

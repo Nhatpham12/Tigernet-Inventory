@@ -1,6 +1,6 @@
 # TIGERNET — DANH SÁCH BIỂU MẪU IN
 
-Danh sách chứng từ/biểu mẫu hệ thống cần in (PDF/Excel), đối chiếu với ERD v6 (`Database_Design_v6.md`, `database/tenant/V1__init_schema.sql`) và backlog `BACKLOG.md`.
+Danh sách chứng từ/biểu mẫu hệ thống cần in (PDF/Excel), đối chiếu với ERD v7 (`Database_Design_v7.md`, `database/tenant/V1__init_schema.sql`) và backlog `BACKLOG.md`.
 
 - **Nguồn:** số phiếu `Receipt_Code` / `Stocktake_Code` / `Transfer_Code` (mã PN, PX, PT, TT, TH, KK, CK), 112 endpoint sheet _API & Testing_, việc #23, #28, #33 trong `Kế hoạch TigerNet.xlsx`.
 - **Vị trí mẫu trong mã nguồn:** `backend/src/main/resources/templates/print/` (xem `Backend_Structure_v6.md` mục 3).
@@ -10,7 +10,7 @@ Danh sách chứng từ/biểu mẫu hệ thống cần in (PDF/Excel), đối c
 
 ## 1. Nguyên tắc
 
-1. **Không tự in hoá đơn GTGT.** Hoá đơn VAT là hoá đơn điện tử, xuất ở phần mềm hoá đơn riêng. ERD v6 không lưu số hoá đơn điện tử; hệ thống chỉ in chứng từ nội bộ.
+1. **Không tự in hoá đơn GTGT.** Hoá đơn VAT là hoá đơn điện tử, xuất ở phần mềm hoá đơn riêng. ERD v7 không lưu số hoá đơn điện tử; hệ thống chỉ in chứng từ nội bộ.
 2. **Mẫu số tham chiếu** (01-VT, 02-VT, 05-VT, 01-TT, 02-TT) theo chế độ kế toán doanh nghiệp. Chế độ cụ thể (TT200 / TT133 / TT99-2025) **phải được kế toán công ty xác nhận** trước khi chốt bố cục — xem mục 5.
 3. **Người nhận in từ snapshot trên phiếu** (`Receiver_Name_Snapshot`, `Receiver_Phone_Snapshot`, `Receiver_Address_Snapshot`), giá in từ dòng phiếu (`Price_In`, `Price_Out`, `Rental_Price`), không lấy lại từ danh mục. Riêng VAT: phiếu trỏ `VAT_ID` nên **không được sửa `Rate` của mức VAT đã dùng** (thêm mức mới thay vì sửa) để bản in phiếu cũ không đổi.
 4. **Mỗi phiếu thuộc một kho:** đầu phiếu luôn in mã kho, tên kho, địa chỉ kho (`Warehouses`). Số phiếu có mã kho: `PN-HN01-2026-0001`.
@@ -60,7 +60,7 @@ Danh sách chứng từ/biểu mẫu hệ thống cần in (PDF/Excel), đối c
 
 - **Đầu phiếu:** `Receipt_Code`, `Date_In`, kho (`Warehouse_ID` → `Warehouses`), nguồn nhập (`Source_Party_ID` → `Parties`: NCC / khách bán lẻ kèm CCCD / khách đổi-trả), trạng thái `Status`.
 - **Chi tiết** (`Import_Receipt_Details`): SP, `Serial`, `Tracking_Code`, `Quantity`, `Price_In`, `Line_Total`.
-- **Tổng:** `Total_Amount`, bằng chữ. _(ERD v6 không có VAT đầu vào và số tiền đã trả NCC — G-13.)_
+- **Tổng:** `Total_Amount`, bằng chữ. _(ERD v7 không có VAT đầu vào và số tiền đã trả NCC — G-13.)_
 - **Ký:** Người lập (`Created_By`) · Người giao hàng · Thủ kho · Kế toán trưởng.
 
 ### 4.2 Phiếu xuất kho — bán hàng (PX — 02-VT) · P1
@@ -90,7 +90,7 @@ Danh sách chứng từ/biểu mẫu hệ thống cần in (PDF/Excel), đối c
 
 - **Đầu phiếu:** `Receipt_Code`, kho nhận lại (có thể khác kho cho thuê), phiếu thuê gốc (`Rental_Receipt_ID` → `Receipt_Code`, `Rental_Type`), `Return_Date`, `Due_Date` gốc, `Days_Overdue`.
 - **Chi tiết** (`Return_Receipt_Details`): SP, `Serial`, `Quantity`, `Condition_Note` (tình trạng khi trả).
-- **Tổng:** `Penalty_Amount` (cả RENT và LEND), bằng chữ. Bồi thường hư hỏng/mất và hoàn cọc in từ `Note` (ERD v6 không có cột tiền riêng — G-14).
+- **Tổng:** `Penalty_Amount` (cả RENT và LEND), bằng chữ. Bồi thường hư hỏng/mất và hoàn cọc in từ `Note` (ERD v7 không có cột tiền riêng — G-14).
 - **Ghi rõ** trả đủ hay trả một phần (số dòng `Is_Returned` / tổng số dòng của phiếu thuê).
 - **Ký:** Người trả hàng · Thủ kho kiểm tra · Bán hàng.
 
@@ -104,7 +104,7 @@ Danh sách chứng từ/biểu mẫu hệ thống cần in (PDF/Excel), đối c
 
 ### 4.7 Phiếu điều chỉnh tồn kho (KK — nội bộ) · P1
 
-- Sinh từ phiếu kiểm kê đã chốt (ERD v6: điều chỉnh luôn gắn `Stocktake_ID`, không có phiếu điều chỉnh độc lập). Hàng hư hỏng/mất phát hiện khi kiểm kê ghi vào `Reason`.
+- Sinh từ phiếu kiểm kê đã chốt (ERD v7: điều chỉnh luôn gắn `Stocktake_ID`, không có phiếu điều chỉnh độc lập). Hàng hư hỏng/mất phát hiện khi kiểm kê ghi vào `Reason`.
 - **Đầu phiếu:** số phiếu kiểm kê gốc, kho, ngày chốt.
 - **Chi tiết** (`Stock_Adjustments`): SP, `Adjust_Qty` (+/−), `Reason`, `Created_At`.
 - **Ký:** Người lập · Thủ kho · Quản lý duyệt.
@@ -116,7 +116,7 @@ Danh sách chứng từ/biểu mẫu hệ thống cần in (PDF/Excel), đối c
   - Phiếu xuất `EXPORTED`: `Total_Amount`, `Paid`, `Remain`.
   - Phiếu thuê/mượn: `Total_Rent` + `Penalty_Amount`, `Deposit`, `Payment_Status_ID`.
 - **Tổng:** tổng còn phải thu, bằng chữ; khớp báo cáo công nợ (`KT-06`).
-- **Giới hạn P1 (G-13):** không có số dư đầu kỳ và phát sinh theo từng lần thu vì ERD v6 không lưu lịch sử thanh toán; không đối chiếu phải trả NCC.
+- **Giới hạn P1 (G-13):** không có số dư đầu kỳ và phát sinh theo từng lần thu vì ERD v7 không lưu lịch sử thanh toán; không đối chiếu phải trả NCC.
 - **Ký:** Đại diện bên bán · Đại diện bên mua (xác nhận số liệu).
 
 ### 4.9 Phiếu thu / Phiếu chi (01-TT / 02-TT) · P2
@@ -136,9 +136,9 @@ Danh sách chứng từ/biểu mẫu hệ thống cần in (PDF/Excel), đối c
 
 ### 4.11 Phiếu chuyển kho (CK — kiêm vận chuyển nội bộ) · P2
 
-- **Đầu phiếu:** `Transfer_Code`, kho xuất (`From_Warehouse_ID`) + địa chỉ, kho nhận (`To_Warehouse_ID`) + địa chỉ, `Transfer_Date`, `Received_Date`, `Status`, `Note` (phương tiện, lý do).
-- **Chi tiết** (`Stock_Transfer_Details`): SP, `Serial`, `Quantity` (xuất), `Received_Qty` (thực nhận), chênh lệch.
-- **Ký:** Người lập (`Created_By`) · Thủ kho xuất · Người vận chuyển · Thủ kho nhận (`Received_By`).
+- **Đầu phiếu:** `Transfer_Code`, kho xuất (`From_Warehouse_ID`) + địa chỉ, kho nhận (`To_Warehouse_ID`) + địa chỉ, `Approved_At`, `Shipped_At`, `Received_At`, `Status`, `Note` (phương tiện, lý do).
+- **Chi tiết** (`Stock_Transfer_Details`): SP, `Serial`, `Qty_Sent` (xuất), `Qty_Received` (thực nhận), chênh lệch, `Note`.
+- **Ký:** Người lập (`Created_By`) · Quản lý duyệt (`Approved_By`) · Thủ kho xuất · Người vận chuyển · Thủ kho nhận (`Received_By`).
 
 ---
 

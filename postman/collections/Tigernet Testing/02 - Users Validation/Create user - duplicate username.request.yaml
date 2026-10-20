@@ -1,5 +1,5 @@
 $kind: http-request
-description: Username UNIQUE (Database_Design_v6 §4.2) — tạo trùng username của user gốc phải bị từ chối.
+description: Username UNIQUE (Database_Design_v7 §4.2) — tạo trùng username của user gốc phải bị từ chối.
 url: '{{base_url}}{{users_path}}'
 method: POST
 headers:

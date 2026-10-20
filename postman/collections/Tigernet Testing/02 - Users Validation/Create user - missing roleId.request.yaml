@@ -1,5 +1,5 @@
 $kind: http-request
-description: Role_ID NOT NULL (Database_Design_v6 §4.2) — user bắt buộc có vai trò.
+description: Role_ID NOT NULL (Database_Design_v7 §4.2) — user bắt buộc có vai trò.
 url: '{{base_url}}{{users_path}}'
 method: POST
 headers:

@@ -12,6 +12,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+      naming:
+        # giữ đúng tên bảng/cột như schema (MySQL trên Linux phân biệt hoa/thường)
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     show-sql: true
   mail:
     host: smtp.gmail.com
@@ -21,3 +24,12 @@ spring:
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
+
+jwt:
+  signer-key: ${JWT_SIGNER_KEY}  # HS512 cần khóa >= 64 byte
+  valid-duration: 3600           # giây
+
+tigernet:
+  rental:
+    due-warning-days: 7     # cảnh báo/lọc phiếu thuê sắp đến hạn trong N ngày
+    penalty-after-days: 10  # quá hạn từ N ngày trở lên mới tính phạt

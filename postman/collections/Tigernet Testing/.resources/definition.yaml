@@ -3,7 +3,7 @@ description: |-
   # Tigernet Testing
 
   Bộ test API cho backend TIGERNET (Spring Boot), viết theo code hiện có trong `backend/` và tài liệu trong `docs/`:
-  - `Database_Design_v6.md` §1.1, §4.1–4.2: ràng buộc bảng `Users` / `Roles`
+  - `Database_Design_v7.md` §1.1, §4.1–4.2: ràng buộc bảng `Users` / `Roles`
   - `BACKLOG.md` QT-01, QL-08: API quản lý người dùng
   - `database/tenant/V2__seed_reference_data.sql`: Roles mặc định (1 WAREHOUSE, 2 ACCOUNTANT, 3 SALES, 4 MANAGER, 5 ADMIN)
 

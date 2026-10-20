@@ -39,7 +39,7 @@ Tách biệt hoàn toàn khỏi dữ liệu nghiệp vụ của khách hàng. Nh
 
 - Lưu danh sách công ty đã mua app (khách hàng thuê app, khác với khách hàng mua hàng trong nghiệp vụ kho), gói dịch vụ, trạng thái tài khoản (active / suspended / trial hết hạn).
 - Lưu thông tin kết nối database riêng của từng tenant — **bắt buộc mã hoá** (Vault, AWS Secrets Manager, hoặc mã hoá tầng ứng dụng), vì đây là "chìa khoá" vào dữ liệu của mọi khách hàng.
-- **Tự động provisioning**: khi có khách hàng mới, tự động tạo database mới, chạy migration khởi tạo schema theo ERD v6 (`Database_Design_v6.md` — Flyway `database/tenant/` V1 bảng, V2 danh mục mặc định gồm vai trò, VAT, trạng thái thanh toán, chính sách phí đổi/trả, kho `MAIN`, V3 view), tạo tài khoản quản trị đầu tiên.
+- **Tự động provisioning**: khi có khách hàng mới, tự động tạo database mới, chạy migration khởi tạo schema theo ERD v7 (`Database_Design_v7.md` — Flyway `database/tenant/` V1 bảng, V2 danh mục mặc định gồm vai trò, VAT, trạng thái thanh toán, chính sách phí đổi/trả, kho `MAIN`, V3 view), tạo tài khoản quản trị đầu tiên.
 
 ### 2.2 Backend API
 
@@ -49,7 +49,7 @@ Tách biệt hoàn toàn khỏi dữ liệu nghiệp vụ của khách hàng. Nh
 
 ### 2.3 Data Plane
 
-- Mỗi khách hàng có **1 database MySQL 8 riêng biệt** (Database-per-tenant) theo ERD v6 — một khách hàng có thể có nhiều kho (`Warehouses`) bên trong database của mình, có thể chung 1 server MySQL (khác tên database) hoặc tách server theo quy mô gói dịch vụ.
+- Mỗi khách hàng có **1 database MySQL 8 riêng biệt** (Database-per-tenant) theo ERD v7 — một khách hàng có thể có nhiều kho (`Warehouses`) bên trong database của mình, có thể chung 1 server MySQL (khác tên database) hoặc tách server theo quy mô gói dịch vụ.
 - Lý do chọn cách ly vật lý thay vì 1 DB dùng chung + cột `tenant_id`: dữ liệu trong hệ thống này khá nhạy cảm (giá nhập, nhà cung cấp, công nợ khách hàng), nên đánh đổi vận hành phức tạp hơn để đổi lấy an toàn — một bug ở tầng ứng dụng khó làm lộ dữ liệu chéo giữa các khách hàng.
 - Đánh đổi: khi cập nhật schema (thêm cột, thêm bảng ở Phase 2) phải chạy migration hàng loạt qua từng DB — dùng Flyway (`database/tenant/`) để tự động hoá.
 

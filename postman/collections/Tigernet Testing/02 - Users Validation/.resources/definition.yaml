@@ -1,6 +1,6 @@
 $kind: collection
 description: |-
-  Kiểm tra ràng buộc và xử lý lỗi theo `Database_Design_v6.md` §4.2:
+  Kiểm tra ràng buộc và xử lý lỗi theo `Database_Design_v7.md` §4.2:
   Username UNIQUE NOT NULL, Email UNIQUE, Password_Hash NOT NULL, Role_ID NOT NULL FK→Roles.
 
   `Setup` tạo một user gốc để thử trùng username/email; `Cleanup` xoá user gốc và mọi user lỡ được tạo thành công

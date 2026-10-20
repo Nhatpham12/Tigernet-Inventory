@@ -1,6 +1,6 @@
 # CẤU TRÚC FRONTEND – TIGERNET (Flutter)
 
-> Nguồn: `BACKLOG.md`, NOTE UXUI (`Kế hoạch TigerNet.xlsx`), `BIEU_MAU.md`, `Backend_Structure_v6.md`, `Database_Design_v6.md` (ERD v6 — nguồn chuẩn, tên enum/trạng thái lấy theo đây).
+> Nguồn: `BACKLOG.md`, NOTE UXUI (`Kế hoạch TigerNet.xlsx`), `BIEU_MAU.md`, `Backend_Structure_v6.md`, `Database_Design_v7.md` (ERD v7 — nguồn chuẩn, tên enum/trạng thái lấy theo đây).
 > Checklist từng trang: `UXUI_Checklist.xlsx`.
 
 - **Stack** (đã có trong `pubspec.yaml`): `flutter_riverpod`, `go_router`, `dio`, `flutter_secure_storage`, `google_fonts`, `intl`, `freezed_annotation` / `json_annotation`.
@@ -85,7 +85,7 @@ frontend/lib/
 │   │   ├── print_button.dart         # menu chọn Excel / PDF
 │   │   └── stat_card.dart
 │   └── models/
-│       └── enums.dart                # theo ERD v6: RentalType (RENT, LEND), InventoryStatus, ImportStatus,
+│       └── enums.dart                # theo ERD v7: RentalType (RENT, LEND), InventoryStatus, ImportStatus,
 │                                     # ExportStatus, StocktakeStatus, AlertType, PaymentStatus, ...
 │
 └── features/
@@ -235,5 +235,5 @@ Mọi route `/app/**` nằm trong một `ShellRoute` dùng `AppShell` và đi qu
 ## 6. Đã chốt (06/10/2026)
 
 1. **Kho và chuyển kho [v6]:** danh mục kho, phân công nhân viên và bộ chọn kho là **P1** (`CHUNG-07`, `QL-12`, `QT-07`); chuyển kho (`transfers/`) là **P2** (`TK-17`).
-2. **Tên loại phiếu mượn:** thống nhất **`LEND`** (theo ERD v6) ở FE, BE và tài liệu.
+2. **Tên loại phiếu mượn:** thống nhất **`LEND`** (theo ERD v7) ở FE, BE và tài liệu.
 3. **Còn mở — Trang đăng ký (G-1):** NOTE UXUI #11 ghi "đã xong" nhưng chưa có API. Khuyến nghị bỏ trang này, để Quản trị tạo tài khoản.

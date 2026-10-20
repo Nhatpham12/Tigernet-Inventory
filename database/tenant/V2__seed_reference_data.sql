@@ -1,6 +1,6 @@
 -- =====================================================================
--- TIGERNET — Tenant database v6 — Flyway V2: dữ liệu danh mục bắt buộc
--- Nguồn: docs/Database_Design_v6.md (Phần 4 — "Dữ liệu mặc định")
+-- TIGERNET — Tenant database v7 — Flyway V2: dữ liệu danh mục bắt buộc
+-- Nguồn: docs/Database_Design_v7.md (Phần 4 — "Dữ liệu mặc định")
 -- Tài khoản quản trị đầu tiên KHÔNG seed ở đây (tránh mật khẩu mặc định);
 -- ứng dụng tạo khi provisioning tenant (OPS-01), mật khẩu ngẫu nhiên gửi qua email.
 -- =====================================================================
