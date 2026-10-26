@@ -1,5 +1,6 @@
 package com.tigernet.backend.rental.dto.response;
 
+import com.tigernet.backend.rental.enums.RentalStatus;
 import com.tigernet.backend.rental.enums.RentalType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,10 +35,14 @@ public class RentalReceiptResponse {
     private BigDecimal totalRent;
     private BigDecimal penaltyAmount;
     private LocalDateTime returnDate;
+    private RentalStatus status;
     private Integer paymentStatusId;
     private String paymentStatus;
     private Integer createdById;
     private String createdByName;
     private LocalDateTime createdAt;
+    private Integer approvedById;
+    private String approvedByName;
+    private LocalDateTime approvedAt;
     private List<RentalReceiptDetailResponse> details;
 }

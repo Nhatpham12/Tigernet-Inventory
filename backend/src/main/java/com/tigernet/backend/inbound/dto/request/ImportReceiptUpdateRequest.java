@@ -19,6 +19,7 @@ import java.util.List;
 public class ImportReceiptUpdateRequest {
     private Integer sourcePartyId;
     private LocalDateTime dateIn;
+    private Integer vatId;
     private ImportStatus status;
     private String note;
 

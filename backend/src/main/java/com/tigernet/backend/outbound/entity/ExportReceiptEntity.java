@@ -90,6 +90,16 @@ public class ExportReceiptEntity {
     @Column(name = "Created_At", nullable = false)
     private LocalDateTime createdAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "Cancelled_By")
+    private UserEntity cancelledBy;
+
+    @Column(name = "Cancelled_At")
+    private LocalDateTime cancelledAt;
+
+    @Column(name = "Cancel_Reason")
+    private String cancelReason;
+
     @OneToMany(mappedBy = "exportReceipt", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ExportReceiptDetailEntity> details = new ArrayList<>();
 }

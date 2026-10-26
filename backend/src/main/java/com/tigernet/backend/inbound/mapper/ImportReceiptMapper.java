@@ -18,8 +18,15 @@ public interface ImportReceiptMapper {
     @Mapping(target = "warehouseId", source = "warehouse.id")
     @Mapping(target = "warehouseCode", source = "warehouse.warehouseCode")
     @Mapping(target = "warehouseName", source = "warehouse.warehouseName")
+    @Mapping(target = "vatId", source = "vat.id")
+    @Mapping(target = "vat", source = "vat.vat")
+    @Mapping(target = "vatRate", source = "vat.rate")
+    @Mapping(target = "paymentStatusId", source = "paymentStatus.id")
+    @Mapping(target = "paymentStatus", source = "paymentStatus.paymentStatus")
     @Mapping(target = "createdById", source = "createdBy.userId")
     @Mapping(target = "createdByName", source = "createdBy.fullName")
+    @Mapping(target = "cancelledById", source = "cancelledBy.userId")
+    @Mapping(target = "cancelledByName", source = "cancelledBy.fullName")
     ImportReceiptResponse toResponse(ImportReceiptEntity receipt);
 
     List<ImportReceiptResponse> toResponses(List<ImportReceiptEntity> receipts);

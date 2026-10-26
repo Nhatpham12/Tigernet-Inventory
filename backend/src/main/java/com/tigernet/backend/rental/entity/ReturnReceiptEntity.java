@@ -41,6 +41,12 @@ public class ReturnReceiptEntity {
     @Column(name = "Penalty_Amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal penaltyAmount;
 
+    @Column(name = "Compensation_Amount", nullable = false, precision = 18, scale = 2)
+    private BigDecimal compensationAmount = BigDecimal.ZERO; // bồi thường hư hỏng/mất
+
+    @Column(name = "Deposit_Refund", nullable = false, precision = 18, scale = 2)
+    private BigDecimal depositRefund = BigDecimal.ZERO; // cọc hoàn lại cho khách
+
     @Column(name = "Note", columnDefinition = "TEXT")
     private String note;
 

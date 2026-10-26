@@ -49,9 +49,10 @@ public class ImportReceiptController {
         return ApiResponse.success(importReceiptService.updateReceipt(receiptId, request));
     }
 
+    // hủy phiếu chưa nhập kho: phiếu chuyển sang CANCELLED, không xóa
     @DeleteMapping("/{receiptId}")
-    ApiResponse<Void> deleteReceipt(@PathVariable Integer receiptId) {
-        importReceiptService.deleteReceipt(receiptId);
-        return ApiResponse.success("Import receipt has been deleted", null);
+    ApiResponse<ImportReceiptResponse> cancelReceipt(@PathVariable Integer receiptId,
+                                                     @RequestParam(required = false) String reason) {
+        return ApiResponse.success(importReceiptService.cancelReceipt(receiptId, reason));
     }
 }

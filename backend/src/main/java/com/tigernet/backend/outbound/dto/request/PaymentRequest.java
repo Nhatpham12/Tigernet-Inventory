@@ -1,5 +1,6 @@
 package com.tigernet.backend.outbound.dto.request;
 
+import com.tigernet.backend.payment.enums.PaymentMethod;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
@@ -19,5 +20,6 @@ public class PaymentRequest {
     @Positive(message = "Amount must be > 0")
     private BigDecimal amount;
 
+    private PaymentMethod method; // null = tiền mặt
     private String note;
 }

@@ -24,6 +24,7 @@ public class ImportReceiptCreationRequest {
     private Integer warehouseId;
 
     private LocalDateTime dateIn; // null = thời điểm hiện tại
+    private Integer vatId;        // VAT đầu vào, null = không VAT
     private ImportStatus status;  // DRAFT (mặc định) hoặc PENDING = "Lưu & gửi duyệt"
     private String note;
 

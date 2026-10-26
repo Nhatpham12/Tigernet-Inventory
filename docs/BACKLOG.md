@@ -2,7 +2,7 @@
 
 Kết quả của **GD1 — "Phân rã yêu cầu thành backlog/use case cho từng vai trò"** (Kế hoạch chi tiết, việc #2, tuần 1–2).
 
-- **Nguồn:** `Kế hoạch TigerNet.xlsx` (Tổng Quan, Kế hoạch chi tiết — 57 việc, NOTE UXUI — 14 mục, API & Testing — 112 endpoint / 11 nhóm test / 20 test case), `tigernetFinal.drawio.png` + `Database_Design_v7.md` (ERD v7 — đa kho, **nguồn chuẩn duy nhất về dữ liệu**), `database/tenant/*.sql` (Flyway, viết theo v7), `database/control-plane/*.sql`, `How_To_Sale.md`, `Deployment_Guide.md`, `BIEU_MAU.md` (biểu mẫu in).
+- **Nguồn:** `Kế hoạch TigerNet.xlsx` (Tổng Quan, Kế hoạch chi tiết — 57 việc, NOTE UXUI — 14 mục, API & Testing — 112 endpoint / 11 nhóm test / 20 test case), `tigernet_erd_v1_2.drawio.png` + `Database_Design_v7.md` (ERD v1.2 — đa kho, thanh toán, bảo hành, **nguồn chuẩn duy nhất về dữ liệu**), `database/tenant/*.sql` (Flyway V1–V4), `database/control-plane/*.sql`, `How_To_Sale.md`, `Deployment_Guide.md`, `BIEU_MAU.md` (biểu mẫu in).
 - **Loại bỏ:** `Kế hoạch TigerNet.backup.xlsx` (bản cũ, NOTE UXUI còn nội dung dự án weather-map) — đã xoá khỏi repo.
 - **Ưu tiên:** **P1** = Phase 1 (bắt buộc trong 3 tháng / 13 tuần), **P2** = Phase 2 (mở rộng, không chặn nghiệm thu 27/12/2026).
 - **Mã story:** `PUB` (chưa đăng nhập) · `CHUNG` (mọi vai trò) · `TK` (Thủ kho) · `KT` (Kế toán) · `BH` (Bán hàng) · `QL` (Quản lý) · `QT` (Quản trị hệ thống) · `OPS` (Admin vận hành SaaS) · `DEV` (nền tảng kỹ thuật).
@@ -85,10 +85,11 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 | G-10 | Ảnh ERD cũ (`tigernet_erd_final (1).png`), SQL cũ (`partners`, `stock_balances`, `payments`…) và thiết kế v6 lệch nhau | **Đã chốt lại 06/10/2026: ERD v6 (`TIGERNET_ERD_v6_dark.png`, `Database_Design_v6.md`) là nguồn chuẩn.** `database/tenant/` viết lại theo v6 (V1 bảng, V2 danh mục, V3 view); backlog đổi tham chiếu sang tên bảng v6; ERD cũ, SQL cũ và `Database_Design_v5.md` không dùng nữa |
 | G-11 | `V1__init_control_plane.sql` ghi "Phase 2" nhưng OPS-01…03 là P1                                                                                                                                                                                                                                                                                                                   | **Đã chốt:** P1 tối thiểu = `tenants` + `tenant_databases` + routing datasource; `tenant_branding`, `licenses` sang P2                                                                                                                                                                |
 | G-12 | Tài liệu được tham chiếu nhưng không có trong repo: `Database_Design.docx`, SRS | Bổ sung SRS vào repo hoặc chấp nhận chỉ trích dẫn (§) trong `Database_Design_v7.md` |
-| G-13 | ERD v6 không có bảng thanh toán: phiếu xuất chỉ lưu tổng `Paid`/`Remain`, phiếu nhập không có cột đã trả | **Đã chốt — giữ đúng ERD:** `KT-03` cập nhật `Paid`/`Remain`/`Payment_Status_ID`, từng lần thu ghi `Audit_Logs` (`PAYMENT`); phiếu thu/chi + lịch sử thanh toán + công nợ NCC → `KT-10` (P2, cần bổ sung bảng vào ERD khi làm); biên bản đối chiếu (`KT-09`) chỉ đối chiếu phải thu theo phiếu |
-| G-14 | ERD v6 không có: bước duyệt phiếu thuê, tiền bồi thường/hoàn cọc trên phiếu trả, trạng thái duyệt phiếu điều chỉnh, trạng thái hủy phiếu xuất/nhập, bảng cấu hình, bảng đã-đọc cảnh báo | **Đã chốt** theo `Database_Design_v6.md` mục "Phạm vi triển khai": phiếu thuê có hiệu lực khi tạo; bồi thường ghi chú; điều chỉnh qua chốt kiểm kê (gộp `TK-14`→`TK-13`, `QL-04`→`QL-03`, bỏ 2 endpoint); hủy phiếu = xóa + bản chụp vào audit; quy tắc thuê/khóa đăng nhập ở `application.yaml`; cảnh báo dùng cờ chung `Is_Resolved` |
+| G-13 | ERD v6/v7 không có bảng thanh toán: phiếu xuất chỉ lưu tổng `Paid`/`Remain`, phiếu nhập không có cột đã trả | **Đã giải quyết bởi ERD v1.2:** bảng `Payments` (mỗi lần thu/chi một dòng, `Direction` IN/OUT, `Reference_Type`/`Reference_ID`); `Import_Receipts` thêm `VAT_ID`, `Payment_Status_ID`, `Paid`, `Remain`. `KT-03` cập nhật `Paid`/`Remain`/`Payment_Status_ID` và **ghi 1 dòng `Payments`** mỗi lần thu (vẫn ghi `Audit_Logs` `PAYMENT`). API/in phiếu thu-chi, công nợ phải trả NCC → `KT-10` (P2, bảng đã có); biên bản đối chiếu (`KT-09`) vẫn đối chiếu phải thu theo phiếu ở P1 |
+| G-14 | ERD v6/v7 không có: bước duyệt phiếu thuê, tiền bồi thường/hoàn cọc trên phiếu trả, trạng thái duyệt phiếu điều chỉnh, trạng thái hủy phiếu xuất/nhập, bảng cấu hình, bảng đã-đọc cảnh báo | **ERD v1.2 đã bổ sung:** `Rental_Receipts.Status/Approved_By/Approved_At` (mặc định `APPROVED`, tự duyệt khi lập — bước duyệt của Quản lý là P2); `Return_Receipts.Compensation_Amount/Deposit_Refund`; trạng thái `CANCELLED` + `Cancelled_By/At/Reason` cho phiếu nhập/xuất (hủy = giữ phiếu, không xóa). **Vẫn giữ:** điều chỉnh qua chốt kiểm kê (gộp `TK-14`→`TK-13`, `QL-04`→`QL-03`, bỏ 2 endpoint); quy tắc thuê/khóa đăng nhập ở `application.yaml`; cảnh báo dùng cờ chung `Is_Resolved` |
 | G-15 | ERD v6 có đa kho (`Warehouses`, `User_Warehouses`, `Stock_Transfers`) nhưng backlog chưa có story | **Đã chốt:** kho + phân công + lọc theo kho là P1 (`CHUNG-07`, `QL-12`, `QT-07`); chuyển kho P2 (`TK-17`); mọi API danh sách/báo cáo nhận `warehouseId`; endpoint kho nằm ngoài 112 → thêm vào sheet _API & Testing_ |
 | G-16 | ERD v7 (16/10/2026) thêm `Warehouse_Locations`, `Product_Warehouse_Settings`, `Stock_Movements`, `Inventory.Version`, bước duyệt chuyển kho; nhưng thiếu một số cột schema đang cần (`Warehouses.Phone/Manager_ID`, `User_Warehouses.Is_Default/Assigned_At`, `Stock_Transfers.Received_By`, `Stock_Transfer_Details.Inventory_ID/Serial`, `Alerts.Warehouse_ID`, `Inventory.Import_Detail_ID/Location_ID`, `Stock_Movements.Reference_ID`) | **Đã chốt 16/10/2026:** ERD v7 là chuẩn; `database/tenant/` và `Database_Design_v7.md` cập nhật theo; các cột trên **giữ lại** và cần vẽ bổ sung vào ERD (danh sách ở cuối `Database_Design_v7.md`). `Stock_Movements`, `Product_Warehouse_Settings` là P1 (`TK-02`, `TK-07`); `Warehouse_Locations` và bước duyệt chuyển kho là P2 (`TK-17`). ERD v6, `Database_Design_v5/v6.md`, `Database_Script_v6.sql` đã xóa |
+| G-17 | ERD v1.2 (26/10/2026) thêm `Payments`, `Supplier_Returns` (+`Supplier_Return_Details`), `Warranty_Claims` và các cột hủy/duyệt/bồi thường/VAT nhập; đồng thời vẽ đủ 9 cột còn thiếu ở G-16 | **Đã chốt 26/10/2026:** ERD v1.2 là chuẩn; migration `database/tenant/V4__erd_v1_2.sql`, `Database_Design_v7.md` (mục 1.24–1.27, R71–R89) và entity JPA cập nhật theo. `Payments` ghi từ phiếu xuất ở P1; `Supplier_Returns`, `Warranty_Claims` đã có bảng + entity, API và màn hình là P2 (`BH-*`/`TK-*` bổ sung khi làm) |
 
 > **Đã xử lý trong bản rà soát này:** 20 endpoint list/detail chưa có story nhận và 4 tham chiếu chéo sai (`KT-08`, `BH-02` → `QL-10` phải là `QL-07`; `BH-12` → `QL-07` phải là `QL-05`; `G-2` → `QL-09` phải là `QL-11`) — xem 3.1.1.
 
@@ -242,7 +243,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **TK-08 — Huỷ phiếu nhập chưa xác nhận**
 
 - P1 · GD5 · `DELETE /import-receipts/{id}`
-- AC: chỉ huỷ được phiếu `DRAFT`/`PENDING`; huỷ = xoá phiếu, bản chụp lưu `Audit_Logs` (G-14); không ảnh hưởng tồn.
+- AC: chỉ huỷ được phiếu `DRAFT`/`PENDING`; huỷ = chuyển `CANCELLED`, ghi `Cancelled_By`, `Cancelled_At`, `Cancel_Reason` (`DELETE /import-receipts/{id}?reason=`), phiếu vẫn tra cứu được, không thể sửa; ghi `Audit_Logs` (`CANCEL`); không ảnh hưởng tồn.
 
 **TK-09 — In/xuất phiếu nhập**
 
@@ -270,7 +271,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
   1. Lập phiếu trả (`Return_Receipts` + `Return_Receipt_Details`) gắn phiếu thuê/mượn gốc; kho nhận lại có thể khác kho cho thuê (`Return_Receipts.Warehouse_ID`). Cho phép trả từng phần: dòng thuê được trả đánh dấu `Is_Returned`; trả đủ mọi dòng → phiếu gốc `RETURNED` + `Return_Date`.
   2. Hàng trả về tốt → `IN_STOCK` tại kho nhận; hư/mất → `DAMAGED` (ghi `Condition_Note`, mất ghi thêm `Inventory.Note`); hàng bảo hành/hư hỏng cũng đi luồng này (đóng G-3).
   3. Phiếu **thuê/mượn** (`RENT`/`LEND`) quá hạn ≥ 10 ngày (`tigernet.rental.penalty-min-overdue-days`): tính `Days_Overdue`, phạt = số ngày quá hạn × `Rental_Price_Per_Day` (TC-RENT-02) — **cả hai loại đều tính phạt** (G-8).
-  4. Bồi thường hư hỏng/mất và hoàn cọc không có cột tiền trong ERD v6 → ghi vào `Return_Receipts.Note` (G-14).
+  4. Bồi thường hư hỏng/mất và hoàn cọc ghi vào `Return_Receipts.Compensation_Amount` / `Deposit_Refund` (G-14, ERD v1.2); tình trạng hàng vẫn ghi ở `Condition_Note`.
   5. Ghi audit; `Stock_Summary` cập nhật ngay (kho cho thuê giảm `Qty_Rented`, kho nhận tăng `Qty_On_Hand`/`Qty_Damaged`). _Dùng chung: Bán hàng._
 
 ### Epic TK-E — Kiểm kê & điều chỉnh (GD8)
@@ -329,7 +330,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 - AC:
   1. Nhập số tiền thu → cộng vào `Export_Receipts.Paid`, tính lại `Remain` = Tổng tiền (đã gồm VAT) − Đã trả, cập nhật `Payment_Status_ID` (UNPAID / PARTIAL / PAID) (TC-EXP-02).
   2. Không cho số tiền vượt `Remain`; ghi sai thì ghi một lần điều chỉnh âm kèm lý do (không sửa số cũ, `Paid` không âm).
-  3. Mỗi lần thu ghi `Audit_Logs` (`Action = PAYMENT`, `Detail` JSON: số tiền, phương thức, ghi chú, người ghi) — đây là lịch sử thanh toán ở P1 (G-13); phiếu thu/chi in riêng → `KT-10` (P2).
+  3. Mỗi lần thu ghi 1 dòng `Payments` (`Direction = IN`, `Reference_Type = Export_Receipts`, số phiếu `THU-{kho}-{năm}-{số}`, `Method` CASH/TRANSFER) và 1 dòng `Audit_Logs` (`Action = PAYMENT`) — `Payments` là lịch sử thanh toán (G-13); in phiếu thu/chi → `KT-10` (P2).
 
 **KT-04 — In phiếu xuất**
 
@@ -361,13 +362,13 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 - P1 · GD9 (tuần 12–13) · `GET /reports/reconciliation?customerId=&from=&to=` (`?format=excel|pdf`, ngoài 112 endpoint)
 - AC:
   1. Theo biểu mẫu 8 (`BIEU_MAU.md`): liệt kê phiếu xuất đã xuất và phiếu thuê/mượn của khách trong kỳ; mỗi phiếu: tổng tiền, đã trả, còn lại; tổng còn phải thu khớp `KT-06`.
-  2. Không có số dư đầu kỳ và phát sinh theo từng lần thu (ERD v6 không lưu lịch sử thanh toán — G-13); chỉ đối chiếu phải thu khách hàng.
+  2. Số dư đầu kỳ và phát sinh theo từng lần thu lấy được từ `Payments` (G-13); P1 vẫn chỉ đối chiếu phải thu khách hàng, công nợ phải trả NCC sang `KT-10`.
   3. Chỉ Kế toán, Quản lý (403 vai trò khác); mỗi lần in ghi audit.
 
 **KT-10 — Phiếu thu/chi & lịch sử thanh toán (P2 — G-13)**
 
 - P2 · `GET /export-receipts/{id}/payments`, `GET /payments/{id}/print` (ngoài 112 endpoint)
-- Điều kiện: bổ sung bảng thanh toán vào ERD (ERD v6 hiện không có).
+- Điều kiện: bảng `Payments` đã có trong ERD v1.2; còn thiếu API đọc/in và luồng chi (phiếu nhập, hoàn cọc).
 - AC: mỗi lần thu/chi là một chứng từ có mã; in phiếu thu/chi theo biểu mẫu 9 (`BIEU_MAU.md`); ghi sai thì huỷ, không xoá; theo dõi công nợ phải trả NCC theo phiếu nhập; biên bản đối chiếu có số dư đầu kỳ và phát sinh theo ngày.
 
 ## 3. BÁN HÀNG (BH) — khách hàng, xuất bán, cho thuê
@@ -394,7 +395,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **BH-04 — Sửa / huỷ phiếu xuất chưa xác nhận**
 
 - P1 · GD6 (tuần 10) · `PUT /export-receipts/{id}`, `DELETE /export-receipts/{id}`
-- AC: chỉ tác động được phiếu `PENDING`; huỷ = xoá phiếu, bản chụp ghi audit (G-14); đã xác nhận → 409.
+- AC: chỉ tác động được phiếu `PENDING`; huỷ = chuyển `CANCELLED` + `Cancelled_By/At/Reason` (`DELETE /export-receipts/{id}?reason=`), ghi audit `CANCEL` (G-14); đã xác nhận → 409; không thu thêm tiền được vào phiếu đã hủy.
 
 **BH-05 — In phiếu xuất**
 
@@ -407,7 +408,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 ### Epic BH-C — Cho thuê & cho mượn (GD7)
 
-> Thuê và mượn dùng chung bảng `Rental_Receipts`, phân biệt bằng `Rental_Type`: `RENT` = cho thuê, `LEND` = cho mượn (G-8). Phiếu có hiệu lực ngay khi tạo — ERD v6 không có bước duyệt phiếu thuê (G-14).
+> Thuê và mượn dùng chung bảng `Rental_Receipts`, phân biệt bằng `Rental_Type`: `RENT` = cho thuê, `LEND` = cho mượn (G-8). Phiếu có `Status` + `Approved_By/At` (ERD v1.2); hiện tự duyệt khi lập nên có hiệu lực ngay, bước duyệt của Quản lý (`PENDING` → `APPROVED`/`REJECTED`) là P2 (G-14).
 
 **BH-07 — Tạo phiếu cho thuê / cho mượn**
 
@@ -500,7 +501,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 **QL-09 — Báo cáo cho thuê, cho mượn & tình trạng trả hàng**
 
 - P1 · GD9 (tuần 12–13) · `GET /reports/rental` (lọc `type=RENT|LEND`, kho)
-- AC: phiếu đang thuê/mượn, quá hạn, đã trả — **tách riêng thuê và mượn**; tổng tiền thuê, phạt (cả thuê và mượn); hàng trả về hư/mất liệt kê theo `Condition_Note` (không có số tiền bồi thường — G-14).
+- AC: phiếu đang thuê/mượn, quá hạn, đã trả — **tách riêng thuê và mượn**; tổng tiền thuê, phạt (cả thuê và mượn); hàng trả về hư/mất liệt kê theo `Condition_Note`, kèm `Compensation_Amount` và `Deposit_Refund` của phiếu trả (G-14).
 
 **QL-10 — Báo cáo nhập/xuất & công nợ (xem chung)**
 
@@ -760,7 +761,7 @@ TigerNet là phần mềm **quản lý kho kiểu SaaS đa khách hàng** (mỗi
 
 1. Endpoint, method, query param đã chốt theo sheet _API & Testing_ (112 endpoint khoá ở M1).
 2. AC ghi rõ điều kiện đạt; có test case đối chiếu (TC riêng hoặc ca kiểm thử chung ở 3.2).
-3. Schema/ERD tương ứng đã map (ERD v7 `tigernetFinal.drawio.png`, `Database_Design_v7.md`).
+3. Schema/ERD tương ứng đã map (ERD v1.2 `tigernet_erd_v1_2.drawio.png`, `Database_Design_v7.md`).
 4. Story Phase 2 chỉ mở khi story P1 cùng chuỗi đã done.
 
 ## 5.2 Definition of Done (story "Hoàn thành")

@@ -42,5 +42,9 @@ public class ExportReceiptResponse {
     private Integer createdById;
     private String createdByName;
     private LocalDateTime createdAt;
+    private Integer cancelledById;
+    private String cancelledByName;
+    private LocalDateTime cancelledAt;
+    private String cancelReason;
     private List<ExportReceiptDetailResponse> details;
 }

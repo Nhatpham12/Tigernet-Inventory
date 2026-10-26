@@ -50,10 +50,11 @@ public class ExportReceiptController {
         return ApiResponse.success(exportReceiptService.updateReceipt(receiptId, request));
     }
 
+    // hủy phiếu PENDING: phiếu chuyển sang CANCELLED, không xóa
     @DeleteMapping("/{receiptId}")
-    ApiResponse<Void> deleteReceipt(@PathVariable Integer receiptId) {
-        exportReceiptService.deleteReceipt(receiptId);
-        return ApiResponse.success("Export receipt has been deleted", null);
+    ApiResponse<ExportReceiptResponse> cancelReceipt(@PathVariable Integer receiptId,
+                                                     @RequestParam(required = false) String reason) {
+        return ApiResponse.success(exportReceiptService.cancelReceipt(receiptId, reason));
     }
 
     @PostMapping("/{receiptId}/payments")

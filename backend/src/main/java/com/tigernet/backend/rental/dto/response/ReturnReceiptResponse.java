@@ -24,6 +24,8 @@ public class ReturnReceiptResponse {
     private LocalDateTime returnDate;
     private Integer daysOverdue;
     private BigDecimal penaltyAmount;
+    private BigDecimal compensationAmount;
+    private BigDecimal depositRefund;
     private String note;
     private Integer createdById;
     private String createdByName;

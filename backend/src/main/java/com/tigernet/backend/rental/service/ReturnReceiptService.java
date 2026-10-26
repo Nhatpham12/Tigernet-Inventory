@@ -66,6 +66,8 @@ public class ReturnReceiptService {
         receipt.setRentalReceipt(rental);
         receipt.setWarehouse(warehouse);
         receipt.setReturnDate(returnDate);
+        receipt.setCompensationAmount(MoneyUtils.round(MoneyUtils.orZero(request.getCompensationAmount())));
+        receipt.setDepositRefund(MoneyUtils.round(MoneyUtils.orZero(request.getDepositRefund())));
         receipt.setNote(request.getNote());
         receipt.setCreatedBy(currentUserService.getCurrentUser());
         receipt.setCreatedAt(LocalDateTime.now());

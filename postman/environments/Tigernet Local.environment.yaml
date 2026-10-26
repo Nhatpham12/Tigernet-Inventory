@@ -15,3 +15,13 @@ values:
     enabled: true
     type: secret
     description: 'Mật khẩu trong log khởi động: "Using generated security password"'
+  - key: admin_username
+    value: ''
+    enabled: true
+    type: default
+    description: 'Tigernet API Tests: user ADMIN để tự đăng nhập khi chạy lẻ 1 folder (bỏ trống nếu chạy cả collection)'
+  - key: admin_password
+    value: ''
+    enabled: true
+    type: secret
+    description: Mật khẩu của admin_username

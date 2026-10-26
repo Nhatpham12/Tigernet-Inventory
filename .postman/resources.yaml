@@ -1,6 +1,7 @@
 cloudResources:
   collections:
     ../postman/collections/My Collection: 57175725-8f33ee5e-a190-45d7-a8b2-b4c7ccae74d9
+    ../postman/collections/Tigernet API Tests: 57175725-3093e89c-eaa7-45ad-b336-b4ac9e060d9e
     ../postman/collections/Tigernet Testing: 57175725-4609c6fb-e23e-4fda-9e28-b559fc077f7d
   environments:
     ../postman/environments/Tigernet Local.environment.yaml: 57175725-7c94a3fe-5d46-4a21-b76d-86c7a380e4a0

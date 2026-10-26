@@ -1,11 +1,25 @@
-# THIẾT KẾ CƠ SỞ DỮ LIỆU – HỆ THỐNG QUẢN LÝ KHO HÀNG (TIGERNET) — v7 (ĐA KHO)
+# THIẾT KẾ CƠ SỞ DỮ LIỆU – HỆ THỐNG QUẢN LÝ KHO HÀNG (TIGERNET) — v7.1 (ĐA KHO, ERD v1.2)
 
 > Tài liệu này được xây dựng bám sát **SRS_He_Thong_Quan_Ly_Kho.docx** và kế thừa danh mục/dữ liệu mẫu từ **Database_Design.docx**.
 > DBMS: **MySQL 8.0.16+** (CHECK được thực thi), charset `utf8mb4`, collation `utf8mb4_unicode_ci` (theo mục 1.4 & 8.4 SRS).
 > Mọi quyết định thiết kế đều tham chiếu tới mục cụ thể trong SRS (ký hiệu §).
 
-> **Nguồn chuẩn (chốt 16/10/2026):** ERD v7 (`tigernetFinal.drawio.png`, file nguồn `tigernet_erd_v1_1.drawio`) và tài liệu này là thiết kế dữ liệu duy nhất. Script triển khai: `database/tenant/V1__init_schema.sql` (bảng), `V2__seed_reference_data.sql` (danh mục mặc định), `V3__views.sql` (view) — chạy bằng Flyway trên **database riêng của từng tenant**; `docs/Database_Script_v7.sql` là bản gộp để chạy tay. Danh sách tenant và thông tin kết nối nằm ở Control Plane (`database/control-plane/`), không thuộc ERD này. ERD v6, `Database_Design_v5/v6.md` và `Database_Script_v6.sql` đã xóa khỏi repo (tra lại qua lịch sử git nếu cần).
-> Phạm vi triển khai và những gì **không** có trong ERD xem mục "Phạm vi triển khai" ở cuối tài liệu; các cột schema có mà ERD chưa vẽ xem mục "Cột có trong schema nhưng chưa vẽ trên ERD v7".
+> **Nguồn chuẩn (chốt 26/10/2026):** ERD v1.2 (`tigernet_erd_v1_2.drawio.png`) và tài liệu này là thiết kế dữ liệu duy nhất. Script triển khai: `database/tenant/V1__init_schema.sql` (bảng v7), `V2__seed_reference_data.sql` (danh mục mặc định), `V3__views.sql` (view), `V4__erd_v1_2.sql` (thay đổi ERD v1.2) — chạy bằng Flyway trên **database riêng của từng tenant**; `docs/Database_Script_v7.sql` là bản gộp V1 + V4 + V3 + V2 để chạy tay. Danh sách tenant và thông tin kết nối nằm ở Control Plane (`database/control-plane/`), không thuộc ERD này. ERD v6/v7 (`tigernetFinal.drawio.png`), `Database_Design_v5/v6.md` và `Database_Script_v6.sql` đã xóa khỏi repo (tra lại qua lịch sử git nếu cần).
+> Phạm vi triển khai và những gì **không** có trong ERD xem mục "Phạm vi triển khai" ở cuối tài liệu; các cột schema đã được vẽ đủ trên ERD v1.2 (mục "Đối chiếu ERD v1.2 và schema" ở cuối).
+
+> **Thay đổi v7.1 (theo ERD v1.2):**
+> 1. Thực thể mới **`Payments`** (mục 1.24) — phiếu thu/chi, mỗi lần thu/chi một dòng; `Paid`/`Remain` trên phiếu là tổng hợp từ bảng này.
+> 2. Thực thể mới **`Supplier_Returns`** + **`Supplier_Return_Details`** (mục 1.25–1.26) — trả hàng lỗi / gửi bảo hành lên NCC (RMA).
+> 3. Thực thể mới **`Warranty_Claims`** (mục 1.27) — vòng đời một lần bảo hành của khách (nhận → gửi → về → trả khách).
+> 4. `Import_Receipts` thêm `VAT_ID`, `Payment_Status_ID`, `Paid`, `Remain` (công nợ phải trả NCC, VAT đầu vào).
+> 5. `Import_Receipts`, `Export_Receipts` thêm trạng thái **`CANCELLED`** + `Cancelled_By`, `Cancelled_At`, `Cancel_Reason` — hủy phiếu giữ lại, không xóa.
+> 6. `Rental_Receipts` thêm `Status` (PENDING/APPROVED/REJECTED), `Approved_By`, `Approved_At` — bước duyệt phiếu thuê/mượn.
+> 7. `Return_Receipts` thêm `Compensation_Amount` (bồi thường hư hỏng/mất), `Deposit_Refund` (hoàn cọc).
+> 8. `Stock_Movements.Reference_Type` thêm `Supplier_Returns`, `Warranty_Claims`.
+> 9. Vẽ đủ 9 cột/quan hệ trước đây chỉ có ở schema (xem mục "Đối chiếu ERD v1.2 và schema").
+> 10. Quan hệ mới R71–R89 (Phần 2).
+>
+> Các mục thay đổi ở v7.1 được đánh dấu **[v7.1]**. Migration: `database/tenant/V4__erd_v1_2.sql` (không sửa V1–V3 để giữ checksum Flyway).
 
 > **Thay đổi v7 (theo ERD v7):**
 > 1. Thực thể mới **`Warehouse_Locations`** (mục 1.2c) — vị trí kệ/ô trong kho; `Inventory` thêm `Location_ID`.
@@ -282,11 +296,18 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 | Source_Party_ID | Đơn, FK | FK→Parties.ID, NOT NULL | Nguồn nhập / "người bán" cả phiếu — trỏ về Party nên phủ NCC, khách bán lẻ, khách đổi-trả (yêu cầu mới) |
 | Warehouse_ID | Đơn, FK | FK→Warehouses.ID, NOT NULL | **[v6]** Kho nhận hàng — hàng nhập được ghi vào tồn của kho này |
 | Date_In | Đơn | NOT NULL | Ngày nhập |
-| Total_Amount | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Tự động tính tổng giá trị nhập |
-| Status | Đơn | NOT NULL, DEFAULT 'DRAFT' | Lưu trạng thái: DRAFT/PENDING/CONFIRMED (§3.3.1, §7.1.4 “Lưu & Gửi duyệt”) |
+| VAT_ID | Đơn, FK | FK→VAT_Options.ID, NULL | **[v7.1]** Mức VAT đầu vào |
+| Total_Amount | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Tự động tính = tổng Line_Total + VAT |
+| Payment_Status_ID | Đơn, FK | FK→Payment_Statuses.ID, NULL | **[v7.1]** Trạng thái thanh toán cho NCC (công nợ phải trả) |
+| Paid | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | **[v7.1]** Đã trả NCC = tổng `Payments` (OUT, COMPLETED) |
+| Remain | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | **[v7.1]** Còn nợ = Total − Paid |
+| Status | Đơn | NOT NULL, DEFAULT 'DRAFT' | DRAFT/PENDING/CONFIRMED/**CANCELLED [v7.1]** (§3.3.1, §7.1.4 “Lưu & Gửi duyệt”) |
 | Note | Đơn | NULL | Ghi chú phiếu |
 | Created_By | Đơn, FK | FK→Users.ID, NOT NULL | Người tạo (audit §3.1.2) |
 | Created_At | Đơn | NOT NULL, DEFAULT NOW | Lưu theo thời gian |
+| Cancelled_By | Đơn, FK | FK→Users.ID, NULL | **[v7.1]** Người hủy phiếu |
+| Cancelled_At | Đơn | NULL | **[v7.1]** Thời điểm hủy |
+| Cancel_Reason | Đơn | NULL | **[v7.1]** Lý do hủy |
 
 ## 1.11. Import_Receipt_Details – Chi tiết phiếu nhập
 
@@ -323,12 +344,15 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 | Deposit | Đơn | NOT NULL, DEFAULT 0 | Số tiền đặt cọc |
 | Total_Amount | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Tự động tính tổng giá trị xuất |
 | Payment_Status_ID | Đơn, FK | FK→Payment_Statuses.ID, NULL | Trạng thái thanh toán (công nợ §3.7.4) |
-| Paid | Đơn | NOT NULL, DEFAULT 0 | Đã thanh toán |
+| Paid | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Đã thanh toán **[v7.1]** = tổng `Payments` (IN, COMPLETED) |
 | Remain | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Còn lại = Total − Paid |
-| Status | Đơn | NOT NULL, DEFAULT 'PENDING' | PENDING/CONFIRMED/EXPORTED (§3.4.1) |
+| Status | Đơn | NOT NULL, DEFAULT 'PENDING' | PENDING/CONFIRMED/EXPORTED/**CANCELLED [v7.1]** (§3.4.1) |
 | Note | Đơn | NULL | Ghi chú |
 | Created_By | Đơn, FK | FK→Users.ID, NOT NULL | NV bán hàng – phục vụ doanh thu theo NV (§1.3, §3.7) |
 | Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời gian tạo |
+| Cancelled_By | Đơn, FK | FK→Users.ID, NULL | **[v7.1]** Người hủy phiếu |
+| Cancelled_At | Đơn | NULL | **[v7.1]** Thời điểm hủy |
+| Cancel_Reason | Đơn | NULL | **[v7.1]** Lý do hủy |
 
 ## 1.13. Export_Receipt_Details – Chi tiết phiếu xuất
 
@@ -369,9 +393,12 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 | Total_Rent | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Tổng tiền thuê |
 | Penalty_Amount | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Phạt = số ngày quá hạn × giá thuê/ngày (khi quá hạn ≥10 ngày) |
 | Return_Date | Đơn | NULL | Ngày khách trả thực tế |
+| Status | Đơn | NOT NULL, DEFAULT 'APPROVED' | **[v7.1]** Bước duyệt phiếu: PENDING/APPROVED/REJECTED. Mặc định APPROVED để phiếu có hiệu lực ngay như trước |
 | Payment_Status_ID | Đơn, FK | FK→Payment_Statuses.ID, NULL | RENTING/RETURNED... |
 | Created_By | Đơn, FK | FK→Users.ID, NOT NULL | Người lập |
 | Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời gian |
+| Approved_By | Đơn, FK | FK→Users.ID, NULL | **[v7.1]** Người duyệt phiếu |
+| Approved_At | Đơn | NULL | **[v7.1]** Thời điểm duyệt |
 
 ## 1.15. Rental_Receipt_Details – Chi tiết phiếu cho thuê
 
@@ -401,6 +428,8 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 | Return_Date | Đơn | NOT NULL | Ngày trả thực tế |
 | Days_Overdue | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Số ngày quá hạn (so Due_Date) |
 | Penalty_Amount | Đơn, dẫn xuất | NOT NULL, DEFAULT 0 | Phạt = ngày quá hạn × giá thuê/ngày (khi ≥10 ngày, §3.5.1) |
+| Compensation_Amount | Đơn | NOT NULL, DEFAULT 0 | **[v7.1]** Tiền bồi thường hàng hư hỏng/mất |
+| Deposit_Refund | Đơn | NOT NULL, DEFAULT 0 | **[v7.1]** Tiền cọc hoàn lại cho khách |
 | Note | Đơn | NULL | Ghi chú tình trạng hàng trả |
 | Created_By | Đơn, FK | FK→Users.ID, NOT NULL | Người lập phiếu trả |
 | Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời gian |
@@ -658,12 +687,91 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 | Movement_Type | Đơn | NOT NULL | `IN` (tăng tồn khả dụng) / `OUT` (giảm) |
 | Quantity | Đơn | NOT NULL, >0 | Số lượng biến động (luôn dương, chiều theo `Movement_Type`) |
 | Balance_After | Đơn, dẫn xuất | NOT NULL, ≥0 | `Stock_Summary.Qty_On_Hand` của (SP, kho) ngay sau biến động |
-| Reference_Type | Đơn | NOT NULL | Tên bảng phiếu gây biến động: Import_Receipts / Export_Receipts / Rental_Receipts / Return_Receipts / Sales_Returns / Stock_Transfers / Stock_Adjustments |
-| Reference_ID | Đơn | NOT NULL | ID phiếu tương ứng *(chưa vẽ trên ERD v7 — xem mục cuối)* |
+| Reference_Type | Đơn | NOT NULL | Tên bảng phiếu gây biến động: Import_Receipts / Export_Receipts / Rental_Receipts / Return_Receipts / Sales_Returns / Stock_Transfers / Stock_Adjustments / **Supplier_Returns [v7.1]** / **Warranty_Claims [v7.1]** |
+| Reference_ID | Đơn | NOT NULL | ID phiếu tương ứng |
 | Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời điểm biến động |
 
 > **Quy tắc ghi:** chỉ `StockService` ghi bảng này, trong **cùng transaction** cập nhật `Inventory` và `Stock_Summary`; không sửa/xóa dòng đã ghi (sai thì ghi bút toán ngược). Mọi thay đổi `Qty_On_Hand` đều ghi một dòng, kể cả khi hàng rời trạng thái khả dụng mà chưa rời kho (giữ hàng `RESERVED` cho phiếu xuất chờ, chuyển `DAMAGED` khi trả thuê). Chuyển kho sinh 2 dòng: OUT ở kho nguồn khi xuất, IN ở kho đích khi nhận.
 > Tồn tại thời điểm T = `Balance_After` của dòng cuối cùng có `Created_At ≤ T` cho (SP, kho).
+
+## 1.24. Payments – Phiếu thu/chi [v7.1]
+
+**Lý do tồn tại:** §3.7.4 (công nợ), biểu mẫu 9 (phiếu thu/chi). Trước v7.1 mỗi lần thu tiền chỉ nằm trong `Audit_Logs.Detail` (JSON) nên không truy vấn, tổng hợp, đối soát theo ngày/phương thức được. Mỗi lần thu/chi là **một dòng bất biến**; sai thì hủy (`Status = CANCELLED`) rồi ghi dòng mới, không xóa/sửa. ERD: `Parties` *pays* `Payments`, `Users` *recorded_by* `Payments`.
+
+| Thuộc tính | Tính chất | Ràng buộc | Lý do |
+|---|---|---|---|
+| ID | Đơn, định danh | PK, AUTO_INCREMENT | Khóa chính |
+| Payment_Code | Đơn | UNIQUE, NOT NULL | Số phiếu `THU-{kho}-{yyyy}-{0001}` (IN) / `CHI-...` (OUT) |
+| Direction | Đơn | NOT NULL, CHECK IN ('IN','OUT') | IN = thu (khách trả), OUT = chi (trả NCC, hoàn cọc) |
+| Party_ID | Đơn, FK | FK→Parties.ID, NOT NULL | Bên trả (IN) hoặc bên nhận (OUT) |
+| Reference_Type | Đơn | NOT NULL | Tên bảng phiếu gốc: Import_Receipts / Export_Receipts / Rental_Receipts / Return_Receipts / Sales_Returns / Supplier_Returns |
+| Reference_ID | Đơn | NOT NULL | ID phiếu gốc (tham chiếu mềm như `Stock_Movements`) |
+| Amount | Đơn | NOT NULL, CHECK >0 | Số tiền (luôn dương, chiều theo `Direction`) |
+| Method | Đơn | NOT NULL, DEFAULT 'CASH' | CASH / TRANSFER |
+| Paid_At | Đơn | NOT NULL | Thời điểm thu/chi |
+| Status | Đơn | NOT NULL, DEFAULT 'COMPLETED' | COMPLETED / CANCELLED (hủy thay vì xóa) |
+| Note | Đơn | NULL | Ghi chú |
+| Recorded_By | Đơn, FK | FK→Users.ID, NOT NULL | Người ghi nhận |
+| Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời gian tạo dòng |
+
+> **Quy tắc:** `Paid` của phiếu gốc = `SUM(Amount)` các dòng `COMPLETED` cùng (`Reference_Type`, `Reference_ID`); `Remain = Total − Paid`. Service cập nhật phiếu và ghi `Payments` trong cùng transaction.
+
+## 1.25. Supplier_Returns – Phiếu trả hàng cho NCC (RMA) [v7.1]
+
+**Lý do tồn tại:** hàng lỗi/gửi bảo hành lên NCC. Trước v7.1 hàng lỗi chỉ ở `Inventory.Status = DAMAGED`, không biết đã gửi NCC nào, khi nào, đã nhận lại chưa, có được bồi hoàn không. ERD: `Suppliers` *returned_to*, `Warehouses` *sent_from*, `Users` *created_by*.
+
+| Thuộc tính | Tính chất | Ràng buộc | Lý do |
+|---|---|---|---|
+| ID | Đơn, định danh | PK, AUTO_INCREMENT | Khóa chính |
+| Return_Code | Đơn | UNIQUE, NOT NULL | Số phiếu |
+| Supplier_ID | Đơn, FK | FK→Suppliers.ID, NOT NULL | NCC nhận hàng |
+| Warehouse_ID | Đơn, FK | FK→Warehouses.ID, NOT NULL | Kho gửi hàng đi |
+| Status | Đơn | NOT NULL, DEFAULT 'DRAFT' | DRAFT / SENT / RECEIVED_BACK / CLOSED / CANCELLED |
+| Reason | Đơn | NULL | Lý do trả/gửi bảo hành |
+| Sent_At | Đơn | NULL | Ngày gửi |
+| Received_Back_At | Đơn | NULL | Ngày nhận lại (≥ `Sent_At`) |
+| Compensation_Amount | Đơn | NOT NULL, DEFAULT 0 | Tiền NCC bồi hoàn |
+| Note | Đơn | NULL | Ghi chú |
+| Created_By | Đơn, FK | FK→Users.ID, NOT NULL | Người lập |
+| Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời gian |
+
+## 1.26. Supplier_Return_Details – Chi tiết phiếu trả NCC [v7.1]
+
+Thực thể **yếu** phụ thuộc `Supplier_Returns`. ERD: *has_details*, *references_product*, *rma_of* (→ `Inventory`).
+
+| Thuộc tính | Tính chất | Ràng buộc | Lý do |
+|---|---|---|---|
+| ID | Đơn, định danh | PK, AUTO_INCREMENT | Khóa chính dòng |
+| Supplier_Return_ID | Đơn, FK | FK→Supplier_Returns.ID, NOT NULL (CASCADE) | Thuộc phiếu nào |
+| Product_ID | Đơn, FK | FK→Products.ID, NOT NULL | Sản phẩm |
+| Inventory_ID | Đơn, FK | FK→Inventory.ID, NULL | Đơn vị hàng serial được gửi đi |
+| Quantity | Đơn | NOT NULL, CHECK >0 | Số lượng |
+| Serial | Đơn | NULL | Serial |
+| Result | Đơn | NULL | Kết quả NCC xử lý: REPAIRED / REPLACED / REFUNDED / REJECTED |
+
+## 1.27. Warranty_Claims – Phiếu bảo hành [v7.1]
+
+**Lý do tồn tại:** quy trình bảo hành của khách (biểu mẫu 10). Trước v7.1 chỉ có `Warranty_Months`/`Warranty_Expiry` trên dòng bán và `Sales_Returns.Return_Type = WARRANTY` (không hợp vì có `Fee_Percent`, `Refund_Amount`). Một phiếu = một lần bảo hành của một đơn vị hàng; lịch sử bảo hành của một serial = các phiếu cùng `Inventory_ID`. ERD: `Export_Receipt_Details` *claims_on*, `Inventory` *warranty_of*, `Warehouses` *received_at* / *restocked_at*, `Users` *handled_by*.
+
+| Thuộc tính | Tính chất | Ràng buộc | Lý do |
+|---|---|---|---|
+| ID | Đơn, định danh | PK, AUTO_INCREMENT | Khóa chính |
+| Claim_Code | Đơn | UNIQUE, NOT NULL | Số phiếu tiếp nhận bảo hành |
+| Export_Detail_ID | Đơn, FK | FK→Export_Receipt_Details.ID, NOT NULL | Dòng bán gốc — cho biết khách, sản phẩm, hạn bảo hành |
+| Inventory_ID | Đơn, FK | FK→Inventory.ID, NULL | Đơn vị hàng đang bảo hành |
+| Received_Warehouse_ID | Đơn, FK | FK→Warehouses.ID, NOT NULL | Kho tiếp nhận máy từ khách |
+| Restocked_Warehouse_ID | Đơn, FK | FK→Warehouses.ID, NULL | Kho nhận lại hàng sau bảo hành (có thể khác kho tiếp nhận) |
+| Status | Đơn | NOT NULL, DEFAULT 'RECEIVED' | RECEIVED → SENT → RETURNED → CLOSED, hoặc REJECTED |
+| Received_At | Đơn | NOT NULL | Ngày nhận máy |
+| Sent_At | Đơn | NULL | Ngày gửi đi sửa/đổi |
+| Returned_At | Đơn | NULL | Ngày máy về |
+| Result | Đơn | NULL | REPAIRED / REPLACED / REJECTED |
+| Cost | Đơn | NOT NULL, DEFAULT 0 | Chi phí bảo hành |
+| Replacement_Serial | Đơn | NULL | Serial máy đổi mới / máy thay thế |
+| New_Warranty_Expiry | Đơn | NULL | Hạn bảo hành tính lại cho máy đổi mới |
+| Note | Đơn | NULL | Ghi chú |
+| Handled_By | Đơn, FK | FK→Users.ID, NOT NULL | Người xử lý |
+| Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời gian |
 
 ---
 
@@ -741,6 +849,25 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 | R68 | Warehouses — Product_Warehouse_Settings | 1 : N | Bắt buộc phía cấu hình | **[v7]** Cấu hình áp dụng tại kho (ERD: *applies_in*); UNIQUE (Product_ID, Warehouse_ID) |
 | R69 | Products — Stock_Movements | 1 : N | Bắt buộc | **[v7]** Lịch sử biến động tồn của SP (ERD: *tracks*) |
 | R70 | Warehouses — Stock_Movements | 1 : N | Bắt buộc | **[v7]** Lịch sử biến động tồn tại kho (ERD: *logs*) |
+| R71 | Parties — Payments | 1 : N | Bắt buộc phía Payments | **[v7.1]** Bên trả/nhận tiền (ERD: *pays*) |
+| R72 | Users — Payments | 1 : N | Bắt buộc phía Payments | **[v7.1]** Người ghi nhận thu/chi (ERD: *recorded_by*) |
+| R73 | Payments — phiếu gốc | N : 1 (mềm) | Bắt buộc | **[v7.1]** (`Reference_Type`, `Reference_ID`) trỏ tới Import/Export/Rental/Return_Receipts, Sales_Returns, Supplier_Returns — không có FK |
+| R74 | VAT_Options — Import_Receipts | 1 : N | Tùy chọn | **[v7.1]** VAT đầu vào (ERD: *applies_tax*) |
+| R75 | Payment_Statuses — Import_Receipts | 1 : N | Tùy chọn | **[v7.1]** Trạng thái công nợ phải trả NCC (ERD: *has_status*) |
+| R76 | Users — Import_Receipts (hủy) | 1 : N | Tùy chọn | **[v7.1]** `Cancelled_By` (ERD: *cancelled_by*) |
+| R77 | Users — Export_Receipts (hủy) | 1 : N | Tùy chọn | **[v7.1]** `Cancelled_By` (ERD: *cancelled_by*) |
+| R78 | Users — Rental_Receipts (duyệt) | 1 : N | Tùy chọn | **[v7.1]** `Approved_By` (ERD: *approved_by*) |
+| R79 | Suppliers — Supplier_Returns | 1 : N | Bắt buộc phía phiếu | **[v7.1]** NCC nhận hàng trả (ERD: *returned_to*) |
+| R80 | Warehouses — Supplier_Returns | 1 : N | Bắt buộc phía phiếu | **[v7.1]** Kho gửi hàng đi (ERD: *sent_from*) |
+| R81 | Users — Supplier_Returns | 1 : N | Bắt buộc phía phiếu | **[v7.1]** Người lập (ERD: *created_by*) |
+| R82 | Supplier_Returns — Supplier_Return_Details | 1 : N | Bắt buộc (composition) | **[v7.1]** Phiếu trả NCC gồm nhiều dòng (ERD: *has_details*) |
+| R83 | Products — Supplier_Return_Details | 1 : N | Bắt buộc | **[v7.1]** Mỗi dòng ứng 1 SP (ERD: *references_product*) |
+| R84 | Inventory — Supplier_Return_Details | 1 : N | Tùy chọn | **[v7.1]** Đơn vị hàng serial gửi NCC (ERD: *rma_of*) |
+| R85 | Export_Receipt_Details — Warranty_Claims | 1 : N | Bắt buộc phía phiếu | **[v7.1]** Một dòng bán có thể bảo hành nhiều lần (ERD: *claims_on*) |
+| R86 | Inventory — Warranty_Claims | 1 : N | Tùy chọn | **[v7.1]** Lịch sử bảo hành của một đơn vị hàng (ERD: *warranty_of*) |
+| R87 | Warehouses — Warranty_Claims (tiếp nhận) | 1 : N | Bắt buộc phía phiếu | **[v7.1]** `Received_Warehouse_ID` (ERD: *received_at*) |
+| R88 | Warehouses — Warranty_Claims (nhập lại) | 1 : N | Tùy chọn | **[v7.1]** `Restocked_Warehouse_ID` (ERD: *restocked_at*) |
+| R89 | Users — Warranty_Claims | 1 : N | Bắt buộc phía phiếu | **[v7.1]** Người xử lý (ERD: *handled_by*) |
 
 ---
 
@@ -773,6 +900,12 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 **Nhóm hỗ trợ vận hành:** `Alerts` và `Audit_Logs` đứng tách, không tham gia khóa ngoại bắt buộc với nghiệp vụ; chúng tham chiếu mềm qua cặp (`Ref_Table`,`Ref_ID`) / (`Target_Table`,`Target_ID`) để ghi cảnh báo (§3.8) và nhật ký (§3.1.2, §4.2). `Stock_Summary` là bảng cache theo cặp (SP, kho) — 1–N với `Products` (R34) và 1–N với `Warehouses` (R49), được cập nhật từ các luồng nghiệp vụ chứ không nhập trực tiếp. **[v7]** Bên cạnh nó là `Stock_Movements` (sổ cái biến động, R69–R70) và `Product_Warehouse_Settings` (cấu hình ngưỡng do người dùng nhập, R67–R68) — cùng gắn với cặp (SP, kho) nhưng tách vai trò: lịch sử / tổng hiện tại / cấu hình.
 
 **[v6] Trục 3 – Kho (Warehouses):** `Warehouses` là hub thứ ba bên cạnh `Users` và `Products`. Nó là bên "một" của: `Inventory` (R48 — hàng đang nằm ở kho nào), `Stock_Summary` (R49 — cùng `Products` định danh thực thể kết hợp này), toàn bộ header chứng từ có hàng vật lý đi vào/ra (R50–R55), hai quan hệ với `Stock_Transfers` (kho xuất R56, kho nhận R57), `Alerts` (R64), và **[v7]** `Warehouse_Locations` (R65), `Product_Warehouse_Settings` (R68), `Stock_Movements` (R70). Với `Users` có hai quan hệ: `works_at` N–N (bảng `User_Warehouses`, R62) và `manages` 1–N (R63). Trên ERD, các cạnh từ `Users` (created_by) và `Warehouses` tới hàng header được vẽ dạng **"bus" ngang** (một đường trục chung rồi rẽ xuống từng phiếu) để tránh chồng chéo.
+
+**[v7.1] Nhóm thanh toán, RMA, bảo hành:**
+- `Payments` đứng cạnh các phiếu, nối với phiếu gốc bằng tham chiếu mềm (`Reference_Type`, `Reference_ID`, R73) và với `Parties` (R71), `Users` (R72). `Paid`/`Remain` trên phiếu là giá trị tổng hợp từ bảng này.
+- `Supplier_Returns` → `Supplier_Return_Details` (R79–R84) là chiều ngược của phiếu nhập: hàng lỗi đi từ kho tới NCC. Dòng chi tiết trỏ `Inventory` để biết đơn vị serial nào đã gửi đi.
+- `Warranty_Claims` (R85–R89) nối dòng bán gốc với đơn vị hàng và hai kho (tiếp nhận / nhập lại), giữ toàn bộ vòng đời bảo hành thay cho việc ép vào `Sales_Returns`.
+- Hủy phiếu nhập/xuất và duyệt phiếu thuê/mượn là thuộc tính + quan hệ `Users` bổ sung (R76–R78), không thêm bảng.
 
 **Dữ liệu ephemeral ngoài DB:** thông tin khóa đăng nhập và rate-limit không nằm trong ERD của MySQL mà lưu ở **Redis** (key có TTL) — thể hiện trên sơ đồ kiến trúc như một store phụ, không phải thực thể quan hệ.
 
@@ -989,13 +1122,20 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Source_Party_ID | INT | NN, FK | Parties.ID | Nguồn nhập/người bán cả phiếu (NCC/khách lẻ/khách đổi-trả) |
 | Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | **[v6]** Kho nhận hàng |
 | Date_In | DATETIME | NN | — | Ngày nhập |
-| Total_Amount | DECIMAL(18,2) | NN, DEFAULT 0 | — | Tổng giá trị nhập (dẫn xuất) |
-| Status | VARCHAR(20) | NN, DEFAULT 'DRAFT' | — | DRAFT/PENDING/CONFIRMED |
+| VAT_ID | INT | NULL, FK (SET NULL) | VAT_Options.ID | **[v7.1]** VAT đầu vào |
+| Total_Amount | DECIMAL(18,2) | NN, DEFAULT 0 | — | Tổng giá trị nhập gồm VAT (dẫn xuất) |
+| Payment_Status_ID | INT | NULL, FK (SET NULL) | Payment_Statuses.ID | **[v7.1]** Trạng thái thanh toán NCC |
+| Paid | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | **[v7.1]** Đã trả NCC (dẫn xuất từ Payments) |
+| Remain | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | **[v7.1]** Còn nợ NCC (dẫn xuất) |
+| Status | VARCHAR(20) | NN, DEFAULT 'DRAFT' | — | DRAFT/PENDING/CONFIRMED/CANCELLED |
 | Note | TEXT | NULL | — | Ghi chú |
 | Created_By | INT | NN, FK | Users.ID | Người tạo |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian tạo |
+| Cancelled_By | INT | NULL, FK (SET NULL) | Users.ID | **[v7.1]** Người hủy |
+| Cancelled_At | DATETIME | NULL | — | **[v7.1]** Thời điểm hủy |
+| Cancel_Reason | VARCHAR(255) | NULL | — | **[v7.1]** Lý do hủy |
 
-*Index:* IX_Import_Source_Party_ID, IX_Import_Date_In, IX_Import_Warehouse_Date (Warehouse_ID, Date_In) **[v6]**.
+*Index:* IX_Import_Source_Party_ID, IX_Import_Date_In, IX_Import_Warehouse_Date (Warehouse_ID, Date_In) **[v6]**, IX_Import_Payment_Status_ID **[v7.1]**.
 
 ## 4.11. Bảng `Import_Receipt_Details`
 
@@ -1030,10 +1170,13 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Payment_Status_ID | INT | NULL, FK (SET NULL) | Payment_Statuses.ID | Trạng thái thanh toán |
 | Paid | DECIMAL(18,2) | NN, DEFAULT 0 | — | Đã thanh toán |
 | Remain | DECIMAL(18,2) | NN, DEFAULT 0 | — | Còn lại (dẫn xuất) |
-| Status | VARCHAR(20) | NN, DEFAULT 'PENDING' | — | PENDING/CONFIRMED/EXPORTED |
+| Status | VARCHAR(20) | NN, DEFAULT 'PENDING' | — | PENDING/CONFIRMED/EXPORTED/CANCELLED |
 | Note | TEXT | NULL | — | Ghi chú |
 | Created_By | INT | NN, FK | Users.ID | NV bán hàng |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian tạo |
+| Cancelled_By | INT | NULL, FK (SET NULL) | Users.ID | **[v7.1]** Người hủy |
+| Cancelled_At | DATETIME | NULL | — | **[v7.1]** Thời điểm hủy |
+| Cancel_Reason | VARCHAR(255) | NULL | — | **[v7.1]** Lý do hủy |
 
 *Index:* IX_Export_Customer_ID, IX_Export_Date_Out, IX_Export_Payment_Status_ID, IX_Export_Warehouse_Date (Warehouse_ID, Date_Out) **[v6]**.
 
@@ -1072,11 +1215,14 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Total_Rent | DECIMAL(18,2) | NN, DEFAULT 0 | — | Tổng tiền thuê (dẫn xuất) |
 | Penalty_Amount | DECIMAL(18,2) | NN, DEFAULT 0 | — | Tiền phạt quá hạn (dẫn xuất) |
 | Return_Date | DATETIME | NULL | — | Ngày trả thực tế |
+| Status | VARCHAR(20) | NN, DEFAULT 'APPROVED' | — | **[v7.1]** PENDING/APPROVED/REJECTED (bước duyệt) |
 | Payment_Status_ID | INT | NULL, FK (SET NULL) | Payment_Statuses.ID | RENTING/RETURNED |
 | Created_By | INT | NN, FK | Users.ID | Người lập |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
+| Approved_By | INT | NULL, FK (SET NULL) | Users.ID | **[v7.1]** Người duyệt |
+| Approved_At | DATETIME | NULL | — | **[v7.1]** Thời điểm duyệt |
 
-*Index:* IX_Rental_Customer_ID, IX_Rental_Due_Date (cảnh báo 7 ngày §3.8).
+*Index:* IX_Rental_Customer_ID, IX_Rental_Due_Date (cảnh báo 7 ngày §3.8), IX_Rental_Status **[v7.1]**.
 
 ## 4.15. Bảng `Rental_Receipt_Details`
 
@@ -1181,6 +1327,8 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Return_Date | DATETIME | NN | — | Ngày trả thực tế |
 | Days_Overdue | INT | NN, DEFAULT 0 | — | Số ngày quá hạn (dẫn xuất) |
 | Penalty_Amount | DECIMAL(18,2) | NN, DEFAULT 0 | — | Tiền phạt quá hạn (dẫn xuất, §3.5.1) |
+| Compensation_Amount | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | **[v7.1]** Tiền bồi thường hư hỏng/mất |
+| Deposit_Refund | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | **[v7.1]** Cọc hoàn lại cho khách |
 | Note | TEXT | NULL | — | Ghi chú |
 | Created_By | INT | NN, FK | Users.ID | Người lập |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
@@ -1315,11 +1463,88 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Movement_Type | VARCHAR(10) | NN, CHECK IN ('IN','OUT') | — | Chiều biến động |
 | Quantity | INT | NN, CHECK>0 | — | Số lượng |
 | Balance_After | INT | NN, CHECK≥0 | — | Tồn khả dụng sau biến động (dẫn xuất) |
-| Reference_Type | VARCHAR(30) | NN, CHECK (7 tên bảng phiếu) | — | Loại phiếu nguồn |
+| Reference_Type | VARCHAR(30) | NN, CHECK (9 tên bảng phiếu) | — | Loại phiếu nguồn (**[v7.1]** thêm Supplier_Returns, Warranty_Claims) |
 | Reference_ID | INT | NN | — | ID phiếu nguồn (tham chiếu mềm) |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời điểm |
 
 *Index:* IX_SM_Wh_Product_Time (Warehouse_ID, Product_ID, Created_At) — thẻ kho/tồn tại thời điểm; IX_SM_Reference (Reference_Type, Reference_ID) — tra biến động của một phiếu.
+
+## 4.26. Bảng `Payments` [v7.1]
+
+| Tên cột | Kiểu dữ liệu | Ràng buộc | Tham chiếu | Ý nghĩa |
+|---|---|---|---|---|
+| ID | INT | PK, AI, NN | — | Mã dòng thu/chi |
+| Payment_Code | VARCHAR(30) | UQ, NN | — | Số phiếu thu/chi |
+| Direction | VARCHAR(3) | NN, CHECK IN ('IN','OUT') | — | Thu / chi |
+| Party_ID | INT | NN, FK (RESTRICT) | Parties.ID | Bên trả/nhận |
+| Reference_Type | VARCHAR(30) | NN, CHECK (6 tên bảng phiếu) | — | Loại phiếu gốc |
+| Reference_ID | INT | NN | — | ID phiếu gốc (tham chiếu mềm) |
+| Amount | DECIMAL(18,2) | NN, CHECK >0 | — | Số tiền |
+| Method | VARCHAR(20) | NN, DEFAULT 'CASH', CHECK IN ('CASH','TRANSFER') | — | Phương thức |
+| Paid_At | DATETIME | NN | — | Thời điểm thu/chi |
+| Status | VARCHAR(20) | NN, DEFAULT 'COMPLETED', CHECK IN ('COMPLETED','CANCELLED') | — | Trạng thái |
+| Note | VARCHAR(255) | NULL | — | Ghi chú |
+| Recorded_By | INT | NN, FK (RESTRICT) | Users.ID | Người ghi nhận |
+| Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian tạo |
+
+*Index:* IX_Payments_Reference (Reference_Type, Reference_ID), IX_Payments_Party (Party_ID, Paid_At), IX_Payments_Paid_At.
+
+## 4.27. Bảng `Supplier_Returns` [v7.1]
+
+| Tên cột | Kiểu dữ liệu | Ràng buộc | Tham chiếu | Ý nghĩa |
+|---|---|---|---|---|
+| ID | INT | PK, AI, NN | — | Mã phiếu |
+| Return_Code | VARCHAR(30) | UQ, NN | — | Số phiếu |
+| Supplier_ID | INT | NN, FK (RESTRICT) | Suppliers.ID | NCC nhận hàng |
+| Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | Kho gửi |
+| Status | VARCHAR(20) | NN, DEFAULT 'DRAFT', CHECK | — | DRAFT/SENT/RECEIVED_BACK/CLOSED/CANCELLED |
+| Reason | VARCHAR(255) | NULL | — | Lý do |
+| Sent_At | DATETIME | NULL | — | Ngày gửi |
+| Received_Back_At | DATETIME | NULL, CHECK ≥ Sent_At | — | Ngày nhận lại |
+| Compensation_Amount | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | NCC bồi hoàn |
+| Note | TEXT | NULL | — | Ghi chú |
+| Created_By | INT | NN, FK (RESTRICT) | Users.ID | Người lập |
+| Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
+
+*Index:* IX_SupR_Supplier (Supplier_ID, Status), IX_SupR_Warehouse (Warehouse_ID, Status).
+
+## 4.28. Bảng `Supplier_Return_Details` [v7.1]
+
+| Tên cột | Kiểu dữ liệu | Ràng buộc | Tham chiếu | Ý nghĩa |
+|---|---|---|---|---|
+| ID | INT | PK, AI, NN | — | Mã dòng |
+| Supplier_Return_ID | INT | NN, FK (CASCADE) | Supplier_Returns.ID | Phiếu cha |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm |
+| Inventory_ID | INT | NULL, FK (SET NULL) | Inventory.ID | Đơn vị hàng serial |
+| Quantity | INT | NN, CHECK >0 | — | Số lượng |
+| Serial | VARCHAR(255) | NULL | — | Serial |
+| Result | VARCHAR(20) | NULL, CHECK IN (REPAIRED, REPLACED, REFUNDED, REJECTED) | — | Kết quả NCC xử lý |
+
+*Index:* IX_SupRD_Inventory (Inventory_ID).
+
+## 4.29. Bảng `Warranty_Claims` [v7.1]
+
+| Tên cột | Kiểu dữ liệu | Ràng buộc | Tham chiếu | Ý nghĩa |
+|---|---|---|---|---|
+| ID | INT | PK, AI, NN | — | Mã phiếu |
+| Claim_Code | VARCHAR(30) | UQ, NN | — | Số phiếu bảo hành |
+| Export_Detail_ID | INT | NN, FK (RESTRICT) | Export_Receipt_Details.ID | Dòng bán gốc |
+| Inventory_ID | INT | NULL, FK (SET NULL) | Inventory.ID | Đơn vị hàng bảo hành |
+| Received_Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | Kho tiếp nhận |
+| Restocked_Warehouse_ID | INT | NULL, FK (SET NULL) | Warehouses.ID | Kho nhận lại sau bảo hành |
+| Status | VARCHAR(20) | NN, DEFAULT 'RECEIVED', CHECK | — | RECEIVED/SENT/RETURNED/CLOSED/REJECTED |
+| Received_At | DATETIME | NN | — | Ngày nhận máy |
+| Sent_At | DATETIME | NULL | — | Ngày gửi đi |
+| Returned_At | DATETIME | NULL | — | Ngày máy về |
+| Result | VARCHAR(20) | NULL, CHECK IN (REPAIRED, REPLACED, REJECTED) | — | Kết quả |
+| Cost | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | Chi phí bảo hành |
+| Replacement_Serial | VARCHAR(255) | NULL | — | Serial máy đổi |
+| New_Warranty_Expiry | DATE | NULL | — | Hạn bảo hành mới |
+| Note | TEXT | NULL | — | Ghi chú |
+| Handled_By | INT | NN, FK (RESTRICT) | Users.ID | Người xử lý |
+| Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
+
+*Index:* IX_WC_Export_Detail, IX_WC_Inventory (lịch sử bảo hành theo đơn vị hàng), IX_WC_Status (Status, Received_Warehouse_ID).
 
 ---
 
@@ -1358,7 +1583,8 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 **Theo phase** (chi tiết story ở `BACKLOG.md`):
 - **P1:** toàn bộ bảng trừ nhóm dưới. `Warehouses`, `User_Warehouses` và cột `Warehouse_ID` trên mọi phiếu là P1 — mọi phiếu đều phải chọn kho, thủ kho/NV bán hàng chỉ thấy kho được phân công.
 - **P1 [v7]:** `Stock_Movements` (ghi tự động trong `StockService` từ phiếu đầu tiên — không có màn hình nhập), `Product_Warehouse_Settings` (thay chỗ ngưỡng tồn theo kho của v6), `Inventory.Version`.
-- **P2:** `Stock_Transfers`, `Stock_Transfer_Details` (chuyển kho, gồm bước duyệt **[v7]**), `Sales_Returns`, `Sales_Return_Details`, `Return_Fee_Policy` (đổi/trả hàng bán), `Supplier_Bank_Accounts`, `Supplier_Documents`, `Products.Image_Path`, `Warehouse_Locations` + `Inventory.Location_ID` **[v7]**. Bảng vẫn được tạo ở `V1__init_schema.sql` để không phải migrate lại; P1 chỉ chưa có API/màn hình. Trạng thái `IN_TRANSIT`, `Qty_In_Transit` và cảnh báo `TRANSFER_PENDING` chỉ phát sinh khi có chuyển kho (P2).
+- **P1 [v7.1]:** `Payments` (ghi mỗi lần thu phiếu xuất), `CANCELLED` + `Cancelled_*` trên phiếu nhập/xuất, `Return_Receipts.Compensation_Amount/Deposit_Refund`, `Rental_Receipts.Status/Approved_*` (tự duyệt khi lập).
+- **P2:** `Stock_Transfers`, `Stock_Transfer_Details` (chuyển kho, gồm bước duyệt **[v7]**), `Sales_Returns`, `Sales_Return_Details`, `Return_Fee_Policy` (đổi/trả hàng bán), `Supplier_Bank_Accounts`, `Supplier_Documents`, `Products.Image_Path`, `Warehouse_Locations` + `Inventory.Location_ID` **[v7]**. Bảng vẫn được tạo ở `V1__init_schema.sql` để không phải migrate lại; P1 chỉ chưa có API/màn hình. **[v7.1]** `Supplier_Returns`, `Supplier_Return_Details`, `Warranty_Claims`, phiếu nhập có công nợ (chi `Payments` OUT), bước duyệt phiếu thuê của Quản lý cũng đã có bảng/entity ở `V4__erd_v1_2.sql` nhưng là P2 (chưa có API/màn hình). Trạng thái `IN_TRANSIT`, `Qty_In_Transit` và cảnh báo `TRANSFER_PENDING` chỉ phát sinh khi có chuyển kho (P2).
 
 **Không có bảng — xử lý ngoài DB:**
 
@@ -1371,28 +1597,24 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Thông tin công ty in trên chứng từ | Cấu hình tenant (P1), `tenant_branding` ở Control Plane (P2) |
 
 **Hệ quả của việc giữ đúng ERD (đã chấp nhận):**
-- **Công nợ chỉ lưu tổng trên phiếu.** Không có bảng lịch sử thanh toán. Mỗi lần thu tiền phiếu xuất cập nhật `Export_Receipts.Paid`, `Remain`, `Payment_Status_ID`; chi tiết từng lần thu (số tiền, người ghi, thời điểm) ghi vào `Audit_Logs` (`Action = PAYMENT`, `Detail` JSON). Không có phiếu thu/phiếu chi in riêng ở P1, không theo dõi công nợ phải trả NCC (phiếu nhập không có cột đã trả).
-- **Phiếu thuê/mượn không có cột trạng thái duyệt.** Phiếu có hiệu lực ngay khi tạo: hàng chuyển `RENTED`/`LENT`, `Payment_Status = RENTING`. Trả đủ mọi dòng (`Is_Returned`) → `RETURNED` + `Return_Date`; hủy phiếu chưa trả dòng nào → `CANCELLED`, hàng về `IN_STOCK`.
-- **Phiếu trả hàng thuê chỉ tính phạt quá hạn.** Không có cột tiền bồi thường hư hỏng/mất hay hoàn cọc: tình trạng hàng ghi ở `Return_Receipt_Details.Condition_Note`; hàng hư/mất chuyển `Inventory.Status = DAMAGED` (ghi rõ "mất" trong `Inventory.Note`); bồi thường thỏa thuận ngoài hệ thống và ghi vào `Return_Receipts.Note`.
+- **[v7.1] Công nợ có lịch sử thanh toán.** Mỗi lần thu tiền phiếu xuất ghi 1 dòng `Payments` (`Direction = IN`) và cập nhật `Export_Receipts.Paid`, `Remain`, `Payment_Status_ID`; `Audit_Logs` (`Action = PAYMENT`) vẫn ghi thêm như nhật ký thao tác. Phiếu nhập có `Paid`/`Remain`/`VAT_ID` để theo dõi công nợ phải trả NCC (`Payments` `Direction = OUT`) — luồng chi và in phiếu thu/chi là P2.
+- **[v7.1] Phiếu thuê/mượn có `Status` duyệt.** Mặc định (và hiện tại) phiếu tự duyệt khi lập (`APPROVED`, `Approved_By = Created_By`) nên có hiệu lực ngay: hàng chuyển `RENTED`/`LENT`, `Payment_Status = RENTING`. Bước duyệt của Quản lý (`PENDING` → `APPROVED`/`REJECTED`) là P2. Trả đủ mọi dòng (`Is_Returned`) → `RETURNED` + `Return_Date`; hủy phiếu chưa trả dòng nào → `CANCELLED`, hàng về `IN_STOCK`.
+- **[v7.1] Phiếu trả hàng thuê có bồi thường và hoàn cọc.** `Compensation_Amount` (hư hỏng/mất) và `Deposit_Refund` nằm trên phiếu trả cùng `Penalty_Amount` quá hạn; tình trạng hàng vẫn ghi ở `Return_Receipt_Details.Condition_Note`; hàng hư/mất chuyển `Inventory.Status = DAMAGED` (ghi rõ "mất" trong `Inventory.Note`).
 - **Điều chỉnh tồn luôn sinh từ phiếu kiểm kê.** `Stock_Adjustments.Stocktake_ID` NOT NULL và không có trạng thái duyệt: muốn điều chỉnh đột xuất thì lập phiếu kiểm kê cho đúng các SP cần chỉnh; Quản lý chốt phiếu (`Stocktakes.Status = COMPLETED`) là bước duyệt — hệ thống sinh `Stock_Adjustments` và áp vào tồn trong cùng transaction.
-- **Phiếu xuất không có trạng thái hủy.** Hủy phiếu `PENDING` = xóa phiếu (detail xóa theo CASCADE), bản chụp phiếu trước khi xóa lưu ở `Audit_Logs.Detail`. Phiếu nhập `DRAFT`/`PENDING` xử lý tương tự.
+- **[v7.1] Hủy phiếu xuất/nhập giữ lại phiếu.** Hủy phiếu xuất `PENDING` hoặc phiếu nhập `DRAFT`/`PENDING` = chuyển `Status = CANCELLED`, ghi `Cancelled_By`, `Cancelled_At`, `Cancel_Reason`, `Payment_Status = CANCELLED`; số phiếu không đứt quãng. API giữ nguyên `DELETE /export-receipts/{id}` và `DELETE /import-receipts/{id}` (kèm `?reason=`), ghi `Audit_Logs` `Action = CANCEL`. Phiếu đã hủy không sửa, không thu thêm tiền được.
 - **VAT tham chiếu, không chụp lại.** Phiếu xuất trỏ `VAT_ID`; vì vậy không được sửa `Rate` của một mức VAT đã dùng — muốn đổi thì thêm mức mới.
 - **Cảnh báo dùng chung, không theo từng người đọc.** `Alerts.Is_Resolved` là cờ chung; "đã đọc" trên giao diện = đánh dấu đã xử lý. `RENT_DUE` dùng cho cả sắp đến hạn (trước 7 ngày) và quá hạn, áp dụng cả RENT lẫn LEND; nội dung `Message` phân biệt hai trường hợp.
 
-## Cột có trong schema nhưng chưa vẽ trên ERD v7 (chốt 16/10/2026)
+## Đối chiếu ERD v1.2 và schema (chốt 26/10/2026)
 
-ERD v7 là chuẩn cho thực thể, thuộc tính và quan hệ. Các cột dưới đây **giữ lại trong schema vì nghiệp vụ cần**, cần vẽ bổ sung vào ERD ở lần sửa tới:
+ERD v1.2 (`tigernet_erd_v1_2.drawio.png`) đã vẽ đủ các cột/quan hệ mà ERD v7 còn thiếu: `Warehouses.Phone`, quan hệ *manages* (R63), `User_Warehouses.Is_Default/Assigned_At`, `Stock_Transfers.Received_By`, `Stock_Transfer_Details.Inventory_ID/Serial` (*transfers_unit*), `Alerts.Warehouse_ID` (*scoped_to*, R64), `Inventory.Location_ID` (R66), `Stock_Movements.Reference_ID`; khóa chính của mọi bảng ghi là `ID`. Thuộc tính **dẫn xuất** vẽ nét đứt: `Qty_*`, `Total_Amount`, `Paid`, `Remain`, `Line_Total`, `Warranty_Expiry`, `Days_Overdue`, `Penalty_Amount`, `Difference`, `Quantity_On_Hand`, `Fee_*`, `Refund_Amount`, `Rate`.
 
-| Bảng.Cột | Cần vẽ trên ERD | Vì sao giữ |
-|---|---|---|
-| `Warehouses.Phone` | thuộc tính | Liên hệ kho, in trên phiếu |
-| `Warehouses.Manager_ID` | quan hệ *manages* Users 1–N Warehouses (R63) | Người phụ trách chính của kho |
-| `User_Warehouses.Is_Default`, `Assigned_At` | thuộc tính trên quan hệ *works_at* | Kho chọn sẵn khi user tạo phiếu (`CHUNG-07`) |
-| `Stock_Transfers.Received_By` | quan hệ *received_by* Users 1–N Stock_Transfers | Ai xác nhận nhận hàng ở kho đích |
-| `Stock_Transfer_Details.Inventory_ID`, `Serial` | quan hệ với Inventory + thuộc tính Serial | Truy vết từng thiết bị serial khi chuyển kho |
-| `Alerts.Warehouse_ID` | quan hệ Warehouses 1–N Alerts (R64) | Lọc cảnh báo theo kho được phân công |
-| `Inventory.Import_Detail_ID` | sửa *originates_from* nối `Import_Receipt_Details` (ERD đang nối `Import_Receipts`) | Biết đơn vị hàng sinh từ dòng nhập nào → giá nhập, sửa phiếu §3.3.1 |
-| `Inventory.Location_ID` | quan hệ Warehouse_Locations 1–N Inventory (R66) | Không có quan hệ này thì `Warehouse_Locations` không dùng được |
-| `Stock_Movements.Reference_ID` | thuộc tính | `Reference_Type` một mình không chỉ ra được phiếu nào |
+**Chưa có nhãn trên ERD v1.2 (giữ ở schema, vẽ bổ sung ở lần sửa tới):**
 
-**Quy ước tên khóa chính:** mọi bảng dùng cột `ID`. ERD v7 ghi `Warehouse_ID`, `Transfer_ID`, `Detail_ID`, `Movement_ID`, `Location_ID` ở 5 thực thể — schema vẫn đặt là `ID` để thống nhất với các bảng còn lại và entity JPA; nên đổi nhãn trên ERD thành `ID`.
+| Bảng.Cột | Vì sao giữ |
+|---|---|
+| `Payments.Recorded_By` | Có quan hệ *recorded_by* nhưng ERD không ghi cột; schema đặt `Recorded_By` NOT NULL |
+| `Supplier_Returns.Created_By` | Quan hệ *created_by* tới Users |
+| `Supplier_Return_Details.Product_ID` | Quan hệ *references_product*; cột `Product_ID` NOT NULL theo nguyên tắc `*_Details` |
+| `Warranty_Claims.Status`, `Note`, `Export_Detail_ID`, `Handled_By` | Trạng thái vòng đời và khóa ngoại cho các quan hệ *claims_on*, *handled_by*; ERD chỉ vẽ phần thuộc tính nhìn thấy được |
+| `Payments` — quan hệ tới `Payment_Statuses` | ERD có nhánh *has_status* nhưng schema chỉ dùng `Payment_Status_ID` ở phiếu nhập/xuất/thuê; `Payments.Status` là COMPLETED/CANCELLED |

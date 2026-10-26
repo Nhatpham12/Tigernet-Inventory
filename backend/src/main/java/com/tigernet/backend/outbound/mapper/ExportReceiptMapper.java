@@ -25,6 +25,8 @@ public interface ExportReceiptMapper {
     @Mapping(target = "paymentStatus", source = "paymentStatus.paymentStatus")
     @Mapping(target = "createdById", source = "createdBy.userId")
     @Mapping(target = "createdByName", source = "createdBy.fullName")
+    @Mapping(target = "cancelledById", source = "cancelledBy.userId")
+    @Mapping(target = "cancelledByName", source = "cancelledBy.fullName")
     ExportReceiptResponse toResponse(ExportReceiptEntity receipt);
 
     List<ExportReceiptResponse> toResponses(List<ExportReceiptEntity> receipts);

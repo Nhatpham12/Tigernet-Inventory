@@ -3,6 +3,7 @@ package com.tigernet.backend.rental.entity;
 import com.tigernet.backend.catalog.entity.PaymentStatusEntity;
 import com.tigernet.backend.partner.entity.CustomerEntity;
 import com.tigernet.backend.partner.entity.ReceiverEntity;
+import com.tigernet.backend.rental.enums.RentalStatus;
 import com.tigernet.backend.rental.enums.RentalType;
 import com.tigernet.backend.user.entity.UserEntity;
 import com.tigernet.backend.warehouse.entity.WarehouseEntity;
@@ -15,7 +16,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-// phiếu thuê/mượn không có trạng thái duyệt: tiến trình theo Payment_Status (RENTING/RETURNED/CANCELLED)
+// Status = bước duyệt phiếu (mặc định APPROVED: có hiệu lực ngay);
+// tiến trình thuê theo Payment_Status (RENTING/RETURNED/CANCELLED)
 @Entity
 @Getter @Setter
 @Table(name = "Rental_Receipts")
@@ -74,6 +76,10 @@ public class RentalReceiptEntity {
     @Column(name = "Return_Date")
     private LocalDateTime returnDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "Status", nullable = false, length = 20)
+    private RentalStatus status = RentalStatus.APPROVED;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "Payment_Status_ID")
     private PaymentStatusEntity paymentStatus;
@@ -84,6 +90,13 @@ public class RentalReceiptEntity {
 
     @Column(name = "Created_At", nullable = false)
     private LocalDateTime createdAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "Approved_By")
+    private UserEntity approvedBy;
+
+    @Column(name = "Approved_At")
+    private LocalDateTime approvedAt;
 
     @OneToMany(mappedBy = "rentalReceipt", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RentalReceiptDetailEntity> details = new ArrayList<>();

@@ -26,6 +26,8 @@ public interface RentalMapper {
     @Mapping(target = "paymentStatus", source = "paymentStatus.paymentStatus")
     @Mapping(target = "createdById", source = "createdBy.userId")
     @Mapping(target = "createdByName", source = "createdBy.fullName")
+    @Mapping(target = "approvedById", source = "approvedBy.userId")
+    @Mapping(target = "approvedByName", source = "approvedBy.fullName")
     RentalReceiptResponse toRentalResponse(RentalReceiptEntity receipt);
 
     List<RentalReceiptResponse> toRentalResponses(List<RentalReceiptEntity> receipts);

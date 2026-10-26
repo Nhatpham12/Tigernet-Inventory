@@ -18,6 +18,7 @@ import com.tigernet.backend.rental.dto.request.RentalReceiptUpdateRequest;
 import com.tigernet.backend.rental.dto.response.RentalReceiptResponse;
 import com.tigernet.backend.rental.entity.RentalReceiptDetailEntity;
 import com.tigernet.backend.rental.entity.RentalReceiptEntity;
+import com.tigernet.backend.rental.enums.RentalStatus;
 import com.tigernet.backend.rental.enums.RentalType;
 import com.tigernet.backend.rental.mapper.RentalMapper;
 import com.tigernet.backend.rental.repository.RentalReceiptRepository;
@@ -40,7 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-// phiếu thuê/mượn không có bước duyệt: tiến trình theo Payment_Status RENTING -> RETURNED / CANCELLED.
+// phiếu thuê/mượn tự duyệt khi lập (Status = APPROVED); tiến trình theo Payment_Status RENTING -> RETURNED / CANCELLED.
 // Chuyển hàng sang RENTED/LENT và trả về IN_STOCK khi hủy sẽ đi qua StockService
 @Service
 @RequiredArgsConstructor
@@ -81,6 +82,9 @@ public class RentalReceiptService {
         receipt.setPaymentStatus(lookupService.findPaymentStatus(PaymentStatusEntity.RENTING));
         receipt.setCreatedBy(currentUserService.getCurrentUser());
         receipt.setCreatedAt(LocalDateTime.now());
+        receipt.setStatus(RentalStatus.APPROVED);
+        receipt.setApprovedBy(receipt.getCreatedBy());
+        receipt.setApprovedAt(receipt.getCreatedAt());
         validateDates(receipt);
         replaceDetails(receipt, request.getDetails());
 

@@ -24,6 +24,10 @@ import com.tigernet.backend.outbound.repository.ExportReceiptRepository;
 import com.tigernet.backend.partner.entity.ReceiverEntity;
 import com.tigernet.backend.partner.service.CustomerService;
 import com.tigernet.backend.partner.service.ReceiverService;
+import com.tigernet.backend.payment.enums.PaymentDirection;
+import com.tigernet.backend.payment.enums.PaymentMethod;
+import com.tigernet.backend.payment.enums.PaymentReferenceType;
+import com.tigernet.backend.payment.service.PaymentService;
 import com.tigernet.backend.user.service.CurrentUserService;
 import com.tigernet.backend.warehouse.entity.WarehouseEntity;
 import com.tigernet.backend.warehouse.service.WarehouseService;
@@ -43,7 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-// lập/sửa/xóa phiếu xuất khi còn PENDING, ghi nhận thu tiền;
+// lập/sửa/hủy phiếu xuất khi còn PENDING, ghi nhận thu tiền;
 // xác nhận / xuất kho (CONFIRMED, EXPORTED) sẽ đi qua StockService
 @Service
 @RequiredArgsConstructor
@@ -62,6 +66,7 @@ public class ExportReceiptService {
     LookupService lookupService;
     CurrentUserService currentUserService;
     AuditLogService auditLogService;
+    PaymentService paymentService;
 
     public ExportReceiptResponse createReceipt(ExportReceiptCreationRequest request) {
         WarehouseEntity warehouse = warehouseService.findActiveWarehouse(request.getWarehouseId());
@@ -84,7 +89,11 @@ public class ExportReceiptService {
         replaceDetails(receipt, request.getDetails());
         recalculateMoney(receipt);
 
-        return exportReceiptMapper.toResponse(exportReceiptRepository.save(receipt));
+        ExportReceiptEntity saved = exportReceiptRepository.save(receipt);
+        if (saved.getPaid().signum() > 0) {
+            recordPaymentEntry(saved, saved.getPaid(), null, "Thu khi lập phiếu");
+        }
+        return exportReceiptMapper.toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -126,19 +135,28 @@ public class ExportReceiptService {
         return exportReceiptMapper.toResponse(exportReceiptRepository.save(receipt));
     }
 
-    // phiếu xuất không có trạng thái hủy: hủy phiếu PENDING = xóa, bản chụp lưu Audit_Logs
-    public void deleteReceipt(Integer receiptId) {
+    // hủy phiếu PENDING: phiếu chuyển sang CANCELLED, không xóa (số phiếu không đứt quãng)
+    public ExportReceiptResponse cancelReceipt(Integer receiptId, String reason) {
         ExportReceiptEntity receipt = findPendingReceipt(receiptId);
-        auditLogService.log("DELETE", "Export_Receipts", receipt.getId(), exportReceiptMapper.toResponse(receipt));
-        exportReceiptRepository.delete(receipt);
+        receipt.setStatus(ExportStatus.CANCELLED);
+        receipt.setPaymentStatus(lookupService.findPaymentStatus(PaymentStatusEntity.CANCELLED));
+        receipt.setCancelledBy(currentUserService.getCurrentUser());
+        receipt.setCancelledAt(LocalDateTime.now());
+        receipt.setCancelReason(reason);
+        auditLogService.log("CANCEL", "Export_Receipts", receipt.getId(), reason);
+        return exportReceiptMapper.toResponse(exportReceiptRepository.save(receipt));
     }
 
-    // cộng dồn Paid, tính lại Remain/Payment_Status; chi tiết lần thu ghi Audit_Logs (Action = PAYMENT)
+    // cộng dồn Paid, tính lại Remain/Payment_Status; mỗi lần thu là một dòng Payments (và 1 dòng Audit_Logs PAYMENT)
     public ExportReceiptResponse recordPayment(Integer receiptId, PaymentRequest request) {
         ExportReceiptEntity receipt = findReceipt(receiptId);
+        if (receipt.getStatus() == ExportStatus.CANCELLED) {
+            throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
+        }
         BigDecimal amount = MoneyUtils.round(request.getAmount());
         receipt.setPaid(receipt.getPaid().add(amount));
         recalculateMoney(receipt);
+        recordPaymentEntry(receipt, amount, request.getMethod(), request.getNote());
 
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("amount", amount);
@@ -148,6 +166,13 @@ public class ExportReceiptService {
         auditLogService.log("PAYMENT", "Export_Receipts", receipt.getId(), detail);
 
         return exportReceiptMapper.toResponse(exportReceiptRepository.save(receipt));
+    }
+
+    private void recordPaymentEntry(ExportReceiptEntity receipt, BigDecimal amount,
+                                    PaymentMethod method, String note) {
+        paymentService.record(PaymentDirection.IN, receipt.getCustomer().getParty(),
+                PaymentReferenceType.Export_Receipts, receipt.getId(), amount, method, note,
+                receipt.getWarehouse().getWarehouseCode());
     }
 
     public ExportReceiptEntity findReceipt(Integer receiptId) {
