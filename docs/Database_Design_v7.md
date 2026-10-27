@@ -1,11 +1,18 @@
-# THIẾT KẾ CƠ SỞ DỮ LIỆU – HỆ THỐNG QUẢN LÝ KHO HÀNG (TIGERNET) — v7.1 (ĐA KHO, ERD v1.2)
+# THIẾT KẾ CƠ SỞ DỮ LIỆU – HỆ THỐNG QUẢN LÝ KHO HÀNG (TIGERNET) — v7.2 (ĐA KHO, ERD v1.2)
 
 > Tài liệu này được xây dựng bám sát **SRS_He_Thong_Quan_Ly_Kho.docx** và kế thừa danh mục/dữ liệu mẫu từ **Database_Design.docx**.
 > DBMS: **MySQL 8.0.16+** (CHECK được thực thi), charset `utf8mb4`, collation `utf8mb4_unicode_ci` (theo mục 1.4 & 8.4 SRS).
 > Mọi quyết định thiết kế đều tham chiếu tới mục cụ thể trong SRS (ký hiệu §).
 
-> **Nguồn chuẩn (chốt 26/10/2026):** ERD v1.2 (`tigernet_erd_v1_2.drawio.png`) và tài liệu này là thiết kế dữ liệu duy nhất. Script triển khai: `database/tenant/V1__init_schema.sql` (bảng v7), `V2__seed_reference_data.sql` (danh mục mặc định), `V3__views.sql` (view), `V4__erd_v1_2.sql` (thay đổi ERD v1.2) — chạy bằng Flyway trên **database riêng của từng tenant**; `docs/Database_Script_v7.sql` là bản gộp V1 + V4 + V3 + V2 để chạy tay. Danh sách tenant và thông tin kết nối nằm ở Control Plane (`database/control-plane/`), không thuộc ERD này. ERD v6/v7 (`tigernetFinal.drawio.png`), `Database_Design_v5/v6.md` và `Database_Script_v6.sql` đã xóa khỏi repo (tra lại qua lịch sử git nếu cần).
-> Phạm vi triển khai và những gì **không** có trong ERD xem mục "Phạm vi triển khai" ở cuối tài liệu; các cột schema đã được vẽ đủ trên ERD v1.2 (mục "Đối chiếu ERD v1.2 và schema" ở cuối).
+> **Nguồn chuẩn (chốt 26/10/2026):** ERD v1.2 (`tigernet_erd_v1_2.drawio.png`) và tài liệu này là thiết kế dữ liệu duy nhất. Script triển khai: `database/tenant/V1__init_schema.sql` (bảng v7), `V2__seed_reference_data.sql` (danh mục mặc định), `V3__views.sql` (view), `V4__erd_v1_2.sql` (thay đổi ERD v1.2), `V5__erd_v1_2_sync.sql` (khớp schema với ERD v1.2) — chạy bằng Flyway trên **database riêng của từng tenant**; `docs/Database_Script_v7.sql` là bản gộp V1 + V4 + V5 + V3 + V2 để chạy tay. Danh sách tenant và thông tin kết nối nằm ở Control Plane (`database/control-plane/`), không thuộc ERD này. ERD v6/v7 (`tigernetFinal.drawio.png`), `Database_Design_v5/v6.md` và `Database_Script_v6.sql` đã xóa khỏi repo (tra lại qua lịch sử git nếu cần).
+> Phạm vi triển khai và những gì **không** có trong ERD xem mục "Phạm vi triển khai" ở cuối tài liệu; ERD v1.2 là chuẩn, schema đã khớp ERD (mục "Đối chiếu ERD v1.2 và schema" ở cuối).
+
+> **Thay đổi v7.2 (khớp schema với ERD v1.2, 27/10/2026):**
+> 1. `User_Warehouses` có khóa chính riêng `ID` như ERD; cặp (User_ID, Warehouse_ID) chuyển thành UNIQUE `UQ_UW_User_Warehouse`.
+> 2. `Warranty_Claims` bỏ `Created_At` (ERD không có; thời điểm lập phiếu là `Received_At`).
+> 3. Phần 4 ghi rõ ON DELETE của mọi FK, bổ sung các index có trong schema nhưng thiếu trong tài liệu; viết lại mục "Đối chiếu ERD v1.2 và schema".
+>
+> Các mục thay đổi ở v7.2 được đánh dấu **[v7.2]**. Migration: `database/tenant/V5__erd_v1_2_sync.sql`.
 
 > **Thay đổi v7.1 (theo ERD v1.2):**
 > 1. Thực thể mới **`Payments`** (mục 1.24) — phiếu thu/chi, mỗi lần thu/chi một dòng; `Paid`/`Remain` trên phiếu là tổng hợp từ bảng này.
@@ -114,8 +121,9 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 
 | Thuộc tính | Tính chất | Ràng buộc | Lý do |
 |---|---|---|---|
-| User_ID | Đơn, FK | PK (ghép), FK→Users.ID | Nhân viên |
-| Warehouse_ID | Đơn, FK | PK (ghép), FK→Warehouses.ID | Kho được phân công |
+| ID | Đơn, định danh | PK, AUTO_INCREMENT | **[v7.2]** Khóa chính riêng theo ERD v1.2 (trước là PK ghép User_ID + Warehouse_ID) |
+| User_ID | Đơn, FK | FK→Users.ID, NOT NULL; UNIQUE (User_ID, Warehouse_ID) | Nhân viên |
+| Warehouse_ID | Đơn, FK | FK→Warehouses.ID, NOT NULL | Kho được phân công |
 | Is_Default | Đơn | NOT NULL, DEFAULT FALSE | Kho mặc định chọn sẵn khi user tạo phiếu |
 | Assigned_At | Đơn | NOT NULL, DEFAULT NOW | Thời điểm phân công |
 
@@ -600,7 +608,7 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 | Note | Đơn | NULL | Ghi chú (phương tiện vận chuyển, lý do chuyển…) |
 | Created_By | Đơn, FK | FK→Users.ID, NOT NULL | Người lập phiếu ở kho nguồn |
 | Approved_By | Đơn, FK | FK→Users.ID, NULL | **[v7]** Quản lý duyệt phiếu chuyển |
-| Received_By | Đơn, FK | FK→Users.ID, NULL | Người xác nhận nhận hàng ở kho đích *(chưa vẽ trên ERD v7 — xem mục cuối)* |
+| Received_By | Đơn, FK | FK→Users.ID, NULL | Người xác nhận nhận hàng ở kho đích (ERD: *received_by*) |
 | Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời gian tạo |
 | Approved_At | Đơn | NULL | **[v7]** Thời điểm duyệt |
 | Shipped_At | Đơn | NULL | **[v7]** Thời điểm xuất khỏi kho nguồn (thay `Transfer_Date`) |
@@ -621,10 +629,10 @@ Mỗi thực thể dưới đây kèm **lý do tồn tại (tham chiếu SRS)** 
 | ID | Đơn, định danh | PK, AUTO_INCREMENT | Khóa chính dòng (ERD ghi `Detail_ID`) |
 | Stock_Transfer_ID | Đơn, FK | FK→Stock_Transfers.ID, NOT NULL | Thuộc phiếu chuyển nào |
 | Product_ID | Đơn, FK | FK→Products.ID, NOT NULL | Sản phẩm |
-| Inventory_ID | Đơn, FK | FK→Inventory.ID, NULL | Đơn vị/lô tồn được chuyển (bắt buộc với hàng serial; với hàng không serial trỏ dòng tồn nguồn) *(chưa vẽ trên ERD v7)* |
+| Inventory_ID | Đơn, FK | FK→Inventory.ID, NULL | Đơn vị/lô tồn được chuyển (bắt buộc với hàng serial; với hàng không serial trỏ dòng tồn nguồn) (ERD: *transfers_unit*) |
 | Qty_Sent | Đơn | NOT NULL, CHECK >0 | **[v7]** Số lượng xuất khỏi kho nguồn (trước là `Quantity`) |
 | Qty_Received | Đơn | NULL, CHECK ≥0 | **[v7]** Số lượng kho đích thực nhận (trước là `Received_Qty`) |
-| Serial | Đơn | NULL | Serial (hàng serialized) *(chưa vẽ trên ERD v7)* |
+| Serial | Đơn | NULL | Serial (hàng serialized) |
 | Note | Đơn | NULL | **[v7]** Ghi chú dòng (lý do thiếu/hư khi nhận…) |
 
 ## 1.20. Alerts – Cảnh báo & thông báo
@@ -771,7 +779,8 @@ Thực thể **yếu** phụ thuộc `Supplier_Returns`. ERD: *has_details*, *re
 | New_Warranty_Expiry | Đơn | NULL | Hạn bảo hành tính lại cho máy đổi mới |
 | Note | Đơn | NULL | Ghi chú |
 | Handled_By | Đơn, FK | FK→Users.ID, NOT NULL | Người xử lý |
-| Created_At | Đơn | NOT NULL, DEFAULT NOW | Thời gian |
+
+> **[v7.2]** Không có `Created_At` (theo ERD v1.2): `Received_At` là thời điểm tiếp nhận và lập phiếu.
 
 ---
 
@@ -921,7 +930,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 # PHẦN 4: CHI TIẾT TỪNG BẢNG TRONG DATABASE
 
 > Ký hiệu: PK = khóa chính, FK = khóa ngoại, UQ = unique, NN = NOT NULL, AI = AUTO_INCREMENT.
-> Hành vi FK mặc định theo file cũ: **ON UPDATE CASCADE**; **ON DELETE RESTRICT** với Products/Groups, **ON DELETE SET NULL** với các danh mục lookup còn lại, **ON DELETE CASCADE** với quan hệ header→detail.
+> Hành vi FK: mọi FK đều **ON UPDATE CASCADE**. **ON DELETE** ghi ngay trong cột Ràng buộc: `FK (RESTRICT)` — không xóa được bản ghi cha khi còn bản ghi con (người tạo, sản phẩm, khách hàng, phiếu gốc…); `FK (SET NULL)` — FK tùy chọn tới danh mục/người hủy/người duyệt; `FK (CASCADE)` — quan hệ header→detail và bảng con phụ thuộc.
 
 ## 4.1. Bảng `Roles`
 
@@ -942,7 +951,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Password_Hash | VARCHAR(255) | NN | — | Mật khẩu bcrypt |
 | Full_Name | VARCHAR(100) | NULL | — | Họ tên |
 | Email | VARCHAR(150) | UQ, NULL | — | Email xác thực/OTP |
-| Role_ID | INT | NN, FK | Roles.ID | Vai trò |
+| Role_ID | INT | NN, FK (RESTRICT) | Roles.ID | Vai trò |
 | Is_Active | BOOLEAN | NN, DEFAULT TRUE | — | Còn hiệu lực |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Ngày tạo |
 
@@ -968,12 +977,14 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Tham chiếu | Ý nghĩa |
 |---|---|---|---|---|
-| User_ID | INT | PK, FK (CASCADE) | Users.ID | Nhân viên |
-| Warehouse_ID | INT | PK, FK (CASCADE) | Warehouses.ID | Kho được phân công |
+| ID | INT | PK, AI, NN | — | **[v7.2]** Mã dòng phân công |
+| User_ID | INT | NN, FK (CASCADE) | Users.ID | Nhân viên |
+| Warehouse_ID | INT | NN, FK (CASCADE) | Warehouses.ID | Kho được phân công |
 | Is_Default | BOOLEAN | NN, DEFAULT FALSE | — | Kho mặc định khi tạo phiếu |
 | Assigned_At | DATETIME | NN, DEFAULT NOW | — | Thời điểm phân công |
 
-*Ràng buộc bảng:* PK (User_ID, Warehouse_ID). Mỗi user tối đa một dòng `Is_Default = TRUE` (kiểm tra ở tầng service).
+*Ràng buộc bảng:* **[v7.2]** UQ_UW_User_Warehouse (User_ID, Warehouse_ID) — một user chỉ được gán một kho một lần (trước v7.2 đây là PK ghép). Mỗi user tối đa một dòng `Is_Default = TRUE` (kiểm tra ở tầng service).
+*Index:* IX_UW_Warehouse (Warehouse_ID).
 
 ## 4.2c. Bảng `Warehouse_Locations` [v7]
 
@@ -1002,7 +1013,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã sản phẩm |
 | Product_Name | VARCHAR(255) | NN | — | Tên sản phẩm |
-| Group_ID | INT | NN, FK | Product_Groups.ID | Nhóm sản phẩm |
+| Group_ID | INT | NN, FK (RESTRICT) | Product_Groups.ID | Nhóm sản phẩm |
 | Unit | VARCHAR(30) | NN | — | Đơn vị tính |
 | Default_Price_In | DECIMAL(18,2) | NN, DEFAULT 0 | — | Giá nhập niêm yết |
 | Default_Price_Out | DECIMAL(18,2) | NN, DEFAULT 0 | — | Giá bán biểu kiến |
@@ -1043,6 +1054,8 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Phone | VARCHAR(50) | NULL | — | Điện thoại |
 | Email | VARCHAR(150) | NULL | — | Email |
 | Is_Deleted | BOOLEAN | NN, DEFAULT FALSE | — | Xóa mềm |
+
+*Index:* IX_Parties_Full_Name, IX_Parties_National_ID (tìm đối tác theo tên/CCCD).
 
 ## 4.6. Bảng `Suppliers` (vai trò NCC của Party)
 
@@ -1119,7 +1132,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã phiếu nhập |
 | Receipt_Code | VARCHAR(30) | UQ, NN | — | Số phiếu |
-| Source_Party_ID | INT | NN, FK | Parties.ID | Nguồn nhập/người bán cả phiếu (NCC/khách lẻ/khách đổi-trả) |
+| Source_Party_ID | INT | NN, FK (RESTRICT) | Parties.ID | Nguồn nhập/người bán cả phiếu (NCC/khách lẻ/khách đổi-trả) |
 | Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | **[v6]** Kho nhận hàng |
 | Date_In | DATETIME | NN | — | Ngày nhập |
 | VAT_ID | INT | NULL, FK (SET NULL) | VAT_Options.ID | **[v7.1]** VAT đầu vào |
@@ -1129,7 +1142,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Remain | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | **[v7.1]** Còn nợ NCC (dẫn xuất) |
 | Status | VARCHAR(20) | NN, DEFAULT 'DRAFT' | — | DRAFT/PENDING/CONFIRMED/CANCELLED |
 | Note | TEXT | NULL | — | Ghi chú |
-| Created_By | INT | NN, FK | Users.ID | Người tạo |
+| Created_By | INT | NN, FK (RESTRICT) | Users.ID | Người tạo |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian tạo |
 | Cancelled_By | INT | NULL, FK (SET NULL) | Users.ID | **[v7.1]** Người hủy |
 | Cancelled_At | DATETIME | NULL | — | **[v7.1]** Thời điểm hủy |
@@ -1143,7 +1156,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã dòng |
 | Import_Receipt_ID | INT | NN, FK (CASCADE) | Import_Receipts.ID | Phiếu nhập |
-| Product_ID | INT | NN, FK | Products.ID | Sản phẩm |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm |
 | Quantity | INT | NN, CHECK>0 | — | Số lượng nhập |
 | Price_In | DECIMAL(18,2) | NN | — | Giá nhập |
 | Serial | VARCHAR(255) | NULL | — | Serial |
@@ -1156,7 +1169,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã phiếu xuất |
 | Receipt_Code | VARCHAR(30) | UQ, NN | — | Số phiếu |
-| Customer_ID | INT | NN, FK | Customers.ID | Khách hàng |
+| Customer_ID | INT | NN, FK (RESTRICT) | Customers.ID | Khách hàng |
 | Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | **[v6]** Kho xuất |
 | Receiver_ID | INT | NULL, FK (SET NULL) | Receivers.ID | Người nhận được chọn |
 | Receiver_Name_Snapshot | VARCHAR(150) | NULL | — | Snapshot tên người nhận |
@@ -1172,7 +1185,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Remain | DECIMAL(18,2) | NN, DEFAULT 0 | — | Còn lại (dẫn xuất) |
 | Status | VARCHAR(20) | NN, DEFAULT 'PENDING' | — | PENDING/CONFIRMED/EXPORTED/CANCELLED |
 | Note | TEXT | NULL | — | Ghi chú |
-| Created_By | INT | NN, FK | Users.ID | NV bán hàng |
+| Created_By | INT | NN, FK (RESTRICT) | Users.ID | NV bán hàng |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian tạo |
 | Cancelled_By | INT | NULL, FK (SET NULL) | Users.ID | **[v7.1]** Người hủy |
 | Cancelled_At | DATETIME | NULL | — | **[v7.1]** Thời điểm hủy |
@@ -1186,7 +1199,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã dòng |
 | Export_Receipt_ID | INT | NN, FK (CASCADE) | Export_Receipts.ID | Phiếu xuất |
-| Product_ID | INT | NN, FK | Products.ID | Sản phẩm |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm |
 | Inventory_ID | INT | NULL, FK (SET NULL) | Inventory.ID | Đơn vị hàng xuất |
 | Quantity | INT | NN, CHECK>0 | — | Số lượng |
 | Price_Out | DECIMAL(18,2) | NN | — | Giá bán |
@@ -1201,7 +1214,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã phiếu thuê |
 | Receipt_Code | VARCHAR(30) | UQ, NN | — | Số phiếu |
-| Customer_ID | INT | NN, FK | Customers.ID | Khách thuê |
+| Customer_ID | INT | NN, FK (RESTRICT) | Customers.ID | Khách thuê |
 | Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | **[v6]** Kho cho thuê |
 | Receiver_ID | INT | NULL, FK (SET NULL) | Receivers.ID | Người nhận được chọn |
 | Receiver_Name_Snapshot | VARCHAR(150) | NULL | — | Snapshot tên người nhận |
@@ -1217,12 +1230,12 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Return_Date | DATETIME | NULL | — | Ngày trả thực tế |
 | Status | VARCHAR(20) | NN, DEFAULT 'APPROVED' | — | **[v7.1]** PENDING/APPROVED/REJECTED (bước duyệt) |
 | Payment_Status_ID | INT | NULL, FK (SET NULL) | Payment_Statuses.ID | RENTING/RETURNED |
-| Created_By | INT | NN, FK | Users.ID | Người lập |
+| Created_By | INT | NN, FK (RESTRICT) | Users.ID | Người lập |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
 | Approved_By | INT | NULL, FK (SET NULL) | Users.ID | **[v7.1]** Người duyệt |
 | Approved_At | DATETIME | NULL | — | **[v7.1]** Thời điểm duyệt |
 
-*Index:* IX_Rental_Customer_ID, IX_Rental_Due_Date (cảnh báo 7 ngày §3.8), IX_Rental_Status **[v7.1]**.
+*Index:* IX_Rental_Customer_ID, IX_Rental_Warehouse (Warehouse_ID, Date_Out) **[v6]**, IX_Rental_Due_Date (cảnh báo 7 ngày §3.8), IX_Rental_Status **[v7.1]**.
 
 ## 4.15. Bảng `Rental_Receipt_Details`
 
@@ -1230,7 +1243,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã dòng |
 | Rental_Receipt_ID | INT | NN, FK (CASCADE) | Rental_Receipts.ID | Phiếu thuê |
-| Product_ID | INT | NN, FK | Products.ID | Sản phẩm |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm |
 | Inventory_ID | INT | NULL, FK (SET NULL) | Inventory.ID | Đơn vị hàng thuê |
 | Quantity | INT | NN, CHECK>0 | — | Số lượng |
 | Rental_Price | DECIMAL(18,2) | NN | — | Giá cho thuê |
@@ -1255,7 +1268,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Date_Out | DATETIME | NULL | — | Ngày xuất |
 | Version | INT | NN, DEFAULT 0 | — | **[v7]** Khóa lạc quan (JPA `@Version`) |
 
-*Index (kế thừa file cũ):* IX_Inventory_Product_ID, IX_Inventory_Serial, IX_Inventory_Date_In, IX_Inventory_Date_Out.
+*Index (kế thừa file cũ):* IX_Inventory_Product_ID, IX_Inventory_Date_In, IX_Inventory_Date_Out, IX_Inventory_Wh_Product_Status (Warehouse_ID, Product_ID, Status) **[v6]**. Tra theo serial dùng `UQ_Inventory_Serial` (không tạo thêm IX_Inventory_Serial).
 *Index [v6]:* IX_Inventory_Wh_Product_Status (Warehouse_ID, Product_ID, Status) — phục vụ kiểm tra tồn tại kho xuất và tra tồn theo kho.
 
 ## 4.17. Bảng `Stocktakes`
@@ -1267,7 +1280,9 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | **[v6]** Kho kiểm kê |
 | Stocktake_Date | DATETIME | NN | — | Ngày kiểm kê |
 | Status | VARCHAR(20) | NN, DEFAULT 'DRAFT' | — | DRAFT/COMPLETED |
-| Created_By | INT | NN, FK | Users.ID | Người kiểm kê |
+| Created_By | INT | NN, FK (RESTRICT) | Users.ID | Người kiểm kê |
+
+*Index:* IX_Stocktake_Warehouse_Date (Warehouse_ID, Stocktake_Date).
 
 ## 4.18. Bảng `Stocktake_Details`
 
@@ -1275,7 +1290,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã dòng |
 | Stocktake_ID | INT | NN, FK (CASCADE) | Stocktakes.ID | Phiếu kiểm kê |
-| Product_ID | INT | NN, FK | Products.ID | Sản phẩm |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm |
 | System_Qty | INT | NN | — | Số lý thuyết |
 | Actual_Qty | INT | NN | — | Số thực tế |
 | Difference | INT | NN | — | = Actual−System (dẫn xuất) |
@@ -1286,7 +1301,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã phiếu điều chỉnh |
 | Stocktake_ID | INT | NN, FK (CASCADE) | Stocktakes.ID | Nguồn kiểm kê |
-| Product_ID | INT | NN, FK | Products.ID | Sản phẩm |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm |
 | Adjust_Qty | INT | NN | — | Lượng điều chỉnh ± |
 | Reason | VARCHAR(255) | NULL | — | Lý do |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
@@ -1304,6 +1319,8 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Is_Resolved | BOOLEAN | NN, DEFAULT FALSE | — | Đã xử lý chưa |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
 
+*Index:* IX_Alerts_Warehouse_Resolved (Warehouse_ID, Is_Resolved) — đếm cảnh báo chưa xử lý theo kho; IX_Alerts_Ref (Ref_Table, Ref_ID).
+
 ## 4.21. Bảng `Audit_Logs`
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Tham chiếu | Ý nghĩa |
@@ -1316,13 +1333,15 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Detail | JSON | NULL | — | Chi tiết |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời điểm |
 
+*Index:* IX_Audit_User_Time (User_ID, Created_At), IX_Audit_Target (Target_Table, Target_ID).
+
 ## 4.22. Bảng `Return_Receipts`
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Tham chiếu | Ý nghĩa |
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã phiếu trả |
 | Receipt_Code | VARCHAR(30) | UQ, NN | — | Số phiếu trả |
-| Rental_Receipt_ID | INT | NN, FK | Rental_Receipts.ID | Phiếu thuê/mượn gốc |
+| Rental_Receipt_ID | INT | NN, FK (RESTRICT) | Rental_Receipts.ID | Phiếu thuê/mượn gốc |
 | Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | **[v6]** Kho nhận lại hàng |
 | Return_Date | DATETIME | NN | — | Ngày trả thực tế |
 | Days_Overdue | INT | NN, DEFAULT 0 | — | Số ngày quá hạn (dẫn xuất) |
@@ -1330,8 +1349,10 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Compensation_Amount | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | **[v7.1]** Tiền bồi thường hư hỏng/mất |
 | Deposit_Refund | DECIMAL(18,2) | NN, DEFAULT 0, CHECK ≥0 | — | **[v7.1]** Cọc hoàn lại cho khách |
 | Note | TEXT | NULL | — | Ghi chú |
-| Created_By | INT | NN, FK | Users.ID | Người lập |
+| Created_By | INT | NN, FK (RESTRICT) | Users.ID | Người lập |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
+
+*Index:* IX_Return_Rental (Rental_Receipt_ID).
 
 ## 4.23. Bảng `Return_Receipt_Details`
 
@@ -1339,8 +1360,8 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã dòng |
 | Return_Receipt_ID | INT | NN, FK (CASCADE) | Return_Receipts.ID | Phiếu trả |
-| Rental_Detail_ID | INT | NN, FK | Rental_Receipt_Details.ID | Dòng thuê gốc |
-| Product_ID | INT | NN, FK | Products.ID | Sản phẩm |
+| Rental_Detail_ID | INT | NN, FK (RESTRICT) | Rental_Receipt_Details.ID | Dòng thuê gốc |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm |
 | Inventory_ID | INT | NULL, FK (SET NULL) | Inventory.ID | Đơn vị hàng trả về kho |
 | Quantity | INT | NN, CHECK>0 | — | Số lượng trả |
 | Serial | VARCHAR(255) | NULL | — | Serial |
@@ -1352,8 +1373,8 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã phiếu đổi/trả |
 | Receipt_Code | VARCHAR(30) | UQ, NN | — | Số phiếu |
-| Export_Receipt_ID | INT | NN, FK | Export_Receipts.ID | Phiếu bán gốc |
-| Party_ID | INT | NN, FK | Parties.ID | Người trả (khách đã mua) |
+| Export_Receipt_ID | INT | NN, FK (RESTRICT) | Export_Receipts.ID | Phiếu bán gốc |
+| Party_ID | INT | NN, FK (RESTRICT) | Parties.ID | Người trả (khách đã mua) |
 | Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | **[v6]** Kho tiếp nhận hàng đổi/trả |
 | Return_Type | VARCHAR(20) | NN | — | REFUND/EXCHANGE/WARRANTY |
 | Exchange_Direction | VARCHAR(20) | NULL | — | EQUAL_HIGHER/LOWER (khi EXCHANGE) |
@@ -1367,7 +1388,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Refund_Amount | DECIMAL(18,2) | NN, DEFAULT 0 | — | Tiền hoàn = Original_Value−Fee_Amount±chênh (dẫn xuất) |
 | Status | VARCHAR(20) | NN, DEFAULT 'DRAFT' | — | DRAFT/CONFIRMED/COMPLETED/REJECTED |
 | Note | TEXT | NULL | — | Ghi chú |
-| Created_By | INT | NN, FK | Users.ID | Nhân viên lập |
+| Created_By | INT | NN, FK (RESTRICT) | Users.ID | Nhân viên lập |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
 
 *Ràng buộc bảng [v7]:* UQ (New_Export_Receipt_ID) — MySQL cho phép nhiều dòng NULL.
@@ -1394,8 +1415,8 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã dòng |
 | Sales_Return_ID | INT | NN, FK (CASCADE) | Sales_Returns.ID | Phiếu đổi/trả |
-| Export_Detail_ID | INT | NN, FK | Export_Receipt_Details.ID | Dòng bán gốc |
-| Product_ID | INT | NN, FK | Products.ID | Sản phẩm trả |
+| Export_Detail_ID | INT | NN, FK (RESTRICT) | Export_Receipt_Details.ID | Dòng bán gốc |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm trả |
 | Inventory_ID | INT | NULL, FK (SET NULL) | Inventory.ID | Đơn vị hàng nhập lại kho |
 | Quantity | INT | NN, CHECK>0 | — | Số lượng trả |
 | Serial | VARCHAR(255) | NULL | — | Serial |
@@ -1412,7 +1433,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | To_Warehouse_ID | INT | NN, FK (RESTRICT) | Warehouses.ID | Kho nhận |
 | Status | VARCHAR(20) | NN, DEFAULT 'DRAFT' | — | DRAFT/APPROVED **[v7]**/IN_TRANSIT/RECEIVED/CANCELLED |
 | Note | TEXT | NULL | — | Ghi chú |
-| Created_By | INT | NN, FK | Users.ID | Người lập |
+| Created_By | INT | NN, FK (RESTRICT) | Users.ID | Người lập |
 | Approved_By | INT | NULL, FK (SET NULL) | Users.ID | **[v7]** Người duyệt |
 | Received_By | INT | NULL, FK (SET NULL) | Users.ID | Người xác nhận nhận |
 | Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian tạo |
@@ -1429,7 +1450,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 |---|---|---|---|---|
 | ID | INT | PK, AI, NN | — | Mã dòng |
 | Stock_Transfer_ID | INT | NN, FK (CASCADE) | Stock_Transfers.ID | Phiếu chuyển |
-| Product_ID | INT | NN, FK | Products.ID | Sản phẩm |
+| Product_ID | INT | NN, FK (RESTRICT) | Products.ID | Sản phẩm |
 | Inventory_ID | INT | NULL, FK (SET NULL) | Inventory.ID | Đơn vị/lô tồn được chuyển |
 | Qty_Sent | INT | NN, CHECK>0 | — | **[v7]** Số lượng xuất |
 | Qty_Received | INT | NULL, CHECK≥0 | — | **[v7]** Số lượng thực nhận |
@@ -1450,6 +1471,7 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | Last_Updated | DATETIME | NN, DEFAULT NOW | — | Lần cập nhật cuối |
 
 *Ràng buộc bảng:* PK (Product_ID, Warehouse_ID). **[v7]** Bỏ cột `Min_Stock_Level` (chuyển sang `Product_Warehouse_Settings.Min_Stock`).
+*Index:* IX_SS_Warehouse (Warehouse_ID).
 
 *Ghi chú:* cập nhật trong cùng transaction nghiệp vụ hoặc bằng trigger; có job đối soát định kỳ tính lại từ `Inventory`.
 
@@ -1542,8 +1564,8 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 | New_Warranty_Expiry | DATE | NULL | — | Hạn bảo hành mới |
 | Note | TEXT | NULL | — | Ghi chú |
 | Handled_By | INT | NN, FK (RESTRICT) | Users.ID | Người xử lý |
-| Created_At | DATETIME | NN, DEFAULT NOW | — | Thời gian |
 
+*Ghi chú:* **[v7.2]** bỏ `Created_At` (không có trên ERD v1.2); thời điểm lập phiếu chính là `Received_At`.
 *Index:* IX_WC_Export_Detail, IX_WC_Inventory (lịch sử bảo hành theo đơn vị hàng), IX_WC_Status (Status, Received_Warehouse_ID).
 
 ---
@@ -1605,16 +1627,17 @@ Bảng header giữ thông tin chung (ngày, đối tác, tổng tiền, trạng
 - **VAT tham chiếu, không chụp lại.** Phiếu xuất trỏ `VAT_ID`; vì vậy không được sửa `Rate` của một mức VAT đã dùng — muốn đổi thì thêm mức mới.
 - **Cảnh báo dùng chung, không theo từng người đọc.** `Alerts.Is_Resolved` là cờ chung; "đã đọc" trên giao diện = đánh dấu đã xử lý. `RENT_DUE` dùng cho cả sắp đến hạn (trước 7 ngày) và quá hạn, áp dụng cả RENT lẫn LEND; nội dung `Message` phân biệt hai trường hợp.
 
-## Đối chiếu ERD v1.2 và schema (chốt 26/10/2026)
+## Đối chiếu ERD v1.2 và schema (chốt 27/10/2026 — ERD là chuẩn)
 
-ERD v1.2 (`tigernet_erd_v1_2.drawio.png`) đã vẽ đủ các cột/quan hệ mà ERD v7 còn thiếu: `Warehouses.Phone`, quan hệ *manages* (R63), `User_Warehouses.Is_Default/Assigned_At`, `Stock_Transfers.Received_By`, `Stock_Transfer_Details.Inventory_ID/Serial` (*transfers_unit*), `Alerts.Warehouse_ID` (*scoped_to*, R64), `Inventory.Location_ID` (R66), `Stock_Movements.Reference_ID`; khóa chính của mọi bảng ghi là `ID`. Thuộc tính **dẫn xuất** vẽ nét đứt: `Qty_*`, `Total_Amount`, `Paid`, `Remain`, `Line_Total`, `Warranty_Expiry`, `Days_Overdue`, `Penalty_Amount`, `Difference`, `Quantity_On_Hand`, `Fee_*`, `Refund_Amount`, `Rate`.
+ERD v1.2 (`tigernet_erd_v1_2.drawio.png`) là nguồn chuẩn. Đã đối chiếu từng thực thể trên ERD với schema (`V1`…`V5`) và entity JPA: **41/41 bảng khớp tên; mọi thuộc tính vẽ trên ERD đều có cột cùng tên trong schema và ngược lại**, trừ cột khóa ngoại.
 
-**Chưa có nhãn trên ERD v1.2 (giữ ở schema, vẽ bổ sung ở lần sửa tới):**
+- **Khóa ngoại không vẽ thành thuộc tính:** ERD thể hiện FK bằng hình thoi quan hệ, không vẽ ô `*_ID`/`*_By`. 94 FK của schema ứng với các quan hệ trên ERD, ví dụ `Payments.Recorded_By` (*recorded_by*), `Payments.Party_ID` (*pays*), `Supplier_Returns.Created_By` (*created_by*), `Supplier_Return_Details.Product_ID` (*references_product*), `Warranty_Claims.Export_Detail_ID` (*claims_on*), `Warranty_Claims.Handled_By` (*handled_by*). Ngoại lệ: `Stock_Summary.Product_ID`, `Warehouse_ID` được vẽ vì là khóa chính ghép.
+- **Thuộc tính dẫn xuất (nét đứt trên ERD):** `Stock_Summary.Qty_*`, `Stocktake_Details.Difference`, `Inventory.Quantity_On_Hand`, `Import_Receipts`/`Export_Receipts.Total_Amount`, `Paid`, `Remain`, `*_Details.Line_Total`, `Export_Receipt_Details.Warranty_Expiry`, `Return_Receipts.Days_Overdue`, `Penalty_Amount`, `Rental_Receipts.Total_Rent`, `Penalty_Amount`, `Sales_Returns.Days_Since_Delivery`, `Original_Value`, `Fee_Percent`, `Fee_Amount`, `Refund_Amount`, `VAT_Options.Rate`.
+- **`Payments` không có quan hệ tới `Payment_Statuses`:** ba nhánh *has_status* trên ERD nối `Payment_Statuses` với `Import_Receipts`, `Export_Receipts`, `Rental_Receipts`; `Payments.Status` là COMPLETED/CANCELLED.
 
-| Bảng.Cột | Vì sao giữ |
-|---|---|
-| `Payments.Recorded_By` | Có quan hệ *recorded_by* nhưng ERD không ghi cột; schema đặt `Recorded_By` NOT NULL |
-| `Supplier_Returns.Created_By` | Quan hệ *created_by* tới Users |
-| `Supplier_Return_Details.Product_ID` | Quan hệ *references_product*; cột `Product_ID` NOT NULL theo nguyên tắc `*_Details` |
-| `Warranty_Claims.Status`, `Note`, `Export_Detail_ID`, `Handled_By` | Trạng thái vòng đời và khóa ngoại cho các quan hệ *claims_on*, *handled_by*; ERD chỉ vẽ phần thuộc tính nhìn thấy được |
-| `Payments` — quan hệ tới `Payment_Statuses` | ERD có nhánh *has_status* nhưng schema chỉ dùng `Payment_Status_ID` ở phiếu nhập/xuất/thuê; `Payments.Status` là COMPLETED/CANCELLED |
+**Đã sửa schema cho khớp ERD ở v7.2** (`database/tenant/V5__erd_v1_2_sync.sql`):
+
+| Bảng | ERD v1.2 | Trước v7.2 | Sau v7.2 |
+|---|---|---|---|
+| `User_Warehouses` | Khóa chính `ID` | PK ghép (User_ID, Warehouse_ID) | `ID` INT AUTO_INCREMENT PK + UQ_UW_User_Warehouse (User_ID, Warehouse_ID) |
+| `Warranty_Claims` | Không có `Created_At` | `Created_At` NOT NULL DEFAULT NOW | Bỏ cột; dùng `Received_At` |

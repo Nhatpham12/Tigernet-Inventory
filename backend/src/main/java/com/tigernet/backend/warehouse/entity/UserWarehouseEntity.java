@@ -7,22 +7,23 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-// phân công nhân viên vào kho (N-N)
+// phân công nhân viên vào kho (N-N); mỗi cặp (user, kho) chỉ một dòng
 @Entity
 @Getter @Setter
-@Table(name = "User_Warehouses")
+@Table(name = "User_Warehouses",
+        uniqueConstraints = @UniqueConstraint(name = "UQ_UW_User_Warehouse", columnNames = {"User_ID", "Warehouse_ID"}))
 public class UserWarehouseEntity {
-    @EmbeddedId
-    private UserWarehouseId id = new UserWarehouseId();
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ID")
+    private Integer id;
 
-    @MapsId("userId")
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "User_ID")
+    @JoinColumn(name = "User_ID", nullable = false)
     private UserEntity user;
 
-    @MapsId("warehouseId")
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "Warehouse_ID")
+    @JoinColumn(name = "Warehouse_ID", nullable = false)
     private WarehouseEntity warehouse;
 
     @Column(name = "Is_Default", nullable = false)

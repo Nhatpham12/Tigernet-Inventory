@@ -1,8 +1,9 @@
 -- =====================================================================
--- TIGERNET – HỆ THỐNG QUẢN LÝ KHO HÀNG (ĐA KHO) – SCRIPT MYSQL v7.1 (BẢN GỘP)
--- Nguồn: docs/Database_Design_v7.md, docs/tigernet_erd_v1_2.drawio.png (ERD v1.2)
+-- TIGERNET – HỆ THỐNG QUẢN LÝ KHO HÀNG (ĐA KHO) – SCRIPT MYSQL v7.2 (BẢN GỘP)
+-- Nguồn: docs/tigernet_erd_v1_2.drawio.png (ERD v1.2, nguồn chuẩn), docs/Database_Design_v7.md
 -- Bản gộp để chạy tay 1 lần (dev/on-premise init.sql) =
---   database/tenant/V1__init_schema.sql + V4__erd_v1_2.sql + V3__views.sql + V2__seed_reference_data.sql
+--   database/tenant/V1__init_schema.sql + V4__erd_v1_2.sql + V5__erd_v1_2_sync.sql
+--   + V3__views.sql + V2__seed_reference_data.sql
 -- Khi đổi schema: sửa/thêm file trong database/tenant/ (Flyway) rồi gộp lại file này.
 -- DBMS : MySQL 8.0.16+ (CHECK được thực thi). Charset utf8mb4 / utf8mb4_unicode_ci.
 -- =====================================================================
@@ -1044,6 +1045,23 @@ ALTER TABLE Stock_Movements
     ADD CONSTRAINT CK_SM_Ref_Type CHECK (Reference_Type IN
         ('Import_Receipts','Export_Receipts','Rental_Receipts','Return_Receipts',
          'Sales_Returns','Stock_Transfers','Stock_Adjustments','Supplier_Returns','Warranty_Claims'));
+
+-- =====================================================================
+-- V5__erd_v1_2_sync.sql — khớp schema với ERD v1.2 (v7.2)
+-- =====================================================================
+-- User_Warehouses: khóa chính riêng ID (ERD), cặp (User_ID, Warehouse_ID) thành UNIQUE.
+-- Thêm UNIQUE trước để FK_UW_User vẫn có index bắt đầu bằng User_ID khi bỏ PK cũ.
+ALTER TABLE User_Warehouses
+    ADD CONSTRAINT UQ_UW_User_Warehouse UNIQUE (User_ID, Warehouse_ID);
+
+ALTER TABLE User_Warehouses
+    DROP PRIMARY KEY,
+    ADD COLUMN ID INT NOT NULL AUTO_INCREMENT FIRST,
+    ADD CONSTRAINT PK_User_Warehouses PRIMARY KEY (ID);
+
+-- Warranty_Claims: bỏ Created_At (ERD không có; thời điểm lập phiếu = Received_At).
+ALTER TABLE Warranty_Claims
+    DROP COLUMN Created_At;
 
 SET FOREIGN_KEY_CHECKS = 1;
 

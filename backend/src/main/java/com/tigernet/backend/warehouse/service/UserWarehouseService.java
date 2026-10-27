@@ -35,7 +35,7 @@ public class UserWarehouseService {
     @Transactional(readOnly = true)
     public List<UserWarehouseResponse> getUserWarehouses(Integer userId) {
         userService.findUserById(userId);
-        return warehouseMapper.toUserWarehouseResponses(userWarehouseRepository.findByIdUserId(userId));
+        return warehouseMapper.toUserWarehouseResponses(userWarehouseRepository.findByUserUserId(userId));
     }
 
     // thay toàn bộ danh sách kho của user
@@ -64,6 +64,6 @@ public class UserWarehouseService {
             userWarehouse.setAssignedAt(now);
             userWarehouseRepository.save(userWarehouse);
         }
-        return warehouseMapper.toUserWarehouseResponses(userWarehouseRepository.findByIdUserId(userId));
+        return warehouseMapper.toUserWarehouseResponses(userWarehouseRepository.findByUserUserId(userId));
     }
 }

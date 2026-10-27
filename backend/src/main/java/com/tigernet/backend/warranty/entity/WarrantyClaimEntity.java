@@ -75,7 +75,4 @@ public class WarrantyClaimEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "Handled_By", nullable = false)
     private UserEntity handledBy;
-
-    @Column(name = "Created_At", nullable = false)
-    private LocalDateTime createdAt;
 }
