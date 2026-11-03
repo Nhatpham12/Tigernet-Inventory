@@ -9,6 +9,8 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AuthenticationResponse {
-    String token;
+    String token;          // access token, gửi trong header Authorization: Bearer
+    String refreshToken;   // chỉ dùng cho POST /auth/refresh
+    long expiresIn;        // số giây access token còn hiệu lực
     boolean authenticated;
 }

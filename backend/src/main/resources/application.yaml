@@ -27,7 +27,8 @@ spring:
 
 jwt:
   signer-key: ${JWT_SIGNER_KEY}  # HS512 cần khóa >= 64 byte
-  valid-duration: 3600           # giây
+  valid-duration: 3600           # giây, access token
+  refresh-duration: 604800      # giây (7 ngày), refresh token
 
 tigernet:
   rental:

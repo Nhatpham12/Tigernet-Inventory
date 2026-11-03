@@ -11,6 +11,7 @@ public enum ErrorCode {
     UNAUTHENTICATED(1003, "Invalid username or password", HttpStatus.UNAUTHORIZED), // dùng chung cho sai username và sai mật khẩu
     USER_INACTIVE(1004, "User account is inactive", HttpStatus.FORBIDDEN),
     AUTHENTICATION_REQUIRED(1005, "Missing, invalid or expired access token", HttpStatus.UNAUTHORIZED),
+    INVALID_REFRESH_TOKEN(1006, "Invalid or expired refresh token", HttpStatus.UNAUTHORIZED),
 
     // 11xx: role
     ROLE_NOT_FOUND(1101, "Role not found", HttpStatus.NOT_FOUND),

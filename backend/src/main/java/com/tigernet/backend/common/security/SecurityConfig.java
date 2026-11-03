@@ -1,5 +1,6 @@
 package com.tigernet.backend.common.security;
 
+import com.tigernet.backend.auth.service.AuthenticationService;
 import com.tigernet.backend.common.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,7 +12,13 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -57,7 +64,14 @@ public class SecurityConfig {
     @Bean
     JwtDecoder jwtDecoder() {
         SecretKeySpec key = new SecretKeySpec(signerKey.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
-        return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS512).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS512).build();
+        // refresh token chỉ dùng cho /auth/refresh, không được dùng làm access token
+        OAuth2TokenValidator<Jwt> notRefreshToken = jwt -> AuthenticationService.REFRESH_TOKEN_TYPE
+                .equals(jwt.getClaimAsString(AuthenticationService.TOKEN_TYPE_CLAIM))
+                ? OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Refresh token cannot access APIs", null))
+                : OAuth2TokenValidatorResult.success();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefault(), notRefreshToken));
+        return decoder;
     }
 
     // thiếu token / token sai / hết hạn: trả 401 cùng format ApiResponse thay vì body rỗng

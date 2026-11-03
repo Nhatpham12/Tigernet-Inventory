@@ -1,0 +1,18 @@
+server:
+  port: ${BFF_PORT:8081}
+
+spring:
+  application:
+    name: bff
+  threads:
+    virtual:
+      enabled: true   # gọi song song nhiều API backend khi gộp dữ liệu (dashboard, session)
+
+tigernet:
+  backend:
+    base-url: ${BACKEND_BASE_URL:http://localhost:8080}
+    connect-timeout: 5s
+    read-timeout: 30s
+  cors:
+    # Flutter Web khi chạy `flutter run -d chrome` dùng cổng ngẫu nhiên trên localhost
+    allowed-origin-patterns: ${BFF_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
