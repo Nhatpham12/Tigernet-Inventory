@@ -7,4 +7,7 @@ class Env {
     'BFF_BASE_URL',
     defaultValue: 'http://localhost:8081',
   );
+
+  /// `--dart-define=DEMO_MODE=true`: chạy bằng dữ liệu mẫu, không cần BFF/backend.
+  static const bool demoMode = bool.fromEnvironment('DEMO_MODE');
 }

@@ -70,3 +70,14 @@ Lỗi từ backend được trả nguyên mã HTTP và body `ApiResponse`. Khi b
 - Refresh token có claim `typ=refresh` và bị từ chối nếu dùng làm access token.
 - Flutter lưu hai token trong `flutter_secure_storage`. Khi gặp 401, interceptor gọi `/bff/auth/refresh` một lần rồi gửi lại request. Nếu refresh thất bại thì đăng xuất.
 - Chưa có cơ chế thu hồi refresh token (đăng xuất chỉ xóa token ở client).
+
+## Bản demo không cần server
+
+Flutter có chế độ demo dùng dữ liệu mẫu ghi sẵn từ BFF (`frontend/assets/demo/fixtures.json`), không gọi mạng:
+
+```bash
+cd frontend
+flutter build web --no-web-resources-cdn --dart-define=DEMO_MODE=true
+```
+
+Ở chế độ này, ô đăng nhập được điền sẵn, danh sách vẫn lọc, tìm kiếm, sắp xếp và phân trang được, còn thêm/sửa/xóa chỉ báo thành công mà không lưu.

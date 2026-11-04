@@ -66,6 +66,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Dữ liệu mẫu cho chế độ demo (--dart-define=DEMO_MODE=true)
+  assets:
+    - assets/demo/fixtures.json
+
   # Font theo Figma, đóng gói sẵn (không tải từ Google Fonts lúc chạy). Giấy phép: assets/fonts/OFL-*.txt
   fonts:
     - family: OpenSans

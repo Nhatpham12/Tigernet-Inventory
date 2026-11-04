@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../config/env.dart';
 import '../storage/token_storage.dart';
 import 'api_exception.dart';
+import 'demo_adapter.dart';
 import 'page_data.dart';
 
 /// Điểm gọi API duy nhất của FE. Mọi request đi tới BFF (`/bff/**`), không gọi thẳng backend.
@@ -17,6 +18,7 @@ class ApiClient {
           contentType: Headers.jsonContentType,
         ),
       ) {
+    if (Env.demoMode) _dio.httpClientAdapter = DemoAdapter();
     _dio.interceptors.add(_AuthInterceptor(this));
   }
 

@@ -77,13 +77,16 @@ class MovementReportPage extends StatelessWidget {
   const MovementReportPage({super.key});
 
   static String _reference(Object? type) => switch (type) {
-    'IMPORT' => 'Phiếu nhập',
-    'EXPORT' => 'Phiếu xuất',
-    'RENTAL' => 'Phiếu thuê/mượn',
-    'RETURN' => 'Phiếu trả',
-    'TRANSFER' => 'Chuyển kho',
-    'ADJUSTMENT' => 'Điều chỉnh',
-    'SALES_RETURN' => 'Trả hàng bán',
+    // giá trị Reference_Type trong Stock_Movements (Database v7)
+    'Import_Receipts' || 'IMPORT' => 'Phiếu nhập',
+    'Export_Receipts' || 'EXPORT' => 'Phiếu xuất',
+    'Rental_Receipts' || 'RENTAL' => 'Phiếu thuê/mượn',
+    'Return_Receipts' || 'RETURN' => 'Phiếu trả',
+    'Stock_Transfers' || 'TRANSFER' => 'Chuyển kho',
+    'Stock_Adjustments' || 'ADJUSTMENT' => 'Điều chỉnh',
+    'Sales_Returns' || 'SALES_RETURN' => 'Trả hàng bán',
+    'Supplier_Returns' => 'Trả nhà cung cấp',
+    'Warranty_Claims' => 'Bảo hành',
     _ => '${type ?? '—'}',
   };
 

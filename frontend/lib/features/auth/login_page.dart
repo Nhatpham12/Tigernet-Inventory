@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/session_controller.dart';
+import '../../core/config/env.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/feedback/toast.dart';
@@ -17,8 +18,11 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _form = GlobalKey<FormState>();
-  final _username = TextEditingController();
-  final _password = TextEditingController();
+  // bản demo điền sẵn tài khoản mẫu
+  final _username = TextEditingController(text: Env.demoMode ? 'admin' : '');
+  final _password = TextEditingController(
+    text: Env.demoMode ? 'Admin@123' : '',
+  );
   bool _obscure = true;
   bool _remember = false;
   bool _loading = false;
@@ -167,6 +171,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ),
                             ],
                           ),
+                          if (Env.demoMode) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: c.warningBg,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Bản demo dùng dữ liệu mẫu. Bấm Đăng nhập để vào; thêm/sửa/xóa sẽ không được lưu.',
+                                style: TextStyle(color: c.text),
+                              ),
+                            ),
+                          ],
                           if (_error != null) ...[
                             const SizedBox(height: 8),
                             Container(
