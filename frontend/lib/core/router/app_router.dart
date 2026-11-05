@@ -52,8 +52,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   GoRoute page(String path, Widget Function(GoRouterState s) build) => GoRoute(
     path: path,
-    pageBuilder: (context, state) =>
-        NoTransitionPage(key: state.pageKey, child: build(state)),
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      child: PageBody(child: build(state)),
+    ),
   );
 
   return GoRouter(

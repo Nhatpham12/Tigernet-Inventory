@@ -45,20 +45,29 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: Column(
               children: [
                 _Header(session: session, showMenuButton: mobile),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: mobile ? 16 : 24,
-                      vertical: 16,
-                    ),
-                    child: widget.child,
-                  ),
-                ),
+                // Navigator lồng của ShellRoute cần chiều cao hữu hạn: mỗi trang tự cuộn qua PageBody.
+                Expanded(child: widget.child),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Khung nội dung của một trang trong AppShell: cuộn dọc và lề theo kích thước màn hình.
+class PageBody extends StatelessWidget {
+  const PageBody({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 900;
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 24, vertical: 16),
+      child: child,
     );
   }
 }
