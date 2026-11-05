@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface AuditLogRepository extends JpaRepository<AuditLogEntity, Long> {
+    boolean existsByUserUserId(Integer userId);
+
     @Query("""
             select a from AuditLogEntity a
             where (:userId is null or a.user.userId = :userId)
