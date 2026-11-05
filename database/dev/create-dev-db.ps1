@@ -71,7 +71,7 @@ if (-not $MysqlExe) {
     throw "Không tìm thấy mysql.exe. Thêm thư mục bin của MySQL vào PATH, truyền -MysqlExe, hoặc dùng -OutFile rồi chạy bằng Workbench."
 }
 
-$tmp = Join-Path ([System.IO.Path]::GetTempPath()) "$DbName-init.sql"
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) "$DbName-init-$([guid]::NewGuid().ToString('N')).sql"
 [System.IO.File]::WriteAllText($tmp, $sql, $utf8NoBom)
 
 try {
