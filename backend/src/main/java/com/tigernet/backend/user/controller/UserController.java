@@ -1,5 +1,6 @@
 package com.tigernet.backend.user.controller;
 
+import com.tigernet.backend.common.security.SecurityUtils;
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.user.dto.request.UserCreationRequest;
 import com.tigernet.backend.user.dto.request.UserUpdateRequest;
@@ -25,6 +26,12 @@ public class UserController {
     @GetMapping //lấy toàn bộ người dùng
     ApiResponse<List<UserResponse>> getUsers() {
         return ApiResponse.success(userService.getUsers());
+    }
+
+    // người dùng đang đăng nhập (đọc userId từ token); cần gửi Bearer token dù /users/** đang mở
+    @GetMapping("/me")
+    ApiResponse<UserResponse> getMyInfo() {
+        return ApiResponse.success(userService.getUserById(SecurityUtils.currentUserId()));
     }
 
     @GetMapping("/{userId}") //tìm người dùng theo ID

@@ -1,5 +1,5 @@
 name: tigernet_app
-description: "A new Flutter project."
+description: "TigerNet Inventory – Flutter Web frontend (gọi backend qua lớp BFF)."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -38,7 +40,6 @@ dependencies:
   go_router: ^17.5.0
   dio: ^5.11.1
   flutter_secure_storage: ^11.2.0
-  google_fonts: ^8.2.1
   intl: ^0.20.3
   freezed_annotation: ^3.1.0
   json_annotation: ^4.12.0
@@ -64,6 +65,25 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Dữ liệu mẫu cho chế độ demo (--dart-define=DEMO_MODE=true)
+  assets:
+    - assets/demo/fixtures.json
+
+  # Font theo Figma, đóng gói sẵn (không tải từ Google Fonts lúc chạy). Giấy phép: assets/fonts/OFL-*.txt
+  fonts:
+    - family: OpenSans
+      fonts:
+        - asset: assets/fonts/OpenSans-Regular.ttf
+        - asset: assets/fonts/OpenSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/OpenSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/OpenSans-ExtraBold.ttf
+          weight: 800
+    - family: Audiowide
+      fonts:
+        - asset: assets/fonts/Audiowide-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

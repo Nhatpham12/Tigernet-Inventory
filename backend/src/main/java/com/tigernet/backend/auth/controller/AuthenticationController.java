@@ -1,6 +1,7 @@
 package com.tigernet.backend.auth.controller;
 
 import com.tigernet.backend.auth.dto.request.AuthenticationRequest;
+import com.tigernet.backend.auth.dto.request.RefreshTokenRequest;
 import com.tigernet.backend.auth.dto.response.AuthenticationResponse;
 import com.tigernet.backend.auth.service.AuthenticationService;
 import com.tigernet.backend.common.response.ApiResponse;
@@ -19,9 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthenticationController {
     AuthenticationService authenticationService;
+
     @PostMapping("/login")
     ApiResponse<AuthenticationResponse> authenticate(@RequestBody @Valid AuthenticationRequest request){
         // thất bại thì service ném lỗi 401/403
         return ApiResponse.success(authenticationService.authenticate(request));
+    }
+
+    // đổi refresh token còn hạn lấy cặp access + refresh token mới
+    @PostMapping("/refresh")
+    ApiResponse<AuthenticationResponse> refresh(@RequestBody @Valid RefreshTokenRequest request){
+        return ApiResponse.success(authenticationService.refresh(request.getRefreshToken()));
     }
 }

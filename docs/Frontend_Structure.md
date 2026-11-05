@@ -5,7 +5,7 @@
 
 - **Stack** (đã có trong `pubspec.yaml`): `flutter_riverpod`, `go_router`, `dio`, `flutter_secure_storage`, `google_fonts`, `intl`, `freezed_annotation` / `json_annotation`.
 - **Target:** Flutter Web là chính (1 bản build, white-label theo subdomain). Android và Windows dùng chung code.
-- **Hiện trạng:** `lib/main.dart` vẫn là app đếm số mẫu, chưa có cấu trúc.
+- **Hiện trạng:** đã dựng các trang theo Figma. Flutter gọi qua lớp BFF (`bff/`, cổng 8081), không gọi thẳng backend. Hướng dẫn chạy: `bff/README.md`.
 
 ---
 
