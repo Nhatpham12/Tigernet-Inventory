@@ -73,7 +73,11 @@ class AppTheme {
           elevation: 0,
           minimumSize: const Size(92, 40),
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(
+            fontFamily: fontFamily,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),
@@ -85,7 +89,11 @@ class AppTheme {
           minimumSize: const Size(92, 40),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           side: BorderSide(color: c.muted),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(
+            fontFamily: fontFamily,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),
@@ -95,7 +103,11 @@ class AppTheme {
         style: TextButton.styleFrom(
           foregroundColor: c.text,
           minimumSize: const Size(64, 40),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(
+            fontFamily: fontFamily,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),
