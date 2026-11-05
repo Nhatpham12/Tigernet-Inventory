@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/role.dart';
+import '../auth/session.dart';
 
 class MenuLink {
   const MenuLink(this.label, this.path, {this.roles});
@@ -148,10 +149,14 @@ const kMainMenu = <MenuGroup>[
 
 const kAdminMenu = <MenuGroup>[
   MenuGroup(
-    label: 'Người dùng',
-    icon: Icons.group_outlined,
-    path: '/app/users',
+    label: 'Quản trị',
+    icon: Icons.admin_panel_settings_outlined,
     roles: {_ql, _qt},
+    children: [
+      MenuLink('Nhân viên', '/app/users'),
+      MenuLink('Phân quyền trang', '/app/permissions', roles: {_qt}),
+      MenuLink('Lịch sử thao tác', '/app/audit-logs', roles: {_qt}),
+    ],
   ),
   MenuGroup(
     label: 'Cài đặt',
@@ -162,3 +167,80 @@ const kAdminMenu = <MenuGroup>[
 
 bool canSee(Set<AppRole>? roles, AppRole role) =>
     roles == null || role == AppRole.unknown || roles.contains(role);
+
+/// Một trang có thể phân quyền cho nhân viên (màn "Phân quyền trang").
+class PageOption {
+  const PageOption(this.group, this.label, this.path);
+  final String group;
+  final String label;
+  final String path;
+}
+
+const kDashboardPage = '/app/dashboard';
+
+/// Các trang trong menu chính, trừ Tổng quan (ai cũng xem được).
+/// Trang quản trị (menu dưới) không phân quyền riêng được, chỉ theo vai trò.
+final List<PageOption> kAssignablePages = [
+  for (final g in kMainMenu) ...[
+    if (g.path != null && g.path != kDashboardPage)
+      PageOption(g.label, g.label, g.path!),
+    for (final l in g.children) PageOption(g.label, l.label, l.path),
+  ],
+];
+
+/// Quyền mặc định theo vai trò của trang [key] (ma trận Frontend_Structure.md §3).
+bool roleDefaultAllows(String key, AppRole role) {
+  for (final g in [...kMainMenu, ...kAdminMenu]) {
+    if (g.path == key) return canSee(g.roles, role);
+    for (final l in g.children) {
+      if (l.path == key) return canSee(g.roles, role) && canSee(l.roles, role);
+    }
+  }
+  return true;
+}
+
+final Set<String> _allPageKeys = {
+  for (final g in [...kMainMenu, ...kAdminMenu]) ...[
+    if (g.path != null) g.path!,
+    for (final l in g.children) l.path,
+  ],
+};
+
+final Set<String> _adminMenuKeys = {
+  for (final g in kAdminMenu) ...[
+    if (g.path != null) g.path!,
+    for (final l in g.children) l.path,
+  ],
+};
+
+final _editPath = RegExp(r'^(.*)/\d+/edit$');
+
+/// Đường dẫn đang mở → trang trong menu quyết định quyền vào (khớp tiền tố dài nhất).
+/// VD "/app/products/5/edit" → "/app/products/new" (cùng quyền với Thêm sản phẩm).
+/// null = trang chung không cần phân quyền (cảnh báo, 403...).
+String? pageKeyFor(String location) {
+  final edit = _editPath.firstMatch(location);
+  if (edit != null && _allPageKeys.contains('${edit.group(1)}/new')) {
+    return '${edit.group(1)}/new';
+  }
+  String? best;
+  for (final key in _allPageKeys) {
+    if ((location == key || location.startsWith('$key/')) &&
+        (best == null || key.length > best.length)) {
+      best = key;
+    }
+  }
+  return best;
+}
+
+/// Nhân viên có được vào trang [key] không: Quản trị vào mọi trang; nhân viên có phân quyền riêng
+/// thì theo danh sách đó, chưa có thì theo vai trò. Chỉ để ẩn/hiện, backend vẫn chặn quyền API.
+bool canOpenPage(String key, Session session) {
+  if (session.role == AppRole.admin) return true;
+  if (key == kDashboardPage) return true;
+  final pages = session.pages;
+  if (pages == null || _adminMenuKeys.contains(key)) {
+    return roleDefaultAllows(key, session.role);
+  }
+  return pages.contains(key);
+}

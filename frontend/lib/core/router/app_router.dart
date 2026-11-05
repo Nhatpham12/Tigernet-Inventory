@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/admin/admin_pages.dart';
+import '../../features/admin/audit_log_page.dart';
+import '../../features/admin/page_permissions_page.dart';
 import '../../features/alerts/alerts_page.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/dashboard/dashboard_page.dart';
@@ -28,22 +30,10 @@ class _SessionListenable extends ChangeNotifier {
   }
 }
 
-/// Đường dẫn → nhóm vai trò được vào (lấy từ menu), để chặn cả khi gõ URL trực tiếp (PUB-01 AC2).
+/// Chặn cả khi gõ URL trực tiếp (PUB-01 AC2): theo vai trò hoặc phân quyền trang riêng của nhân viên.
 bool _allowed(String location, Session session) {
-  for (final group in [...kMainMenu, ...kAdminMenu]) {
-    if (group.path != null &&
-        location.startsWith(group.path!) &&
-        !canSee(group.roles, session.role)) {
-      return false;
-    }
-    for (final link in group.children) {
-      if (location == link.path) {
-        return canSee(group.roles, session.role) &&
-            canSee(link.roles, session.role);
-      }
-    }
-  }
-  return true;
+  final key = pageKeyFor(location);
+  return key == null || canOpenPage(key, session);
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -146,6 +136,23 @@ final routerProvider = Provider<GoRouter>((ref) {
             (_) => const RentalListPage(kind: null, asReport: true),
           ),
           page('/app/users', (_) => const UserListPage()),
+          page(
+            '/app/permissions',
+            (s) => PagePermissionsPage(
+              initialUserId: int.tryParse(
+                s.uri.queryParameters['userId'] ?? '',
+              ),
+            ),
+          ),
+          page(
+            '/app/audit-logs',
+            (s) => AuditLogPage(
+              key: ValueKey(s.uri.query),
+              initialUserId: int.tryParse(
+                s.uri.queryParameters['userId'] ?? '',
+              ),
+            ),
+          ),
           page('/app/settings', (_) => const SettingsPage()),
           page('/app/403', (_) => const ForbiddenPage()),
         ],

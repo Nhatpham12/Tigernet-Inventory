@@ -135,13 +135,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: InkWell(
+                          // Wrap: màn hẹp thì "Quên mật khẩu?" xuống dòng thay vì tràn ngang
+                          SizedBox(
+                            width: double.infinity,
+                            child: Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              children: [
+                                InkWell(
                                   onTap: () =>
                                       setState(() => _remember = !_remember),
                                   child: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Checkbox(
                                         value: _remember,
@@ -159,17 +165,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     ],
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: TextButton(
+                                TextButton(
                                   onPressed: () => Toast.info(
                                     context,
                                     'Quên mật khẩu: liên hệ quản trị viên hoặc hotro@tigernet.vn để đặt lại.',
                                   ),
                                   child: const Text('Quên mật khẩu?'),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           if (Env.demoMode) ...[
                             const SizedBox(height: 8),
