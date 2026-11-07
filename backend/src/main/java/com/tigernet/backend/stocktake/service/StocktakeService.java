@@ -5,11 +5,13 @@ import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.DocumentCodeGenerator;
 import com.tigernet.backend.inventory.service.InventoryService;
+import com.tigernet.backend.stocktake.dto.request.StocktakeCompleteRequest;
 import com.tigernet.backend.stocktake.dto.request.StocktakeCreationRequest;
 import com.tigernet.backend.stocktake.dto.request.StocktakeDetailRequest;
 import com.tigernet.backend.stocktake.dto.request.StocktakeItemsRequest;
 import com.tigernet.backend.stocktake.dto.response.StockAdjustmentResponse;
 import com.tigernet.backend.stocktake.dto.response.StocktakeResponse;
+import com.tigernet.backend.stocktake.entity.StockAdjustmentEntity;
 import com.tigernet.backend.stocktake.entity.StocktakeDetailEntity;
 import com.tigernet.backend.stocktake.entity.StocktakeEntity;
 import com.tigernet.backend.stocktake.enums.StocktakeStatus;
@@ -29,6 +31,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 // lập phiếu kiểm kê và nhập số đếm khi còn DRAFT;
@@ -79,6 +82,28 @@ public class StocktakeService {
         StocktakeEntity stocktake = findDraftStocktake(stocktakeId);
         if (request.getStocktakeDate() != null) stocktake.setStocktakeDate(request.getStocktakeDate());
         replaceDetails(stocktake, request.getDetails());
+        return stocktakeMapper.toResponse(stocktakeRepository.save(stocktake));
+    }
+
+    // chốt phiếu: mỗi dòng chênh lệch sinh một Stock_Adjustments (adjustQty = actual − system).
+    // TODO(StockService): chưa áp adjustQty vào Inventory/Stock_Movements, chờ StockService; hiện chỉ ghi nhận điều chỉnh.
+    // Entity Stocktakes chưa có cột người duyệt/thời điểm duyệt nên chưa ghi.
+    public StocktakeResponse completeStocktake(Integer stocktakeId, StocktakeCompleteRequest request) {
+        StocktakeEntity stocktake = findDraftStocktake(stocktakeId);
+        Map<Integer, String> reasons = request != null && request.getReasons() != null
+                ? request.getReasons() : Map.of();
+        LocalDateTime now = LocalDateTime.now();
+        for (StocktakeDetailEntity detail : stocktake.getDetails()) {
+            if (detail.getDifference() == 0) continue;
+            StockAdjustmentEntity adjustment = new StockAdjustmentEntity();
+            adjustment.setStocktake(stocktake);
+            adjustment.setProduct(detail.getProduct());
+            adjustment.setAdjustQty(detail.getDifference());
+            adjustment.setReason(reasons.get(detail.getProduct().getId()));
+            adjustment.setCreatedAt(now);
+            stockAdjustmentRepository.save(adjustment);
+        }
+        stocktake.setStatus(StocktakeStatus.COMPLETED);
         return stocktakeMapper.toResponse(stocktakeRepository.save(stocktake));
     }
 

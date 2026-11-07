@@ -57,3 +57,8 @@ pnpm-debug.log*
 postman/
 .postman/
 docs/API_Test_Cases.md
+
+# ===== Biểu mẫu Word gốc (chỉ giữ trên máy, không đưa lên repo) =====
+docs/FORM/
+# thông tin doanh nghiệp thật cho biểu mẫu in (mẫu: backend/company.example.yaml)
+backend/company.yaml

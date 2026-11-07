@@ -85,10 +85,11 @@ const kMainMenu = <MenuGroup>[
         roles: {_bh, _ql, _qt},
       ),
       MenuLink('Khách hàng', '/app/customers', roles: {_bh, _ql, _qt, _kt}),
+      // Đổi trả hàng bán
       MenuLink(
         'Danh sách đổi trả',
         '/app/sales-returns',
-        roles: {_bh, _ql, _qt},
+        roles: {_tk, _bh, _ql, _qt},
       ),
     ],
   ),
@@ -109,6 +110,12 @@ const kMainMenu = <MenuGroup>[
         '/app/rentals/new',
         roles: {_bh, _ql, _qt},
       ),
+      // Trả hàng thuê / mượn
+      MenuLink(
+        'Phiếu trả hàng',
+        '/app/return-receipts',
+        roles: {_tk, _bh, _ql, _qt},
+      ),
     ],
   ),
   MenuGroup(
@@ -120,13 +127,49 @@ const kMainMenu = <MenuGroup>[
       MenuLink('Tạo phiếu cho mượn', '/app/lends/new', roles: {_bh, _ql, _qt}),
     ],
   ),
+  // Bảo hành
+  MenuGroup(
+    label: 'Bảo hành',
+    icon: Icons.build_circle_outlined,
+    roles: {_tk, _bh, _ql, _qt},
+    children: [
+      MenuLink('Danh sách phiếu bảo hành', '/app/warranty-claims'),
+      MenuLink(
+        'Tiếp nhận bảo hành',
+        '/app/warranty-claims/new',
+        roles: {_tk, _bh, _ql, _qt},
+      ),
+    ],
+  ),
+  // hết Bảo hành
   MenuGroup(
     label: 'Kho',
     icon: Icons.warehouse_outlined,
     roles: {_tk, _kt, _ql, _qt},
     children: [
       MenuLink('Danh sách kho', '/app/warehouses', roles: {_ql, _qt}),
+      // Kiểm kê
       MenuLink('Kiểm kê', '/app/stocktakes', roles: {_tk, _ql, _qt}),
+    ],
+  ),
+  // Thu chi
+  MenuGroup(
+    label: 'Thu chi',
+    icon: Icons.payments_outlined,
+    roles: {_kt, _bh, _ql, _qt},
+    children: [
+      // Bán hàng chỉ xem phiếu thu (màn danh sách tự lọc theo vai trò)
+      MenuLink('Phiếu thu / chi', '/app/payments'),
+      MenuLink(
+        'Tạo phiếu thu',
+        '/app/payments/new?direction=IN',
+        roles: {_kt, _ql, _qt},
+      ),
+      MenuLink(
+        'Tạo phiếu chi',
+        '/app/payments/new?direction=OUT',
+        roles: {_kt, _ql, _qt},
+      ),
     ],
   ),
   MenuGroup(
@@ -142,6 +185,12 @@ const kMainMenu = <MenuGroup>[
       ),
       MenuLink('Công nợ', '/app/reports/receivables', roles: {_kt, _ql, _qt}),
       MenuLink('Cho thuê', '/app/reports/rentals', roles: {_ql, _qt}),
+      // Đối chiếu công nợ
+      MenuLink(
+        'Đối chiếu công nợ',
+        '/app/reports/reconciliation',
+        roles: {_kt, _ql, _qt},
+      ),
     ],
   ),
 ];

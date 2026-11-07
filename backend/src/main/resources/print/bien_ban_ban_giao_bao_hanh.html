@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="'Biên bản bàn giao ' + ${code}">Biên bản bàn giao</title>
+<style>
+  /* Bản gốc: Mẫu Biên bản bàn giao Tigernet (Word), A4 dọc, lề T/B/L/R = 25.4/15.9/18.5/13.7 mm, Times New Roman 10pt */
+  @page { size: A4; margin: 7mm 13.7mm 15.9mm 18.5mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 10pt; margin: 0; color: #000; line-height: 1.1; }
+  table { border-collapse: collapse; }
+  .head { width: 100%; }
+  .head td { vertical-align: top; padding: 0; font-size: 8pt; line-height: 1.15; }
+  .logo { text-align: right; padding-right: 30pt !important; }
+  .logo img { height: 52pt; }
+  h1 { text-align: center; font-size: 11pt; font-weight: bold; margin: 34pt 0 0 0; }
+  .c { text-align: center; }
+  .items { width: 98.5%; margin-top: 10pt; }
+  .items th { background: #b4c6e7; border: 0.75pt solid #000; font-weight: bold; text-align: center; padding: 2pt; }
+  .items td { border: 0.75pt solid #000; padding: 2pt 6pt; vertical-align: middle; }
+  .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 8pt; }
+</style>
+</head>
+<body>
+<table class="head">
+  <tr>
+    <td style="width:72%">
+      <div style="font-weight:bold" th:text="${f.blank(company.name) ? '' : company.name + (f.blank(company.englishName) ? '' : ' | ' + company.englishName)}"></div>
+      <div th:text="'SĐT: ' + ${f.blank(company.phone) ? '…………………' : company.phone}"></div>
+      <div th:text="'Email: ' + ${f.blank(company.email) ? '…………………' : company.email} + ' | Web: ' + ${f.blank(company.website) ? '…………………' : company.website}"></div>
+      <div th:text="'Địa chỉ: ' + ${f.blank(company.address) ? '…………………' : company.address}"></div>
+    </td>
+    <td class="logo"><img th:if="${logo != null}" th:src="${logo}" alt=""/></td>
+  </tr>
+</table>
+
+<h1>BIÊN BẢN BÀN GIAO | PHIẾU BẢO HÀNH</h1>
+<div class="c" th:text="'SỐ: ' + ${code}">SỐ: …</div>
+<div class="c">**********</div>
+
+<div style="font-weight:bold">Bên nhận hàng:</div>
+<div>Công ty: <b th:text="${f.blank(customer.name) ? '……………………………' : customer.name}"></b></div>
+<div th:text="'MST: ' + ${f.blank(customer.taxCode) ? '…………………' : customer.taxCode}"></div>
+<div th:text="'Địa chỉ công ty: ' + ${f.blank(customer.address) ? '……………………………' : customer.address}"></div>
+<table style="width:100%"><tr>
+  <td style="width:58%; padding:0" th:text="'Người nhận hàng:  ' + ${f.blank(receiver.name) ? '…………………' : receiver.name}"></td>
+  <td style="padding:0" th:text="'Số điện thoại:  ' + ${f.blank(receiver.phone) ? '…………………' : receiver.phone}"></td>
+</tr></table>
+<div th:text="'Địa chỉ nhận hàng: ' + ${f.blank(receiver.address) ? '……………………………' : receiver.address}"></div>
+
+<div style="margin-top:10pt">Hôm nay ngày <b th:text="${f.day(date)}">..</b> tháng <b th:text="${f.month(date)}">..</b> năm <b th:text="${f.year(date)}">....</b>, <b th:text="${f.blank(company.englishName) ? company.name : company.englishName}"></b> bàn giao và bảo hành thiết bị như sau:</div>
+
+<table class="items">
+  <thead>
+  <tr>
+    <th style="width:7%">STT</th>
+    <th>Tên Thiết bị</th>
+    <th style="width:7%">SL</th>
+    <th style="width:14%">Bảo Hành</th>
+    <th style="width:18%">Số Serial</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr th:each="l : ${lines}">
+    <td class="c" th:text="${l.stt}">1</td>
+    <td th:text="${l.name}">Tên thiết bị</td>
+    <td class="c" th:text="${f.qty2(l.quantity)}">01</td>
+    <td class="c" th:text="${l.warrantyMonths == null ? '' : l.warrantyMonths + ' tháng'}"></td>
+    <td class="c" th:text="${f.blank(l.serial) ? 'No S/N' : l.serial}">No S/N</td>
+  </tr>
+  </tbody>
+</table>
+
+<div style="margin-top:2pt"><b>Ghi chú:</b> <span th:text="${f.blank(note) ? '.' : note}"></span></div>
+
+<div style="margin-top:14pt; font-weight:bold">Điều kiện bảo hành:</div>
+<div>*) Sản phẩm còn nguyên tem Serial.</div>
+<div>*) Sản phẩm bị lỗi kỹ thuật mà được xác định do lỗi của nhà sản xuất.</div>
+<div>*) Thời hạn bảo hành được tính từ ngày bên nhận hàng ký biên bản này.</div>
+<div>*) Bảo hành 1 đổi 1 trong suốt thời gian bảo hành.</div>
+
+<div class="c" style="margin-top:28pt"><b>Địa chỉ tiếp nhận bảo hành:</b> <span th:text="${f.blank(company.warrantyAddressOrAddress()) ? '…………………' : company.warrantyAddressOrAddress()}"></span></div>
+<div class="c" th:text="'Hotline: ' + ${f.blank(company.hotline) ? '…………………' : company.hotline}"></div>
+
+<table style="width:100%; margin-top:26pt">
+  <tr><td class="c" style="width:50%; font-weight:bold">Bên nhận hàng</td><td class="c" style="font-weight:bold">Bên giao hàng</td></tr>
+  <tr><td class="c" style="font-style:italic; padding-top:8pt">(Ký, ghi rõ họ tên)</td><td class="c" style="font-style:italic; padding-top:8pt">(Ký, ghi rõ họ tên)</td></tr>
+</table>
+
+<div class="footer" th:if="${!f.blank(company.slogan)}" th:text="${company.slogan}"></div>
+</body>
+</html>

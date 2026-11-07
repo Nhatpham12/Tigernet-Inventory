@@ -115,6 +115,17 @@ public class ImportReceiptService {
         return importReceiptMapper.toResponse(importReceiptRepository.save(receipt));
     }
 
+    // cộng (chi cho NCC) hoặc trừ (hủy phiếu chi) Paid rồi tính lại Remain/Payment_Status
+    public ImportReceiptEntity adjustPaid(ImportReceiptEntity receipt, BigDecimal delta) {
+        BigDecimal paid = receipt.getPaid().add(delta);
+        if (paid.signum() < 0 || (receipt.getTotalAmount() != null && paid.compareTo(receipt.getTotalAmount()) > 0)) {
+            throw new AppException(ErrorCode.PAID_EXCEEDS_TOTAL);
+        }
+        receipt.setPaid(paid);
+        recalculateMoney(receipt);
+        return importReceiptRepository.save(receipt);
+    }
+
     public ImportReceiptEntity findReceipt(Integer receiptId) {
         return importReceiptRepository.findById(receiptId)
                 .orElseThrow(() -> new AppException(ErrorCode.IMPORT_RECEIPT_NOT_FOUND));
