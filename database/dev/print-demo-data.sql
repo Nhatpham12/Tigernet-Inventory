@@ -72,7 +72,7 @@ INSERT INTO Export_Receipts (ID, Receipt_Code, Customer_ID, Warehouse_ID, Receiv
                              Deposit, Total_Amount, Payment_Status_ID, Paid, Remain, Status, Note, Created_By) VALUES
  (9001, 'PX-MAIN-2026-9001', 9001, @wh, 9001, 'Chị Trần Thị Nhận',
         'VP 19, tầng 3, Tòa nhà Demo Garden, 35 Phố Mẫu, Phường Thanh Xuân, Hà Nội', '0900 000 555',
-        '2026-11-05 14:00:00', '2026-11-07 10:00:00', @vat10, 0, 53130000, @partial, 20000000, 33130000,
+        '2026-11-05 14:00:00', '2026-11-07 10:00:00', @vat10, 0, 48048000, @partial, 20000000, 28048000,
         'EXPORTED', 'Giao hàng qua chành xe, hàng dễ vỡ', @u),
  (9002, 'PX-MAIN-2026-9002', 9002, @wh, NULL, 'Nguyễn Văn Khách',
         '7 Hẻm Thử Nghiệm, Phường 3, Quận Gò Vấp, TP. Hồ Chí Minh', '0900 000 444',
