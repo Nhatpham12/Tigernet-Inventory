@@ -80,9 +80,7 @@ public class WarrantyClaimPrintService {
         m.put("customer", customer);
         m.put("contact", ExportReceiptPrintService.receiver(first, customer));
         m.put("lines", lines);
-        String fileCode = claims.size() == 1 ? claims.get(0).getClaimCode()
-                : claims.get(0).getClaimCode() + "_va_" + (claims.size() - 1) + "_phieu";
         return PrintResponses.of(renderer, "bien_ban_tiep_nhan_bao_hanh", m,
-                "Bien_ban_tiep_nhan_bao_hanh_" + fileCode, format, download);
+                PrintResponses.fileName("Bien_ban_tiep_nhan_bao_hanh", receivedAt), format, download);
     }
 }

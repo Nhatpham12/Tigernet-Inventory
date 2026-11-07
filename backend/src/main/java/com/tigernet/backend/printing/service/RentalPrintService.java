@@ -64,7 +64,7 @@ public class RentalPrintService {
         m.put("deposit", MoneyUtils.orZero(r.getDeposit()));
         m.put("lines", lines);
         return PrintResponses.of(renderer, "bien_ban_ban_giao_thue", m,
-                "Bien_ban_ban_giao_" + (lend ? "cho_muon_" : "cho_thue_") + r.getReceiptCode(), format, download);
+                PrintResponses.fileName(lend ? "Bien_ban_ban_giao_cho_muon" : "Bien_ban_ban_giao_cho_thue", r.getDateOut()), format, download);
     }
 
     @Transactional(readOnly = true)
@@ -103,7 +103,7 @@ public class RentalPrintService {
         m.put("note", t.getNote());
         m.put("lines", lines);
         return PrintResponses.of(renderer, "bien_ban_tra_hang_thue", m,
-                "Bien_ban_tra_hang_" + t.getReceiptCode(), format, download);
+                PrintResponses.fileName("Bien_ban_tra_hang_thue", t.getReturnDate()), format, download);
     }
 
     // mã phiếu đã có tiền tố loại phiếu (CT-/CM-/TH-) thì bỏ đi để số biên bản không bị lặp

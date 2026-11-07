@@ -64,7 +64,7 @@ public class StocktakePrintService {
         if (adjustment) {
             m.put("pages", adjustmentPages(s, adjustments));
             return PrintResponses.of(renderer, "dieu-chinh-ton-kho", m,
-                    "Bien_ban_dieu_chinh_ton_kho_" + s.getStocktakeCode(), format, download);
+                    PrintResponses.fileName("Bien_ban_dieu_chinh_ton_kho", s.getStocktakeDate()), format, download);
         }
 
         // lý do điều chỉnh theo sản phẩm: dòng nào ghi "hỏng" thì tính là hàng mất phẩm chất
@@ -115,7 +115,7 @@ public class StocktakePrintService {
         m.put("goodQtyTotal", goodQty);
         m.put("damagedQtyTotal", damagedQty);
         return PrintResponses.of(renderer, "05-VT_bien_ban_kiem_ke", m,
-                "Bien_ban_kiem_ke_" + s.getStocktakeCode(), format, download);
+                PrintResponses.fileName("Bien_ban_kiem_ke", s.getStocktakeDate()), format, download);
     }
 
     /** Một trang "Biên bản điều chỉnh tồn kho" cho mỗi dòng điều chỉnh. */

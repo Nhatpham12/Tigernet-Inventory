@@ -67,7 +67,7 @@ public class SalesReturnPrintService {
         m.put("payExtra", refund.signum() < 0);
         m.put("refundAbs", refund.abs());
         m.put("note", r.getNote());
-        return PrintResponses.of(renderer, "phieu-tra-doi-hang", m, "Phieu_tra_doi_hang_" + r.getReceiptCode(), format, download);
+        return PrintResponses.of(renderer, "phieu-tra-doi-hang", m, PrintResponses.fileName(r.getReturnType() == com.tigernet.backend.salesreturn.enums.ReturnType.EXCHANGE ? "Phieu_doi_hang" : "Phieu_tra_hang", r.getReturnDate()), format, download);
     }
 
     private String typeText(SalesReturnEntity r) {

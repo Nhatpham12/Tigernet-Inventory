@@ -58,7 +58,7 @@ public class PaymentPrintService {
         m.put("amount", MoneyUtils.orZero(p.getAmount()));
         m.put("createdBy", p.getRecordedBy() != null ? p.getRecordedBy().getFullName() : null);
         return PrintResponses.of(renderer, "TT_phieu_thu_chi", m,
-                (in ? "Phieu_thu_" : "Phieu_chi_") + p.getPaymentCode(), format, download);
+                PrintResponses.fileName(in ? "Phieu_thu" : "Phieu_chi", p.getPaidAt()), format, download);
     }
 
     /** Nợ/Có mặc định: thu tiền bán hàng/cho thuê Nợ 1111 Có 131; chi trả NCC Nợ 331 Có 1111; chuyển khoản thay 1111 bằng 1121. */

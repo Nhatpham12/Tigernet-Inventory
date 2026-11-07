@@ -66,6 +66,6 @@ public class ImportReceiptPrintService {
         m.put("vatLabel", r.getVat() != null ? r.getVat().getVat() : null);
         m.put("total", total);
         m.put("note", r.getNote());
-        return PrintResponses.of(renderer, "01-VT_phieu_nhap_kho", m, "Phieu_nhap_kho_" + r.getReceiptCode(), format, download);
+        return PrintResponses.of(renderer, "01-VT_phieu_nhap_kho", m, PrintResponses.fileName("Phieu_nhap_kho", r.getDateIn()), format, download);
     }
 }

@@ -40,6 +40,6 @@ public class ReconciliationPrintService {
         m.put("to", to);
         m.put("statement", s);
         return PrintResponses.of(renderer, "doi-chieu-cong-no", m,
-                "Bien_ban_doi_chieu_cong_no_" + partyId + "_" + to, format, download);
+                PrintResponses.fileName("Bien_ban_doi_chieu_cong_no", to), format, download);
     }
 }

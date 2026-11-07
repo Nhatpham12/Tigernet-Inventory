@@ -50,15 +50,20 @@ public class ExportReceiptPrintService {
 
         return switch (t) {
             case "delivery" -> PrintResponses.of(renderer, "phieu_gui_hang", delivery(r, receiver, parcels),
-                    "Phieu_gui_hang_" + r.getReceiptCode(), format, download);
+                    PrintResponses.fileName("Phieu_gui_hang", shipDate(r)), format, download);
             case "handover" -> PrintResponses.of(renderer, "bien_ban_ban_giao_bao_hanh", handover(r, customer, receiver),
-                    "Bien_ban_ban_giao_" + r.getReceiptCode(), format, download);
+                    PrintResponses.fileName("Bien_ban_ban_giao_bao_hanh", shipDate(r)), format, download);
             default -> PrintResponses.of(renderer, "02-VT_phieu_xuat_kho", invoice(r, customer, receiver),
-                    "Phieu_xuat_kho_" + r.getReceiptCode(), format, download);
+                    PrintResponses.fileName("Phieu_xuat_kho", r.getDateOut()), format, download);
         };
     }
 
     // người nhận hàng: snapshot trên phiếu, trường nào rỗng thì lấy thông tin khách
+    // giao hàng / bàn giao thực hiện vào ngày giao, chưa có thì lấy ngày xuất
+    static java.time.LocalDateTime shipDate(ExportReceiptEntity r) {
+        return r.getDeliveryDate() != null ? r.getDeliveryDate() : r.getDateOut();
+    }
+
     static PrintParty receiver(ExportReceiptEntity r, PrintParty customer) {
         return new PrintParty(
                 firstNonBlank(r.getReceiverNameSnapshot(), customer.name()),
