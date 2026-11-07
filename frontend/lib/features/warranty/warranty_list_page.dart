@@ -100,7 +100,7 @@ class _WarrantyClaimListPageState extends State<WarrantyClaimListPage> {
       ),
       TableColumnDef(
         label: 'Thao tác',
-        flex: 1,
+        flex: 2,
         minWidth: 140,
         align: Alignment.center,
         cell: (r) => Row(

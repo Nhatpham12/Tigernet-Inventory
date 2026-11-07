@@ -156,7 +156,7 @@ class RentalListPage extends StatelessWidget {
         ),
         TableColumnDef(
           label: 'Thao tác',
-          minWidth: 170,
+          minWidth: 110,
           align: Alignment.center,
           cell: (r) => Row(
             mainAxisSize: MainAxisSize.min,
@@ -173,12 +173,12 @@ class RentalListPage extends StatelessWidget {
                 ],
               ),
               if (!asReport && r['rentalState'] != 'RETURNED')
-                TextButton.icon(
+                IconButton(
+                  tooltip: 'Trả hàng',
                   onPressed: () => context.go(
                     '/app/return-receipts/new?rentalId=${r['id']}',
                   ),
-                  icon: const Icon(Icons.assignment_return_outlined, size: 18),
-                  label: const Text('Trả hàng'),
+                  icon: const Icon(Icons.assignment_return_outlined, size: 20),
                 ),
             ],
           ),
