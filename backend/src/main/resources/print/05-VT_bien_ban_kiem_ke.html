@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="'Biên bản kiểm kê ' + ${code}">Biên bản kiểm kê</title>
+<style>
+  /* Mẫu số 05-VT (TT200/2014/TT-BTC), A4 ngang vì bảng rộng */
+  @page { size: A4 landscape; margin: 10mm 15mm 10mm 15mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 10pt; margin: 0; color: #000; }
+  table { border-collapse: collapse; }
+  .head { width: 100%; }
+  .head td { vertical-align: top; padding: 0; }
+  .company { font-size: 10pt; line-height: 1.25; }
+  .form-no { text-align: center; font-size: 10pt; font-weight: bold; }
+  .form-law { text-align: center; font-size: 8.5pt; font-style: italic; font-weight: normal; }
+  h1 { text-align: center; font-size: 14pt; font-weight: bold; margin: 4pt 0 0 0; }
+  .sub { text-align: center; font-size: 11pt; margin: 2pt 0 0 0; }
+  .info { font-size: 10pt; line-height: 1.5; margin-top: 4pt; }
+  .info table { width: 100%; }
+  .info td { padding: 0; vertical-align: top; }
+  .items { width: 100%; margin-top: 4pt; font-size: 8.5pt; table-layout: fixed; }
+  .items th, .items td { border: 0.75pt solid #000; padding: 2pt 2pt; overflow: hidden; }
+  .items th { font-weight: bold; text-align: center; vertical-align: middle; }
+  .items td { font-size: 9pt; vertical-align: middle; }
+  .items .idx td { text-align: center; font-size: 8.5pt; padding: 1pt; }
+  .num { text-align: right; }
+  .ctr { text-align: center; }
+  .total td { font-weight: bold; }
+  .foot { font-size: 10pt; margin-top: 4pt; line-height: 1.5; }
+  .sign { width: 100%; margin-top: 4pt; font-size: 10pt; page-break-inside: avoid; }
+  .sign td { text-align: center; vertical-align: top; padding: 0; }
+  .sign .t { font-weight: bold; }
+  .sign .s { font-style: italic; font-size: 9pt; }
+</style>
+</head>
+<body>
+<table class="head">
+  <tr>
+    <td style="width:62%" class="company">
+      <div>Đơn vị: <b th:text="${f.blank(company.name) ? '……………………………………' : company.name}">Tên đơn vị</b></div>
+      <div>Địa chỉ: <span th:text="${f.blank(company.address) ? '……………………………………' : company.address}">Địa chỉ</span></div>
+      <div>Bộ phận: <span th:text="${warehouseName}">Kho</span></div>
+    </td>
+    <td style="width:38%">
+      <div class="form-no">Mẫu số 05 – VT</div>
+      <div class="form-law">(Ban hành theo Thông tư số 200/2014/TT-BTC<br/>Ngày 22/12/2014 của Bộ Tài chính)</div>
+    </td>
+  </tr>
+</table>
+
+<h1>BIÊN BẢN KIỂM KÊ VẬT TƯ, CÔNG CỤ, SẢN PHẨM, HÀNG HÓA</h1>
+<div class="sub">Số: <span th:text="${code}">KK-...</span></div>
+
+<div class="info">
+  <div>- Thời điểm kiểm kê <span th:text="${date != null ? #temporals.format(date, 'HH') : '……'}">……</span> giờ
+    <span th:text="${date != null ? #temporals.format(date, 'mm') : '……'}">……</span> phút, ngày
+    <span th:text="${f.day(date)}">……</span> tháng <span th:text="${f.month(date)}">……</span> năm <span th:text="${f.year(date)}">……</span></div>
+  <div>- Ban kiểm kê gồm:</div>
+  <table>
+    <tr>
+      <td style="width:34%">Ông/Bà: ………………………………</td>
+      <td style="width:26%">Chức vụ: ………………………</td>
+      <td style="width:40%">Đại diện: ………………………………… Trưởng ban</td>
+    </tr>
+    <tr>
+      <td>Ông/Bà: ………………………………</td>
+      <td>Chức vụ: ………………………</td>
+      <td>Đại diện: ………………………………… Ủy viên</td>
+    </tr>
+    <tr>
+      <td>Ông/Bà: ………………………………</td>
+      <td>Chức vụ: ………………………</td>
+      <td>Đại diện: ………………………………… Ủy viên</td>
+    </tr>
+  </table>
+  <div>Đã kiểm kê kho có những mặt hàng dưới đây: <span th:text="${warehouseName}"></span></div>
+</div>
+
+<table class="items">
+  <colgroup>
+    <col style="width:3.5%"/><col style="width:19%"/><col style="width:6.5%"/><col style="width:4.5%"/><col style="width:7%"/>
+    <col style="width:4%"/><col style="width:8%"/><col style="width:4%"/><col style="width:8%"/>
+    <col style="width:4%"/><col style="width:7.5%"/><col style="width:4%"/><col style="width:7.5%"/>
+    <col style="width:4%"/><col style="width:4%"/><col style="width:4%"/>
+  </colgroup>
+  <thead>
+  <tr>
+    <th rowspan="3">STT</th>
+    <th rowspan="3">Tên, nhãn hiệu, quy cách vật tư, dụng cụ, sản phẩm, hàng hóa</th>
+    <th rowspan="3">Mã số</th>
+    <th rowspan="3">Đơn vị tính</th>
+    <th rowspan="3">Đơn giá</th>
+    <th colspan="2" rowspan="2">Theo sổ kế toán</th>
+    <th colspan="2" rowspan="2">Theo kiểm kê</th>
+    <th colspan="4">Chênh lệch</th>
+    <th colspan="3" rowspan="2">Phẩm chất</th>
+  </tr>
+  <tr>
+    <th colspan="2">Thừa</th>
+    <th colspan="2">Thiếu</th>
+  </tr>
+  <tr>
+    <th>Số lượng</th><th>Thành tiền</th>
+    <th>Số lượng</th><th>Thành tiền</th>
+    <th>SL</th><th>Thành tiền</th>
+    <th>SL</th><th>Thành tiền</th>
+    <th>Còn tốt 100%</th><th>Kém phẩm chất</th><th>Mất phẩm chất</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr class="idx"><td>A</td><td>B</td><td>C</td><td>D</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td><td>11</td><td>12</td></tr>
+  <tr th:each="r : ${rows}">
+    <td class="ctr" th:text="${r.stt}">1</td>
+    <td th:text="${r.name}">Tên hàng</td>
+    <td class="ctr" th:text="${r.code}">Mã</td>
+    <td class="ctr" th:text="${r.unit}">Chiếc</td>
+    <td class="num" th:text="${f.money(r.unitPrice)}">0</td>
+    <td class="num" th:text="${f.qty(r.bookQty)}">0</td>
+    <td class="num" th:text="${f.money(r.bookAmount)}">0</td>
+    <td class="num" th:text="${f.qty(r.actualQty)}">0</td>
+    <td class="num" th:text="${f.money(r.actualAmount)}">0</td>
+    <td class="num" th:text="${f.qty(r.surplusQty)}"></td>
+    <td class="num" th:text="${f.money(r.surplusAmount)}"></td>
+    <td class="num" th:text="${f.qty(r.shortQty)}"></td>
+    <td class="num" th:text="${f.money(r.shortAmount)}"></td>
+    <td class="num" th:text="${f.qty(r.goodQty)}"></td>
+    <td class="num"></td>
+    <td class="num" th:text="${f.qty(r.damagedQty)}"></td>
+  </tr>
+  <tr class="total">
+    <td></td>
+    <td class="ctr">Cộng</td>
+    <td></td><td></td><td></td>
+    <td class="num" th:text="${f.qty(bookQtyTotal)}">0</td>
+    <td class="num" th:text="${f.money(bookTotal)}">0</td>
+    <td class="num" th:text="${f.qty(actualQtyTotal)}">0</td>
+    <td class="num" th:text="${f.money(actualTotal)}">0</td>
+    <td class="num" th:text="${surplusQtyTotal > 0 ? f.qty(surplusQtyTotal) : ''}"></td>
+    <td class="num" th:text="${surplusTotal.signum() > 0 ? f.money(surplusTotal) : ''}"></td>
+    <td class="num" th:text="${shortQtyTotal > 0 ? f.qty(shortQtyTotal) : ''}"></td>
+    <td class="num" th:text="${shortTotal.signum() > 0 ? f.money(shortTotal) : ''}"></td>
+    <td class="num" th:text="${f.qty(goodQtyTotal)}"></td>
+    <td></td>
+    <td class="num" th:text="${damagedQtyTotal > 0 ? f.qty(damagedQtyTotal) : ''}"></td>
+  </tr>
+  </tbody>
+</table>
+
+<div class="foot">
+  <div>- Ý kiến giải quyết số chênh lệch: ……………………………………………………………………………………………………………………………………………………</div>
+  <div style="text-align:right; font-style:italic" th:text="${f.longDate(null)}">Ngày … tháng … năm …</div>
+</div>
+
+<table class="sign">
+  <tr>
+    <td style="width:25%" class="t">Giám đốc<br/><span style="font-weight:normal; font-style:italic; font-size:9pt">(Ý kiến giải quyết số chênh lệch)</span></td>
+    <td style="width:25%" class="t">Kế toán trưởng</td>
+    <td style="width:25%" class="t">Thủ kho</td>
+    <td style="width:25%" class="t">Trưởng ban kiểm kê</td>
+  </tr>
+  <tr>
+    <td class="s">(Ký, họ tên, đóng dấu)</td>
+    <td class="s">(Ký, họ tên)</td>
+    <td class="s">(Ký, họ tên)</td>
+    <td class="s">(Ký, họ tên)</td>
+  </tr>
+  <tr><td style="height:34pt"></td><td></td><td></td><td></td></tr>
+  <tr>
+    <td></td><td></td>
+    <td th:text="${storekeeper}"></td>
+    <td></td>
+  </tr>
+</table>
+</body>
+</html>
