@@ -85,6 +85,9 @@ public enum ErrorCode {
     PAYMENT_NOT_FOUND(2024, "Payment not found", HttpStatus.NOT_FOUND),
     WARRANTY_CLAIM_NOT_FOUND(2025, "Warranty claim not found", HttpStatus.NOT_FOUND),
     SUPPLIER_RETURN_NOT_FOUND(2026, "Supplier return not found", HttpStatus.NOT_FOUND),
+    PAYMENT_REFERENCE_INVALID(2027, "Payment reference is missing or does not match the direction/party", HttpStatus.BAD_REQUEST),
+    PAYMENT_ALREADY_CANCELLED(2028, "Payment has already been cancelled", HttpStatus.CONFLICT),
+    WARRANTY_STATUS_INVALID(2029, "Warranty claim cannot move to this status from its current status", HttpStatus.CONFLICT),
 
     // 4xxx: in biểu mẫu
     PRINT_TEMPLATE_INVALID(4001, "Unknown print template", HttpStatus.BAD_REQUEST),

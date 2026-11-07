@@ -154,8 +154,7 @@ public class ExportReceiptService {
             throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
         }
         BigDecimal amount = MoneyUtils.round(request.getAmount());
-        receipt.setPaid(receipt.getPaid().add(amount));
-        recalculateMoney(receipt);
+        adjustPaid(receipt, amount);
         recordPaymentEntry(receipt, amount, request.getMethod(), request.getNote());
 
         Map<String, Object> detail = new LinkedHashMap<>();
@@ -166,6 +165,14 @@ public class ExportReceiptService {
         auditLogService.log("PAYMENT", "Export_Receipts", receipt.getId(), detail);
 
         return exportReceiptMapper.toResponse(exportReceiptRepository.save(receipt));
+    }
+
+    // cộng (delta > 0) hoặc trừ (delta < 0, khi hủy phiếu thu) Paid rồi tính lại Remain/Payment_Status;
+    // PaymentManagementService dùng chung để phiếu thu lập từ màn Phiếu thu/chi cập nhật phiếu xuất giống luồng trên
+    public ExportReceiptEntity adjustPaid(ExportReceiptEntity receipt, BigDecimal delta) {
+        receipt.setPaid(receipt.getPaid().add(delta));
+        recalculateMoney(receipt);
+        return exportReceiptRepository.save(receipt);
     }
 
     private void recordPaymentEntry(ExportReceiptEntity receipt, BigDecimal amount,
