@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="'Biên bản trả hàng ' + ${code}">Biên bản trả hàng</title>
+<style>
+  /* Không có bản gốc: dựng cùng phong cách biên bản bàn giao thuê (A4 dọc, TNR 10pt, cùng đầu trang/chân trang) */
+  @page { size: 210mm 297mm; margin: 6.3mm 13.7mm 15.9mm 18.5mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 10pt; margin: 0; color: #000; line-height: 1.15; }
+  table { border-collapse: collapse; }
+  .head { width: 100%; height: 19mm; }
+  .head td { vertical-align: top; padding: 0; font-size: 8pt; line-height: 1.15; }
+  .head .logo { text-align: right; }
+  .head img { max-height: 15mm; max-width: 45mm; }
+  h1 { text-align: center; font-size: 11pt; font-weight: bold; margin: 0; padding: 0; }
+  .c { text-align: center; margin: 0; }
+  .b { font-weight: bold; }
+  p { margin: 0; }
+  .phones { width: 100%; }
+  .phones td { padding: 0; vertical-align: top; }
+  .items { width: 97%; margin: 8pt 0 0 0.5mm; }
+  .items th { background: #B4C6E7; border: 0.75pt solid #000; font-weight: bold; text-align: center; padding: 2pt; }
+  .items td { border: 0.75pt solid #000; padding: 2pt 4pt; vertical-align: top; }
+  .items td.c { text-align: center; }
+  .sum { width: 97%; margin: 10pt 0 0 0.5mm; }
+  .sum td { border: 0.75pt solid #000; padding: 2pt 4pt; }
+  .sum td.r { text-align: right; width: 30%; }
+  .sign { width: 100%; margin-top: 18pt; }
+  .sign td { width: 50%; text-align: center; vertical-align: top; padding: 0; }
+  .sign .s { font-style: italic; margin-top: 12pt; }
+  .foot { position: running(footer); text-align: center; font-size: 9pt; }
+  @page { @bottom-center { content: element(footer); vertical-align: bottom; padding-bottom: 4mm; } }
+</style>
+</head>
+<body>
+<div class="foot" th:text="${company.slogan}">Slogan</div>
+<table class="head">
+  <tr>
+    <td style="width:75%">
+      <div class="b" th:text="${f.blank(company.englishName) ? company.name : company.name + ' | ' + company.englishName}">CÔNG TY | COMPANY</div>
+      <div th:text="'SĐT: ' + ${f.blank(company.phone) ? '……………' : company.phone}">SĐT</div>
+      <div th:text="'Email: ' + ${f.blank(company.email) ? '……………' : company.email} + ' | Web: ' + ${f.blank(company.website) ? '……………' : company.website}">Email | Web</div>
+      <div th:text="'Địa chỉ: ' + ${f.blank(company.address) ? '……………' : company.address}">Địa chỉ</div>
+    </td>
+    <td class="logo" style="width:25%"><img th:if="${logo != null}" th:src="${logo}" alt=""/></td>
+  </tr>
+</table>
+
+<h1 th:text="${lend} ? 'BIÊN BẢN TRẢ HÀNG | TRẢ THIẾT BỊ MƯỢN' : 'BIÊN BẢN TRẢ HÀNG | TRẢ THIẾT BỊ THUÊ'">BIÊN BẢN TRẢ HÀNG</h1>
+<p class="c" th:text="'SỐ: ' + ${docNo}">SỐ: …</p>
+<p class="c">**********</p>
+<p class="b">Bên trả hàng:</p>
+<p><span th:text="${f.blank(customer.taxCode) ? 'Khách hàng:' : 'Công ty:'}">Công ty:</span> <b th:text="${customer.name}">…</b></p>
+<p th:unless="${f.blank(customer.taxCode)}">MST: <span th:text="${f.blank(customer.taxCode) ? '' : customer.taxCode}"></span></p>
+<p><span th:text="${f.blank(customer.taxCode) ? 'Địa chỉ:' : 'Địa chỉ công ty:'}">Địa chỉ công ty:</span> <span th:text="${customer.address}">…</span></p>
+<table class="phones"><tr>
+  <td style="width:52%">Người trả hàng: <span th:text="${returnerName}">…</span></td>
+  <td>Số điện thoại: <span th:text="${returnerPhone}">…</span></td>
+</tr></table>
+<p>Theo phiếu <span th:text="${lend} ? 'cho mượn' : 'cho thuê'">cho thuê</span> số: <b th:text="${rentalCode}">…</b>,
+  ngày <span th:text="${f.dmy(rentalDate)}">…</span>, hạn trả <span th:text="${f.dmy(dueDate)}">…</span></p>
+
+<p style="margin-top:14pt">Hôm nay ngày <b th:text="${f.day(returnDate)}">…</b> tháng <b th:text="${f.month(returnDate)}">…</b> năm <b th:text="${f.year(returnDate)}">…</b>,
+  <b th:text="${f.blank(company.englishName) ? company.name : company.englishName}">…</b>
+  nhận lại thiết bị <span th:text="${lend} ? 'cho mượn' : 'cho thuê'">cho thuê</span> như sau:</p>
+
+<table class="items">
+  <colgroup><col style="width:6%"/><col style="width:37%"/><col style="width:8%"/><col style="width:20%"/><col style="width:29%"/></colgroup>
+  <tr><th>STT</th><th>Tên Thiết bị</th><th>SL</th><th>Số Serial</th><th>Tình trạng khi nhận lại</th></tr>
+  <tr th:each="l : ${lines}">
+    <td class="c" th:text="${l.stt}">1</td>
+    <td th:text="${l.name}">Tên</td>
+    <td class="c" th:text="${f.qty2(l.quantity)}">01</td>
+    <td class="c" th:text="${f.blank(l.serial) ? 'No S/N' : l.serial}">No S/N</td>
+    <td th:text="${f.blank(l.note) ? 'Bình thường' : l.note}">Bình thường</td>
+  </tr>
+</table>
+<p><b>Ghi chú:</b> <span th:text="${f.blank(note) ? '.' : note}">.</span></p>
+<p th:if="${warehouseName != null}">Nhập lại kho: <span th:text="${warehouseName}">…</span><span th:if="${!f.blank(warehouseAddress)}" th:text="' – ' + ${warehouseAddress}"></span></p>
+
+<table class="sum">
+  <tr><td>Số ngày trả quá hạn</td><td class="r" th:text="${daysOverdue} + ' ngày'">0 ngày</td></tr>
+  <tr><td>Tiền phạt quá hạn</td><td class="r" th:text="${f.money(penalty)} + ' đồng'">0</td></tr>
+  <tr><td>Tiền bồi thường hư hỏng / mất thiết bị</td><td class="r" th:text="${f.money(compensation)} + ' đồng'">0</td></tr>
+  <tr th:unless="${lend}"><td>Tiền cọc đã nhận</td><td class="r" th:text="${f.money(deposit)} + ' đồng'">0</td></tr>
+  <tr th:unless="${lend}"><td class="b">Tiền cọc hoàn lại cho khách</td><td class="r b" th:text="${f.money(depositRefund)} + ' đồng'">0</td></tr>
+</table>
+
+<table class="sign">
+  <tr><td class="b">Bên trả hàng</td><td class="b">Bên nhận hàng</td></tr>
+  <tr><td class="s">(Ký, ghi rõ họ tên)</td><td class="s">(Ký, ghi rõ họ tên)</td></tr>
+</table>
+
+</body>
+</html>
