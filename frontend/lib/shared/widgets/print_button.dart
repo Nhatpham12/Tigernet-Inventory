@@ -62,7 +62,10 @@ class PrintButton extends ConsumerWidget {
           PopupMenuItem(
             enabled: false,
             height: 32,
-            child: Text(d.label, style: Theme.of(context).textTheme.labelMedium),
+            child: Text(
+              d.label,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
           ),
         );
       }
@@ -107,4 +110,3 @@ class PrintButton extends ConsumerWidget {
     );
   }
 }
-

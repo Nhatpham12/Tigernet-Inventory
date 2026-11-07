@@ -156,18 +156,30 @@ class RentalListPage extends StatelessWidget {
         ),
         TableColumnDef(
           label: 'Thao tác',
-          flex: 1,
-          minWidth: 80,
+          minWidth: 170,
           align: Alignment.center,
-          cell: (r) => PrintButton(
-            compact: true,
-            docs: [
-              PrintDoc(
-                r['rentalType'] == 'LEND'
-                    ? 'Biên bản bàn giao cho mượn'
-                    : 'Biên bản bàn giao cho thuê',
-                '/bff/api/rental-receipts/${r['id']}/print',
+          cell: (r) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PrintButton(
+                compact: true,
+                docs: [
+                  PrintDoc(
+                    r['rentalType'] == 'LEND'
+                        ? 'Biên bản bàn giao cho mượn'
+                        : 'Biên bản bàn giao cho thuê',
+                    '/bff/api/rental-receipts/${r['id']}/print',
+                  ),
+                ],
               ),
+              if (!asReport && r['rentalState'] != 'RETURNED')
+                TextButton.icon(
+                  onPressed: () => context.go(
+                    '/app/return-receipts/new?rentalId=${r['id']}',
+                  ),
+                  icon: const Icon(Icons.assignment_return_outlined, size: 18),
+                  label: const Text('Trả hàng'),
+                ),
             ],
           ),
         ),

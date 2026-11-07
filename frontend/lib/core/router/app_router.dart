@@ -16,6 +16,9 @@ import '../../features/products/product_form_page.dart';
 import '../../features/products/product_groups_page.dart';
 import '../../features/products/product_list_page.dart';
 import '../../features/rentals/rental_pages.dart';
+import '../../features/return_receipts/return_receipt_pages.dart';
+import '../../features/sales_returns/sales_return_pages.dart';
+import '../../features/stocktakes/stocktake_pages.dart';
 import '../../features/reports/report_pages.dart';
 import '../../features/warranty/warranty_detail_page.dart';
 import '../../features/warranty/warranty_form_page.dart';
@@ -117,7 +120,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             '/app/export-receipts/new',
             (_) => const ExportReceiptFormPage(),
           ),
-          page('/app/sales-returns', (_) => const SalesReturnListPage()),
           page(
             '/app/rentals',
             (s) => RentalListPage(
@@ -140,9 +142,47 @@ final routerProvider = Provider<GoRouter>((ref) {
             '/app/lends/new',
             (_) => const RentalFormPage(kind: RentalKind.lend),
           ),
+          // Kiểm kê
+          page('/app/stocktakes', (_) => const StocktakeListPage()),
+          page('/app/stocktakes/new', (_) => const StocktakeFormPage()),
+          page(
+            '/app/stocktakes/:id',
+            (s) => StocktakeDetailPage(
+              key: ValueKey(s.pathParameters['id']),
+              id: int.parse(s.pathParameters['id']!),
+            ),
+          ),
+          // Đổi trả hàng bán
+          page('/app/sales-returns', (_) => const SalesReturnListPage()),
+          page(
+            '/app/sales-returns/new',
+            (s) => SalesReturnFormPage(
+              exportReceiptId: int.tryParse(
+                s.uri.queryParameters['exportReceiptId'] ?? '',
+              ),
+            ),
+          ),
+          page(
+            '/app/sales-returns/:id',
+            (s) =>
+                SalesReturnDetailPage(id: int.parse(s.pathParameters['id']!)),
+          ),
+          // Trả hàng thuê / mượn
+          page('/app/return-receipts', (_) => const ReturnReceiptListPage()),
+          page(
+            '/app/return-receipts/new',
+            (s) => ReturnReceiptFormPage(
+              key: ValueKey(s.uri.query),
+              rentalId: int.tryParse(s.uri.queryParameters['rentalId'] ?? ''),
+            ),
+          ),
+          page(
+            '/app/return-receipts/:id',
+            (s) =>
+                ReturnReceiptDetailPage(id: int.parse(s.pathParameters['id']!)),
+          ),
           page('/app/transfers', (_) => const TransferListPage()),
           page('/app/warehouses', (_) => const WarehouseListPage()),
-          page('/app/stocktakes', (_) => const StocktakeListPage()),
           page('/app/reports/stock', (_) => const StockReportPage()),
           page('/app/reports/movements', (_) => const MovementReportPage()),
           page('/app/reports/receivables', (_) => const ReceivablesPage()),

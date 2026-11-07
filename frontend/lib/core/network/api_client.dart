@@ -79,11 +79,15 @@ class ApiClient {
   /// filename*=UTF-8''... được ưu tiên hơn filename="...".
   static String? fileNameFromDisposition(String? header) {
     if (header == null) return null;
-    final star = RegExp(r"filename\*=UTF-8''([^;]+)", caseSensitive: false)
-        .firstMatch(header);
+    final star = RegExp(
+      r"filename\*=UTF-8''([^;]+)",
+      caseSensitive: false,
+    ).firstMatch(header);
     if (star != null) return Uri.decodeComponent(star.group(1)!.trim());
-    final plain = RegExp(r'filename="?([^";]+)"?', caseSensitive: false)
-        .firstMatch(header);
+    final plain = RegExp(
+      r'filename="?([^";]+)"?',
+      caseSensitive: false,
+    ).firstMatch(header);
     return plain?.group(1)?.trim();
   }
 
