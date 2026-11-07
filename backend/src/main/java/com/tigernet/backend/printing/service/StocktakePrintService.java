@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,9 +62,9 @@ public class StocktakePrintService {
         m.put("createdBy", s.getCreatedBy() != null ? s.getCreatedBy().getFullName() : null);
 
         if (adjustment) {
-            m.put("lines", adjustmentLines(s, adjustments));
+            m.put("pages", adjustmentPages(s, adjustments));
             return PrintResponses.of(renderer, "dieu-chinh-ton-kho", m,
-                    "Phieu_dieu_chinh_ton_kho_" + s.getStocktakeCode(), format, download);
+                    "Bien_ban_dieu_chinh_ton_kho_" + s.getStocktakeCode(), format, download);
         }
 
         // lý do điều chỉnh theo sản phẩm: dòng nào ghi "hỏng" thì tính là hàng mất phẩm chất
@@ -117,23 +118,47 @@ public class StocktakePrintService {
                 "Bien_ban_kiem_ke_" + s.getStocktakeCode(), format, download);
     }
 
-    private List<PrintLine> adjustmentLines(StocktakeEntity s, List<StockAdjustmentEntity> adjustments) {
+    /** Một trang "Biên bản điều chỉnh tồn kho" cho mỗi dòng điều chỉnh. */
+    public record AdjustmentPage(String number, String productCode, String productName, String unit,
+                                 Integer before, Integer after, String reason, int dotLines, LocalDate date) {
+    }
+
+    // ô "Lý do điều chỉnh" của bản gốc có 4 dòng chấm; khoảng 85 ký tự cỡ 13pt trên một dòng A5 ngang
+    static final int REASON_LINES = 4;
+    static final int REASON_CHARS_PER_LINE = 85;
+
+    static int dotLines(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return REASON_LINES;
+        }
+        int used = (reason.strip().length() + REASON_CHARS_PER_LINE - 1) / REASON_CHARS_PER_LINE;
+        return Math.max(1, REASON_LINES - used);
+    }
+
+    private List<AdjustmentPage> adjustmentPages(StocktakeEntity s, List<StockAdjustmentEntity> adjustments) {
         Map<Integer, StocktakeDetailEntity> byProduct = new HashMap<>();
         for (StocktakeDetailEntity d : s.getDetails()) {
             byProduct.put(d.getProduct().getId(), d);
         }
         List<StockAdjustmentEntity> sorted = new ArrayList<>(adjustments);
         sorted.sort((a, b) -> Integer.compare(a.getId(), b.getId()));
-        List<PrintLine> lines = new ArrayList<>();
+        List<AdjustmentPage> pages = new ArrayList<>();
         int stt = 1;
         for (StockAdjustmentEntity a : sorted) {
             StocktakeDetailEntity d = byProduct.get(a.getProduct().getId());
-            // quantity = SL trước điều chỉnh, quantityActual = SL sau; số phiếu kiểm kê không lưu serial nên để trống
+            // tồn sau điều chỉnh = số thực tế kiểm kê; tồn trước = sau − số điều chỉnh
             Integer after = d != null ? d.getActualQty() : null;
             Integer before = after != null ? after - a.getAdjustQty() : null;
-            lines.add(new PrintLine(stt++, a.getProduct().getProductName(), PrintLine.productCode(a.getProduct()),
-                    a.getProduct().getUnit(), null, before, after, null, null, null, a.getReason()));
+            LocalDate date = a.getCreatedAt() != null ? a.getCreatedAt().toLocalDate() : null;
+            pages.add(new AdjustmentPage(String.format("%s-ĐC%02d", s.getStocktakeCode(), stt++),
+                    PrintLine.productCode(a.getProduct()), a.getProduct().getProductName(), a.getProduct().getUnit(),
+                    before, after, a.getReason(), dotLines(a.getReason()), date));
         }
-        return lines;
+        if (pages.isEmpty()) {
+            // chưa có điều chỉnh: in 1 biên bản trống để điền tay
+            pages.add(new AdjustmentPage(s.getStocktakeCode() + "-ĐC", null, null, null, null, null, null,
+                    REASON_LINES, null));
+        }
+        return pages;
     }
 }

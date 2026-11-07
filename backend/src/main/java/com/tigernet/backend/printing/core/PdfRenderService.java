@@ -29,18 +29,27 @@ import java.util.Map;
 
 /**
  * Dựng biểu mẫu: template Thymeleaf trong resources/print/*.html → HTML → PDF (openhtmltopdf).
- * Template viết CSS khổ giấy bằng @page; font Times New Roman được thay bằng Liberation Serif
- * (cùng kích thước chữ, giấy phép SIL OFL) nhúng trong resources/fonts để chạy được trên server Linux.
+ * Template viết CSS khổ giấy bằng @page. Font của Word được thay bằng font mã nguồn mở cùng kích thước chữ
+ * (giấy phép SIL OFL), nhúng trong resources/fonts để chạy được trên server Linux:
  */
 @Slf4j
 @Service
 @EnableConfigurationProperties(CompanyProperties.class)
 public class PdfRenderService {
+    // {file, weight, style, tên font trong CSS...}: font mã nguồn mở cùng kích thước chữ với font của Word
     private static final String[][] FONTS = {
-            {"LiberationSerif-Regular.ttf", "400", "NORMAL"},
-            {"LiberationSerif-Bold.ttf", "700", "NORMAL"},
-            {"LiberationSerif-Italic.ttf", "400", "ITALIC"},
-            {"LiberationSerif-BoldItalic.ttf", "700", "ITALIC"},
+            {"LiberationSerif-Regular.ttf", "400", "NORMAL", "Times New Roman", "Liberation Serif", "serif"},
+            {"LiberationSerif-Bold.ttf", "700", "NORMAL", "Times New Roman", "Liberation Serif", "serif"},
+            {"LiberationSerif-Italic.ttf", "400", "ITALIC", "Times New Roman", "Liberation Serif", "serif"},
+            {"LiberationSerif-BoldItalic.ttf", "700", "ITALIC", "Times New Roman", "Liberation Serif", "serif"},
+            {"LiberationSans-Regular.ttf", "400", "NORMAL", "Arial", "Liberation Sans", "sans-serif"},
+            {"LiberationSans-Bold.ttf", "700", "NORMAL", "Arial", "Liberation Sans", "sans-serif"},
+            {"LiberationSans-Italic.ttf", "400", "ITALIC", "Arial", "Liberation Sans", "sans-serif"},
+            {"LiberationSans-BoldItalic.ttf", "700", "ITALIC", "Arial", "Liberation Sans", "sans-serif"},
+            {"Carlito-Regular.ttf", "400", "NORMAL", "Calibri", "Carlito"},
+            {"Carlito-Bold.ttf", "700", "NORMAL", "Calibri", "Carlito"},
+            {"Carlito-Italic.ttf", "400", "ITALIC", "Calibri", "Carlito"},
+            {"Carlito-BoldItalic.ttf", "700", "ITALIC", "Calibri", "Carlito"},
     };
 
     private final TemplateEngine engine;
@@ -80,9 +89,9 @@ public class PdfRenderService {
                 PdfRendererBuilder.FontStyle style = PdfRendererBuilder.FontStyle.valueOf(font[2]);
                 int weight = Integer.parseInt(font[1]);
                 // khai báo cùng 1 file dưới các tên mà biểu mẫu Word hay dùng
-                builder.useFont(file, "Times New Roman", weight, style, true);
-                builder.useFont(file, "Liberation Serif", weight, style, true);
-                builder.useFont(file, "serif", weight, style, true);
+                for (int i = 3; i < font.length; i++) {
+                    builder.useFont(file, font[i], weight, style, true);
+                }
             }
             builder.withW3cDocument(new W3CDom().fromJsoup(Jsoup.parse(html)), "/");
             builder.toStream(out);

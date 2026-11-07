@@ -21,7 +21,8 @@ public record CompanyProperties(
         String representativeTitle,
         String warrantyAddress, // địa chỉ tiếp nhận bảo hành
         String hotline,
-        String slogan           // dòng chân trang biên bản bàn giao
+        String slogan,          // dòng chân trang biên bản bàn giao
+        String place            // nơi lập biên bản, VD "Diên Lạc" trong "Diên Lạc, ngày … tháng … năm …"
 ) {
     public String warrantyAddressOrAddress() {
         return warrantyAddress != null && !warrantyAddress.isBlank() ? warrantyAddress : address;

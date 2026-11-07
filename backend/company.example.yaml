@@ -16,3 +16,4 @@ tigernet:
     warranty-address: ""           # địa chỉ tiếp nhận bảo hành; trống thì dùng address
     hotline: ""
     slogan: ""                     # dòng chân trang biên bản bàn giao
+    place: ""                      # nơi lập biên bản: "<nơi>, ngày … tháng … năm …"

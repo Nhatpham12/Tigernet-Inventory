@@ -2,102 +2,68 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head>
 <meta charset="UTF-8"/>
-<title th:text="'Phiếu điều chỉnh tồn kho ' + ${code}">Phiếu điều chỉnh tồn kho</title>
+<title th:text="'Biên bản điều chỉnh tồn kho ' + ${code}">Biên bản điều chỉnh tồn kho</title>
 <style>
-  @page { size: A4 portrait; margin: 16mm 15mm 16mm 20mm; }
-  body { font-family: 'Times New Roman', serif; font-size: 10.5pt; margin: 0; color: #000; }
+  /* Bản gốc: Mẫu Biên bản điều chỉnh tồn kho (Word), A5 ngang, lề T/B/L/R = 25.4/15.9/18.5/13.7 mm, đầu trang cách mép 6.35 mm.
+     Mỗi dòng điều chỉnh in thành 1 biên bản (1 trang), giống bản gốc chỉ có 1 mã hàng. */
+  @page { size: 210mm 148mm; margin: 6mm 13.7mm 15.9mm 18.5mm;
+    @bottom-center { content: element(footer); vertical-align: bottom; padding-bottom: 5mm; } }
+  body { font-family: 'Times New Roman', serif; font-size: 10pt; margin: 0; color: #000; line-height: 1.08; }
   table { border-collapse: collapse; }
+  .page { page-break-after: always; }
+  .page.last { page-break-after: auto; }
   .head { width: 100%; }
-  .head td { vertical-align: top; padding: 0; }
-  .company { font-size: 10pt; line-height: 1.25; }
-  .form-no { text-align: center; font-size: 10pt; font-weight: bold; }
-  .form-law { text-align: center; font-size: 9pt; font-style: italic; }
-  h1 { text-align: center; font-size: 15pt; font-weight: bold; margin: 10pt 0 0 0; }
-  .sub { text-align: center; font-style: italic; margin: 2pt 0 0 0; }
-  .info { margin-top: 10pt; line-height: 1.6; }
-  .items { width: 100%; margin-top: 8pt; font-size: 9pt; table-layout: fixed; }
-  .items th, .items td { border: 0.75pt solid #000; padding: 3pt 3pt; overflow: hidden; }
-  .items th { text-align: center; vertical-align: middle; font-weight: bold; }
-  .items td { vertical-align: middle; }
-  .num { text-align: right; }
-  .ctr { text-align: center; }
-  .sign { width: 100%; margin-top: 14pt; page-break-inside: avoid; }
-  .sign td { text-align: center; vertical-align: top; padding: 0; }
-  .sign .t { font-weight: bold; }
-  .sign .s { font-style: italic; font-size: 9pt; }
+  .head td { vertical-align: top; padding: 0; font-size: 8pt; line-height: 1.15; }
+  .logo { text-align: right; padding-right: 30pt !important; }
+  .logo img { height: 52pt; }
+  h1 { text-align: center; font-size: 11pt; font-weight: bold; margin: 15pt 0 0 0; }
+  .c { text-align: center; }
+  .fields { font-size: 13pt; margin-top: 20pt; line-height: 1.23; }
+  .fields b { font-weight: bold; }
+  .dots { white-space: nowrap; overflow: hidden; font-weight: bold; }
+  .fields .dots { line-height: 1.38; }
+  .place { margin-top: 8pt; padding-left: 50%; }
+  .sign { width: 100%; margin-top: 10pt; }
+  .sign td { padding: 0; vertical-align: top; font-weight: bold; }
+  .sign .s td { font-weight: normal; font-style: italic; padding-top: 12pt; }
+  .footer { position: running(footer); text-align: center; font-size: 9pt; }
 </style>
 </head>
 <body>
-<table class="head">
-  <tr>
-    <td style="width:60%" class="company">
-      <div><b th:text="${f.blank(company.name) ? '……………………………………' : company.name}">Tên đơn vị</b></div>
-      <div th:text="'Địa chỉ: ' + ${f.blank(company.address) ? '……………………………………' : company.address}">Địa chỉ</div>
-      <div th:text="'Bộ phận: ' + ${warehouseName}">Kho</div>
-    </td>
-    <td style="width:40%">
-      <div class="form-no" th:text="'Số: ' + ${code} + '-ĐC'">Số</div>
-      <div class="form-law">(Mẫu nội bộ)</div>
-    </td>
-  </tr>
-</table>
+<div class="footer" th:if="${!f.blank(company.slogan)}" th:text="${company.slogan}"></div>
 
-<h1>PHIẾU ĐIỀU CHỈNH TỒN KHO</h1>
-<div class="sub">Biên bản xử lý hàng hư hỏng, mất</div>
+<div th:each="p, it : ${pages}" th:class="${it.last ? 'page last' : 'page'}">
+  <table class="head">
+    <tr>
+      <td style="width:72%">
+        <div style="font-weight:bold" th:text="${f.blank(company.name) ? '' : company.name + (f.blank(company.englishName) ? '' : ' | ' + company.englishName)}"></div>
+        <div th:text="'SĐT: ' + ${f.blank(company.phone) ? '…………………' : company.phone}"></div>
+        <div th:text="'Email: ' + ${f.blank(company.email) ? '…………………' : company.email} + ' | Web: ' + ${f.blank(company.website) ? '…………………' : company.website}"></div>
+        <div th:text="'Địa chỉ: ' + ${f.blank(company.address) ? '…………………' : company.address}"></div>
+      </td>
+      <td class="logo"><img th:if="${logo != null}" th:src="${logo}" alt=""/></td>
+    </tr>
+  </table>
 
-<div class="info">
-  <div>- Căn cứ biên bản kiểm kê số: <b th:text="${code}">KK-...</b>, kiểm kê ngày <span th:text="${f.dmy(date)}"></span></div>
-  <div>- Kho: <b th:text="${warehouseName}"></b><span th:if="${!f.blank(warehouseAddress)}"> – <span th:text="${warehouseAddress}"></span></span></div>
-  <div>- Nay điều chỉnh số lượng tồn kho theo kết quả kiểm kê như sau:</div>
+  <h1>BIÊN BẢN ĐIỀU CHỈNH TỒN KHO</h1>
+  <div class="c"><b>SỐ:</b> <i th:text="${p.number}">BBDCTK</i></div>
+  <div class="c">**********</div>
+
+  <div class="fields">
+    <div><b>Mã hàng hóa:</b> <span th:if="${p.productCode != null}" th:text="${p.productCode + ' – ' + p.productName}"></span><span th:if="${p.productCode == null}" class="dots">…………………………………………………………………………………</span></div>
+    <div><b>Số lượng tồn trước khi điều chỉnh:</b> <span th:text="${p.before == null ? '…………………………………' : f.qty(p.before) + ' ' + (p.unit == null ? '' : p.unit)}"></span></div>
+    <div><b>Số lượng tồn sau khi điều chỉnh:</b> <span th:text="${p.after == null ? '…………………………………' : f.qty(p.after) + ' ' + (p.unit == null ? '' : p.unit)}"></span></div>
+    <div><b>Lý do điều chỉnh:</b></div>
+    <div th:if="${!f.blank(p.reason)}" th:text="${p.reason}"></div>
+    <div class="dots" th:each="i : ${#numbers.sequence(1, p.dotLines)}">………………………………………………………………………………………………………………………………………………</div>
+  </div>
+
+  <div class="place" th:text="${(f.blank(company.place) ? '………………' : company.place) + ', ' + f.longDate(p.date).substring(0, 1).toLowerCase() + f.longDate(p.date).substring(1)}">…, ngày … tháng … năm …</div>
+  <div style="font-weight:bold; margin-top:2pt">Xác nhận của các bên:</div>
+  <table class="sign">
+    <tr><td style="width:36%">Thủ kho</td><td style="width:30%; padding-left:6pt">Kế toán</td><td class="c">Giám đốc</td></tr>
+    <tr class="s"><td>(Ký, họ tên)</td><td>(Ký, họ tên)</td><td class="c">(Ký, đóng dấu, họ tên)</td></tr>
+  </table>
 </div>
-
-<table class="items">
-  <colgroup>
-    <col style="width:5%"/><col style="width:24%"/><col style="width:9%"/><col style="width:7%"/><col style="width:9%"/>
-    <col style="width:8%"/><col style="width:8%"/><col style="width:9%"/><col style="width:21%"/>
-  </colgroup>
-  <thead>
-  <tr>
-    <th>STT</th><th>Tên hàng</th><th>Mã số</th><th>ĐVT</th><th>Serial</th>
-    <th>SL trước điều chỉnh</th><th>SL sau</th><th>Chênh lệch</th><th>Lý do / hướng xử lý</th>
-  </tr>
-  </thead>
-  <tbody>
-  <tr th:each="l : ${lines}">
-    <td class="ctr" th:text="${l.stt}">1</td>
-    <td th:text="${l.name}">Tên hàng</td>
-    <td class="ctr" th:text="${l.code}">Mã</td>
-    <td class="ctr" th:text="${l.unit}">Chiếc</td>
-    <td class="ctr" th:text="${l.serial}"></td>
-    <td class="num" th:text="${f.qty(l.quantity)}"></td>
-    <td class="num" th:text="${f.qty(l.quantityActual)}"></td>
-    <td class="num"><b th:text="${(l.quantity != null and l.quantityActual != null) ? (l.quantityActual - l.quantity > 0 ? '+' : '') + (l.quantityActual - l.quantity) : ''}"></b></td>
-    <td th:text="${l.note}"></td>
-  </tr>
-  <tr th:if="${#lists.isEmpty(lines)}">
-    <td colspan="9" class="ctr"><i>Không có chênh lệch cần điều chỉnh</i></td>
-  </tr>
-  </tbody>
-</table>
-
-<div style="text-align:right; font-style:italic; margin-top:8pt" th:text="${f.longDate(null)}">Ngày … tháng … năm …</div>
-
-<table class="sign">
-  <tr>
-    <td style="width:25%" class="t">Người lập</td>
-    <td style="width:25%" class="t">Thủ kho</td>
-    <td style="width:25%" class="t">Kế toán</td>
-    <td style="width:25%" class="t">Giám đốc (duyệt)</td>
-  </tr>
-  <tr>
-    <td class="s">(Ký, họ tên)</td><td class="s">(Ký, họ tên)</td><td class="s">(Ký, họ tên)</td><td class="s">(Ký, họ tên, đóng dấu)</td>
-  </tr>
-  <tr><td style="height:56pt"></td><td></td><td></td><td></td></tr>
-  <tr>
-    <td th:text="${createdBy}"></td>
-    <td th:text="${storekeeper}"></td>
-    <td></td><td></td>
-  </tr>
-</table>
 </body>
 </html>

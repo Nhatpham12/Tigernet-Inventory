@@ -54,3 +54,4 @@ tigernet:
     warranty-address: ${COMPANY_WARRANTY_ADDRESS:}
     hotline: ${COMPANY_HOTLINE:}
     slogan: ${COMPANY_SLOGAN:}
+    place: ${COMPANY_PLACE:}
