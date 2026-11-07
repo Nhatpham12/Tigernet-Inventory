@@ -120,6 +120,21 @@ const kMainMenu = <MenuGroup>[
       MenuLink('Tạo phiếu cho mượn', '/app/lends/new', roles: {_bh, _ql, _qt}),
     ],
   ),
+  // Bảo hành
+  MenuGroup(
+    label: 'Bảo hành',
+    icon: Icons.build_circle_outlined,
+    roles: {_tk, _bh, _ql, _qt},
+    children: [
+      MenuLink('Danh sách phiếu bảo hành', '/app/warranty-claims'),
+      MenuLink(
+        'Tiếp nhận bảo hành',
+        '/app/warranty-claims/new',
+        roles: {_tk, _bh, _ql, _qt},
+      ),
+    ],
+  ),
+  // hết Bảo hành
   MenuGroup(
     label: 'Kho',
     icon: Icons.warehouse_outlined,
