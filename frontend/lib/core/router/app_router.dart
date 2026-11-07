@@ -10,6 +10,8 @@ import '../../features/export_receipts/export_receipt_pages.dart';
 import '../../features/import_receipts/import_receipt_pages.dart';
 import '../../features/inventory/inventory_pages.dart';
 import '../../features/partners/partner_pages.dart';
+import '../../features/payments/payment_pages.dart';
+import '../../features/payments/reconciliation_page.dart';
 import '../../features/products/product_form_page.dart';
 import '../../features/products/product_groups_page.dart';
 import '../../features/products/product_list_page.dart';
@@ -162,6 +164,26 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           // hết Bảo hành
+          // Thu chi + đối chiếu công nợ
+          page(
+            '/app/payments',
+            (s) => PaymentListPage(
+              initialDirection: s.uri.queryParameters['direction'],
+            ),
+          ),
+          page(
+            '/app/payments/new',
+            (s) => PaymentFormPage(
+              key: ValueKey(s.uri.query),
+              direction: s.uri.queryParameters['direction'] == 'OUT'
+                  ? 'OUT'
+                  : 'IN',
+            ),
+          ),
+          page(
+            '/app/reports/reconciliation',
+            (_) => const ReconciliationPage(),
+          ),
           page('/app/users', (_) => const UserListPage()),
           page('/app/settings', (_) => const SettingsPage()),
           page('/app/403', (_) => const ForbiddenPage()),
