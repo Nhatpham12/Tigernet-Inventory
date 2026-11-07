@@ -15,6 +15,9 @@ import '../../features/products/product_groups_page.dart';
 import '../../features/products/product_list_page.dart';
 import '../../features/rentals/rental_pages.dart';
 import '../../features/reports/report_pages.dart';
+import '../../features/warranty/warranty_detail_page.dart';
+import '../../features/warranty/warranty_form_page.dart';
+import '../../features/warranty/warranty_list_page.dart';
 import '../../shared/feedback/state_views.dart';
 import '../../shared/layout/app_shell.dart';
 import '../auth/session.dart';
@@ -145,6 +148,20 @@ final routerProvider = Provider<GoRouter>((ref) {
             '/app/reports/rentals',
             (_) => const RentalListPage(kind: null, asReport: true),
           ),
+          // Bảo hành
+          page('/app/warranty-claims', (_) => const WarrantyClaimListPage()),
+          page(
+            '/app/warranty-claims/new',
+            (_) => const WarrantyClaimFormPage(),
+          ),
+          page(
+            '/app/warranty-claims/:id',
+            (s) => WarrantyClaimDetailPage(
+              key: ValueKey(s.pathParameters['id']),
+              claimId: int.parse(s.pathParameters['id']!),
+            ),
+          ),
+          // hết Bảo hành
           page('/app/users', (_) => const UserListPage()),
           page('/app/settings', (_) => const SettingsPage()),
           page('/app/403', (_) => const ForbiddenPage()),

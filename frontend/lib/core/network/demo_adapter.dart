@@ -48,6 +48,9 @@ class DemoAdapter implements HttpClientAdapter {
       });
     }
 
+    final warranty = _warranty(method, path, query, options.data);
+    if (warranty != null) return _json({'code': 1000, 'result': warranty});
+
     if (method != 'GET') {
       final data = options.data;
       return _json({
@@ -82,6 +85,233 @@ class DemoAdapter implements HttpClientAdapter {
         'totalPages': 1,
       },
     });
+  }
+
+  // ---- Bảo hành (dữ liệu giả, giữ trong bộ nhớ để thử luồng tiếp nhận/đổi trạng thái) ----
+  static final List<Map<String, dynamic>> _sold = [
+    _soldLine(
+      1,
+      'PX-HCM-2026-0001',
+      'Router Wifi 6 AX3000',
+      'SN-RT-0001',
+      2,
+      'Nguyễn Minh Anh',
+      '2026-03-10',
+      24,
+    ),
+    _soldLine(
+      2,
+      'PX-HCM-2026-0001',
+      'Camera IP 4MP',
+      'SN-CAM-0002',
+      2,
+      'Nguyễn Minh Anh',
+      '2026-03-10',
+      12,
+    ),
+    _soldLine(
+      3,
+      'PX-MAIN-2026-0007',
+      'Switch 8 Port',
+      'SN-SW-0003',
+      1,
+      'Công ty Hoàng Long',
+      '2025-01-15',
+      12,
+    ),
+    _soldLine(
+      4,
+      'PX-HN-2026-0003',
+      'Bộ phát 4G',
+      'SN-4G-0004',
+      3,
+      'Trần Quốc Bảo',
+      '2026-08-20',
+      18,
+    ),
+  ];
+
+  static Map<String, dynamic> _soldLine(
+    int id,
+    String receipt,
+    String product,
+    String serial,
+    int customerId,
+    String customer,
+    String dateOut,
+    int months,
+  ) {
+    final d = DateTime.parse(dateOut);
+    final expiry = DateTime(d.year, d.month + months, d.day);
+    return {
+      'exportDetailId': id,
+      'exportReceiptId': id <= 2 ? 1 : id,
+      'exportReceiptCode': receipt,
+      'productId': id,
+      'productName': product,
+      'serial': serial,
+      'quantity': 1,
+      'customerId': customerId,
+      'customerName': customer,
+      'dateOut': '${dateOut}T09:00:00',
+      'warrantyMonths': months,
+      'warrantyExpiry': expiry.toIso8601String().substring(0, 10),
+      'inWarranty': expiry.isAfter(DateTime.now()),
+      'inventoryId': id,
+    };
+  }
+
+  static final List<Map<String, dynamic>> _claims = [
+    _claim(
+      1,
+      'BH-HCM-2026-0001',
+      _sold[0],
+      'SENT',
+      '2026-10-28T10:00:00',
+      'Router mất sóng 5GHz',
+    ),
+    _claim(
+      2,
+      'BH-HCM-2026-0002',
+      _sold[1],
+      'RECEIVED',
+      '2026-11-05T14:30:00',
+      'Camera không lên hình',
+    ),
+    _claim(
+      3,
+      'BH-MAIN-2026-0001',
+      _sold[2],
+      'REJECTED',
+      '2026-11-02T09:15:00',
+      'Cháy nguồn, hết hạn bảo hành',
+    ),
+    _claim(
+      4,
+      'BH-HN-2026-0001',
+      _sold[3],
+      'CLOSED',
+      '2026-09-10T08:00:00',
+      'Không nhận SIM',
+    ),
+  ];
+
+  static Map<String, dynamic> _claim(
+    int id,
+    String code,
+    Map<String, dynamic> sold,
+    String status,
+    String at,
+    String note,
+  ) => {
+    'id': id,
+    'claimCode': code,
+    'exportDetailId': sold['exportDetailId'],
+    'exportReceiptCode': sold['exportReceiptCode'],
+    'customerId': sold['customerId'],
+    'customerName': sold['customerName'],
+    'productName': sold['productName'],
+    'serial': sold['serial'],
+    'receivedWarehouseId': 2,
+    'receivedWarehouseName': 'Kho TP.HCM',
+    'status': status,
+    'receivedAt': at,
+    'sentAt': status == 'RECEIVED' || status == 'REJECTED' ? null : at,
+    'returnedAt': status == 'CLOSED' ? at : null,
+    'result': status == 'CLOSED' ? 'REPAIRED' : null,
+    'cost': status == 'CLOSED' ? 0 : null,
+    'replacementSerial': null,
+    'newWarrantyExpiry': null,
+    'note': note,
+    'handledByName': 'Nguyễn Văn A',
+    'warrantyExpiry': sold['warrantyExpiry'],
+  };
+
+  /// Trả về null nếu không phải đường dẫn bảo hành.
+  static Object? _warranty(
+    String method,
+    String path,
+    Map<String, String> q,
+    Object? data,
+  ) {
+    const base = '/bff/api/warranty-claims';
+    if (path == '/bff/warranty-claims' && method == 'GET') {
+      return _page(_claims, q);
+    }
+    if (path == '/bff/api/export-receipts' && method == 'GET') {
+      return [
+        {
+          'id': 1,
+          'receiptCode': 'PX-HCM-2026-0001',
+          'customerName': 'Nguyễn Minh Anh',
+        },
+        {
+          'id': 3,
+          'receiptCode': 'PX-MAIN-2026-0007',
+          'customerName': 'Công ty Hoàng Long',
+        },
+      ];
+    }
+    if (!path.startsWith(base)) return null;
+    final rest = path.substring(base.length);
+    if (rest == '/lookup') {
+      if (q['exportReceiptId'] != null) {
+        return _sold
+            .where((s) => '${s['exportReceiptId']}' == q['exportReceiptId'])
+            .toList();
+      }
+      return _sold.firstWhere(
+        (s) =>
+            s['serial'].toString().toLowerCase() ==
+            (q['serial'] ?? '').toLowerCase(),
+        orElse: () => _sold[0],
+      );
+    }
+    if (rest.endsWith('/print')) return null;
+    if (rest.isEmpty) {
+      if (method == 'POST' && data is Map) {
+        final sold = _sold.firstWhere(
+          (s) => s['exportDetailId'] == data['exportDetailId'],
+        );
+        final id = _claims.length + 1;
+        final c = _claim(
+          id,
+          'BH-HCM-2026-${id.toString().padLeft(4, '0')}',
+          sold,
+          'RECEIVED',
+          '${data['receivedAt'] ?? DateTime.now().toIso8601String()}',
+          '${data['note'] ?? ''}',
+        );
+        _claims.add(c);
+        return c;
+      }
+      return _claims.where((c) {
+        for (final k in ['status', 'customerId']) {
+          if (q[k] != null && '${c[k]}' != q[k]) return false;
+        }
+        return true;
+      }).toList();
+    }
+    final m = RegExp(r'^/(\d+)(/status)?$').firstMatch(rest);
+    if (m == null) return null;
+    final claim = _claims.firstWhere((c) => '${c['id']}' == m.group(1));
+    if (m.group(2) != null && data is Map) {
+      final now = DateTime.now().toIso8601String();
+      claim['status'] = data['status'];
+      if (data['status'] == 'SENT') claim['sentAt'] = now;
+      if (data['status'] == 'RETURNED') {
+        claim['returnedAt'] = now;
+        for (final k in [
+          'result',
+          'cost',
+          'replacementSerial',
+          'newWarrantyExpiry',
+        ]) {
+          claim[k] = data[k];
+        }
+      }
+    }
+    return claim;
   }
 
   static Map<String, dynamic> _page(List source, Map<String, String> q) {
