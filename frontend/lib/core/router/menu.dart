@@ -129,6 +129,26 @@ const kMainMenu = <MenuGroup>[
       MenuLink('Kiểm kê', '/app/stocktakes', roles: {_tk, _ql, _qt}),
     ],
   ),
+  // Thu chi
+  MenuGroup(
+    label: 'Thu chi',
+    icon: Icons.payments_outlined,
+    roles: {_kt, _bh, _ql, _qt},
+    children: [
+      // Bán hàng chỉ xem phiếu thu (màn danh sách tự lọc theo vai trò)
+      MenuLink('Phiếu thu / chi', '/app/payments'),
+      MenuLink(
+        'Tạo phiếu thu',
+        '/app/payments/new?direction=IN',
+        roles: {_kt, _ql, _qt},
+      ),
+      MenuLink(
+        'Tạo phiếu chi',
+        '/app/payments/new?direction=OUT',
+        roles: {_kt, _ql, _qt},
+      ),
+    ],
+  ),
   MenuGroup(
     label: 'Báo cáo',
     icon: Icons.bar_chart,
@@ -142,6 +162,12 @@ const kMainMenu = <MenuGroup>[
       ),
       MenuLink('Công nợ', '/app/reports/receivables', roles: {_kt, _ql, _qt}),
       MenuLink('Cho thuê', '/app/reports/rentals', roles: {_ql, _qt}),
+      // Đối chiếu công nợ
+      MenuLink(
+        'Đối chiếu công nợ',
+        '/app/reports/reconciliation',
+        roles: {_kt, _ql, _qt},
+      ),
     ],
   ),
 ];

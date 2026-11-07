@@ -48,12 +48,35 @@ class DemoAdapter implements HttpClientAdapter {
       });
     }
 
+    if (method == 'POST' && path == '/bff/api/payments') {
+      final data = options.data is Map ? options.data as Map : const {};
+      return _json({
+        'code': 1000,
+        'result': {
+          'id': 9001,
+          'paymentCode': data['direction'] == 'OUT'
+              ? 'PC-2026-9001'
+              : 'PT-2026-9001',
+          'status': 'ACTIVE',
+          ...data,
+        },
+      });
+    }
+
     if (method != 'GET') {
       final data = options.data;
       return _json({
         'code': 1000,
         'result': data is Map ? {'id': 9999, ...data} : null,
       });
+    }
+
+    // Phiếu thu/chi + đối chiếu công nợ (dữ liệu giả, không nằm trong fixtures.json)
+    if (path == '/bff/payments') {
+      return _json({'code': 1000, 'result': _page(_demoPayments, query)});
+    }
+    if (path == '/bff/api/reports/reconciliation') {
+      return _json({'code': 1000, 'result': _demoReconciliation(query)});
     }
 
     final wh = query['warehouseId'];
@@ -82,6 +105,94 @@ class DemoAdapter implements HttpClientAdapter {
         'totalPages': 1,
       },
     });
+  }
+
+  static final _demoPayments = <Map<String, dynamic>>[
+    for (final (i, p) in [
+      ('IN', 'Nguyễn Minh Anh', 'PX-HCM-2026-0002', 650000, 'CASH', 'ACTIVE'),
+      (
+        'IN',
+        'Công ty An Phát',
+        'PX-MAIN-2026-0004',
+        4200000,
+        'TRANSFER',
+        'ACTIVE',
+      ),
+      (
+        'OUT',
+        'Công ty TNHH Viễn Thông Á Châu',
+        'PN-MAIN-2026-0003',
+        8500000,
+        'TRANSFER',
+        'ACTIVE',
+      ),
+      ('IN', 'Trường ĐH Bách Khoa', null, 1500000, 'CASH', 'CANCELLED'),
+      (
+        'OUT',
+        'Công ty TNHH Viễn Thông Á Châu',
+        null,
+        2000000,
+        'CASH',
+        'ACTIVE',
+      ),
+    ].indexed)
+      {
+        'id': 101 + i,
+        'paymentCode':
+            '${p.$1 == 'IN' ? 'PT' : 'PC'}-2026-${(i + 1).toString().padLeft(4, '0')}',
+        'direction': p.$1,
+        'partyId': 3 + i,
+        'partyName': p.$2,
+        'partyType': p.$1 == 'IN' ? 'CUSTOMER' : 'SUPPLIER',
+        'referenceType': p.$3 == null
+            ? null
+            : (p.$1 == 'IN' ? 'Export_Receipts' : 'Import_Receipts'),
+        'referenceId': p.$3 == null ? null : 10 + i,
+        'referenceCode': p.$3,
+        'amount': p.$4,
+        'method': p.$5,
+        'paidAt': '2026-11-0${i + 1}T09:30:00',
+        'status': p.$6,
+        'note': null,
+        'recordedByName': 'Nguyễn Văn A',
+      },
+  ];
+
+  static Map<String, dynamic> _demoReconciliation(Map<String, String> q) {
+    final from = q['from'] ?? '2026-11-01';
+    return {
+      'partyId': int.tryParse(q['partyId'] ?? ''),
+      'partyName': 'Công ty An Phát',
+      'from': from,
+      'to': q['to'] ?? '2026-11-30',
+      'openingBalance': 3000000,
+      'increase': 6850000,
+      'decrease': 4200000,
+      'closingBalance': 5650000,
+      'lines': [
+        {
+          'date': '2026-11-02',
+          'code': 'PX-MAIN-2026-0004',
+          'description': 'Xuất hàng theo phiếu xuất',
+          'increase': 4200000,
+          'decrease': 0,
+        },
+        {
+          'date': '2026-11-03',
+          'code': 'PT-2026-0002',
+          'description': 'Thu tiền chuyển khoản',
+          'increase': 0,
+          'decrease': 4200000,
+        },
+        {
+          'date': '2026-11-05',
+          'code': 'PX-MAIN-2026-0007',
+          'description': 'Xuất hàng theo phiếu xuất',
+          'increase': 2650000,
+          'decrease': 0,
+        },
+      ],
+    };
   }
 
   static Map<String, dynamic> _page(List source, Map<String, String> q) {

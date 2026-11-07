@@ -14,6 +14,7 @@ import '../../shared/form/fields.dart';
 import '../../shared/form/form_footer.dart';
 import '../../shared/form/receipt_line_editor.dart';
 import '../../shared/widgets/page_header.dart';
+import '../../shared/widgets/print_button.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/status_chip.dart';
 import '../common/lookups.dart';
@@ -114,7 +115,7 @@ class _ImportReceiptListPageState extends State<ImportReceiptListPage> {
       ),
       TableColumnDef(
         label: 'Thao tác',
-        minWidth: 110,
+        minWidth: 130,
         align: Alignment.center,
         cell: (r) => _ImportActions(row: r, onDone: _controller.reload),
       ),
@@ -171,9 +172,19 @@ class _ImportActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = row['status'];
-    if (status == 'CONFIRMED' || status == 'CANCELLED') return const Text('—');
+    // Phiếu nào cũng in được (kể cả đã hủy): Phiếu nhập kho 01-VT
+    final print = PrintButton(
+      compact: true,
+      docs: [
+        PrintDoc(
+          'Phiếu nhập kho 01-VT',
+          '/bff/api/import-receipts/${row['id']}/print',
+        ),
+      ],
+    );
+    if (status == 'CONFIRMED' || status == 'CANCELLED') return print;
     // Bước "xác nhận nhập kho" (CONFIRMED, cộng tồn) chưa có API ở backend (chờ StockService)
-    return PopupMenuButton<String>(
+    final menu = PopupMenuButton<String>(
       icon: const Icon(Icons.more_horiz),
       onSelected: (v) => v == 'PENDING'
           ? _submitForApproval(context, ref)
@@ -184,6 +195,7 @@ class _ImportActions extends ConsumerWidget {
         const PopupMenuItem(value: 'CANCELLED', child: Text('Hủy phiếu')),
       ],
     );
+    return Row(mainAxisSize: MainAxisSize.min, children: [print, menu]);
   }
 }
 
