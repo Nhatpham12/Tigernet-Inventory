@@ -153,6 +153,24 @@ class RentalListPage extends StatelessWidget {
           minWidth: 120,
           cell: (r) => Statuses.rental(r['rentalState'] as String?),
         ),
+        if (!asReport)
+          TableColumnDef(
+            label: 'Thao tác',
+            minWidth: 140,
+            align: Alignment.center,
+            cell: (r) => r['rentalState'] == 'RETURNED'
+                ? const SizedBox.shrink()
+                : TextButton.icon(
+                    onPressed: () => context.go(
+                      '/app/return-receipts/new?rentalId=${r['id']}',
+                    ),
+                    icon: const Icon(
+                      Icons.assignment_return_outlined,
+                      size: 18,
+                    ),
+                    label: const Text('Trả hàng'),
+                  ),
+          ),
       ],
     );
   }

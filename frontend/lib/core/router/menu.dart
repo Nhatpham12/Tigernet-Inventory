@@ -85,10 +85,11 @@ const kMainMenu = <MenuGroup>[
         roles: {_bh, _ql, _qt},
       ),
       MenuLink('Khách hàng', '/app/customers', roles: {_bh, _ql, _qt, _kt}),
+      // Đổi trả hàng bán
       MenuLink(
         'Danh sách đổi trả',
         '/app/sales-returns',
-        roles: {_bh, _ql, _qt},
+        roles: {_tk, _bh, _ql, _qt},
       ),
     ],
   ),
@@ -109,6 +110,12 @@ const kMainMenu = <MenuGroup>[
         '/app/rentals/new',
         roles: {_bh, _ql, _qt},
       ),
+      // Trả hàng thuê / mượn
+      MenuLink(
+        'Phiếu trả hàng',
+        '/app/return-receipts',
+        roles: {_tk, _bh, _ql, _qt},
+      ),
     ],
   ),
   MenuGroup(
@@ -126,6 +133,7 @@ const kMainMenu = <MenuGroup>[
     roles: {_tk, _kt, _ql, _qt},
     children: [
       MenuLink('Danh sách kho', '/app/warehouses', roles: {_ql, _qt}),
+      // Kiểm kê
       MenuLink('Kiểm kê', '/app/stocktakes', roles: {_tk, _ql, _qt}),
     ],
   ),
