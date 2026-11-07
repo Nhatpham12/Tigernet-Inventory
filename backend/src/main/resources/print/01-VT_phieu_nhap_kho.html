@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="'Phiếu nhập kho ' + ${code}">Phiếu nhập kho</title>
+<style>
+  /* Bản gốc: PNK (Word), khổ Letter dọc, lề 1 inch, Times New Roman 8–12pt */
+  @page { size: 8.5in 11in; margin: 1in; }
+  body { font-family: 'Times New Roman', serif; font-size: 9pt; margin: 0; color: #000; }
+  table { border-collapse: collapse; }
+  .head { width: 100%; }
+  .head td { vertical-align: top; padding: 0; }
+  .company { font-size: 9pt; line-height: 1.2; }
+  .form-no { text-align: center; font-size: 9pt; font-weight: bold; }
+  .form-law { text-align: center; font-size: 8pt; font-style: italic; font-weight: normal; }
+  h1 { text-align: center; font-size: 12pt; font-weight: bold; margin: 6pt 0 0 0; }
+  .meta { width: 100%; font-size: 8pt; }
+  .meta td { padding: 0; }
+  .meta .c { text-align: center; }
+  .meta .date { font-style: italic; font-weight: bold; }
+  .info { font-size: 10pt; margin: 4pt 0 0 0; line-height: 1.6; }
+  .dots { border-bottom: 1px dotted #000; display: inline-block; }
+  .items { width: 100%; margin-top: 4pt; font-size: 8pt; }
+  .items th, .items td { border: 0.75pt solid #000; padding: 2pt 2pt; }
+  .items th { font-weight: bold; text-align: center; vertical-align: middle; }
+  .items td { font-size: 9pt; vertical-align: middle; }
+  .items .idx td { text-align: center; font-size: 8pt; padding: 1pt; }
+  .num { text-align: right; }
+  .ctr { text-align: center; }
+  .total td { font-weight: bold; }
+  .foot { font-size: 9pt; margin-top: 3pt; line-height: 1.6; }
+  .sign { width: 100%; margin-top: 2pt; font-size: 8pt; }
+  .sign td { text-align: center; vertical-align: top; padding: 0; }
+  .sign .t { font-weight: bold; }
+  .sign .s { font-style: italic; }
+</style>
+</head>
+<body>
+<table class="head">
+  <tr>
+    <td style="width:62%" class="company">
+      <div th:text="${f.blank(company.name) ? '……………………………………' : company.name}">Tên đơn vị</div>
+      <div th:text="'Địa chỉ: ' + ${f.blank(company.address) ? '……………………………………' : company.address}">Địa chỉ</div>
+      <div th:text="'MST: ' + ${f.blank(company.taxCode) ? '…………………' : company.taxCode}">MST</div>
+    </td>
+    <td style="width:38%">
+      <div class="form-no">Mẫu số: 01 – VT</div>
+      <div class="form-law">(Ban hành theo Thông tư số 200/2014/TT-BTC<br/>Ngày 22/12/2014 của Bộ Tài chính)</div>
+    </td>
+  </tr>
+</table>
+
+<h1>PHIẾU NHẬP KHO</h1>
+<table class="meta">
+  <tr>
+    <td style="width:30%"></td>
+    <td style="width:40%" class="c date" th:text="${f.longDate(date)}">Ngày … tháng … năm …</td>
+    <td style="width:8%">Nợ:</td>
+    <td style="width:22%" th:text="${debit}"></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td class="c" th:text="'Số: ' + ${code}">Số: ……</td>
+    <td>Có:</td>
+    <td th:text="${credit}"></td>
+  </tr>
+</table>
+
+<div class="info">
+  <div>- Họ và tên người giao: ………………………………………………</div>
+  <div>- Theo hóa đơn số ………………………. ngày ……... tháng……. năm ………. của
+    <span th:text="${f.blank(supplier.name) ? '……………………………' : supplier.name}"></span></div>
+  <table style="width:100%; font-size:10pt">
+    <tr>
+      <td style="width:60%">- Nhập tại kho: <span th:text="${warehouseName}"></span></td>
+      <td style="width:40%">Địa điểm: <span th:text="${f.blank(warehouseAddress) ? '……………………………' : warehouseAddress}"></span></td>
+    </tr>
+  </table>
+</div>
+
+<table class="items">
+  <thead>
+  <tr>
+    <th rowspan="2" style="width:6%">STT</th>
+    <th rowspan="2" style="width:27%">Tên, nhãn hiệu, quy cách, phẩm chất vật tư, dụng cụ sản phẩm, hàng hóa</th>
+    <th rowspan="2" style="width:15%">Mã số</th>
+    <th rowspan="2" style="width:6%">Đơn vị tính</th>
+    <th colspan="2" style="width:20%">Số lượng</th>
+    <th rowspan="2" style="width:12%">Đơn giá</th>
+    <th rowspan="2" style="width:14%">Thành tiền</th>
+  </tr>
+  <tr>
+    <th style="width:10%">Theo chứng từ</th>
+    <th style="width:10%">Thực nhập</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr class="idx"><td>A</td><td>B</td><td>C</td><td>D</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>
+  <tr th:each="l : ${lines}">
+    <td class="ctr" th:text="${l.stt}">1</td>
+    <td>
+      <span th:text="${l.name}">Tên hàng</span>
+      <span th:if="${!f.blank(l.serial)}" th:text="'(S/N: ' + ${l.serial} + ')'"></span>
+    </td>
+    <td class="ctr" th:text="${l.code}">Mã</td>
+    <td class="ctr" th:text="${l.unit}">Chiếc</td>
+    <td class="num" th:text="${f.qty(l.quantity)}">1</td>
+    <td class="num" th:text="${f.qty(l.quantityActual)}">1</td>
+    <td class="num" th:text="${f.money(l.unitPrice)}">0</td>
+    <td class="num" th:text="${f.money(l.amount)}">0</td>
+  </tr>
+  <tr class="total">
+    <td></td>
+    <td class="ctr">Cộng</td>
+    <td></td><td></td><td></td><td></td><td></td>
+    <td class="num" th:text="${f.money(subtotal)}">0</td>
+  </tr>
+  <tr th:if="${vatAmount != null}">
+    <td></td>
+    <td class="ctr" th:text="'Thuế GTGT ' + ${vatLabel}">Thuế GTGT</td>
+    <td></td><td></td><td></td><td></td><td></td>
+    <td class="num" th:text="${f.money(vatAmount)}">0</td>
+  </tr>
+  <tr th:if="${vatAmount != null}" class="total">
+    <td></td>
+    <td class="ctr">Tổng cộng</td>
+    <td></td><td></td><td></td><td></td><td></td>
+    <td class="num" th:text="${f.money(total)}">0</td>
+  </tr>
+  </tbody>
+</table>
+
+<div class="foot">
+  <div>- Tổng số tiền (Viết bằng chữ): <b th:text="${f.words(total)}"></b></div>
+  <div>- Số chứng từ gốc kèm theo: <span th:text="${f.blank(note) ? '………………………………………………………………' : note}"></span></div>
+  <div style="text-align:right; font-style:italic" th:text="${f.longDate(null)}">Ngày … tháng … năm …</div>
+</div>
+
+<table class="sign">
+  <tr>
+    <td style="width:24%" class="t">Người lập phiếu</td>
+    <td style="width:24%" class="t">Người giao hàng</td>
+    <td style="width:22%" class="t">Thủ kho</td>
+    <td style="width:30%" class="t">Kế toán trưởng<br/>(Hoặc bộ phận có nhu cầu nhập)</td>
+  </tr>
+  <tr>
+    <td class="s">(Ký, họ tên)</td>
+    <td class="s">(Ký, họ tên)</td>
+    <td class="s">(Ký, họ tên)</td>
+    <td class="s">(Ký, họ tên)</td>
+  </tr>
+  <tr><td style="height:48pt"></td><td></td><td></td><td></td></tr>
+  <tr>
+    <td th:text="${createdBy}"></td>
+    <td></td>
+    <td th:text="${storekeeper}"></td>
+    <td></td>
+  </tr>
+</table>
+</body>
+</html>

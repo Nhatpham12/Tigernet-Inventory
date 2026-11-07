@@ -35,3 +35,18 @@ tigernet:
   rental:
     due-warning-days: 7     # cảnh báo/lọc phiếu thuê sắp đến hạn trong N ngày
     penalty-after-days: 10  # quá hạn từ N ngày trở lên mới tính phạt
+  # Thông tin doanh nghiệp in trên biểu mẫu (đặt trong backend/.env, để trống thì phiếu in dòng chấm)
+  company:
+    name: ${COMPANY_NAME:}
+    english-name: ${COMPANY_ENGLISH_NAME:}
+    address: ${COMPANY_ADDRESS:}
+    tax-code: ${COMPANY_TAX_CODE:}
+    phone: ${COMPANY_PHONE:}
+    email: ${COMPANY_EMAIL:}
+    website: ${COMPANY_WEBSITE:}
+    logo: ${COMPANY_LOGO:}               # VD file:C:/tigernet/logo.png
+    representative: ${COMPANY_REPRESENTATIVE:}
+    representative-title: ${COMPANY_REPRESENTATIVE_TITLE:Giám đốc}
+    warranty-address: ${COMPANY_WARRANTY_ADDRESS:}
+    hotline: ${COMPANY_HOTLINE:}
+    slogan: ${COMPANY_SLOGAN:}

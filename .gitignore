@@ -57,3 +57,6 @@ pnpm-debug.log*
 postman/
 .postman/
 docs/API_Test_Cases.md
+
+# ===== Biểu mẫu Word gốc (chỉ giữ trên máy, không đưa lên repo) =====
+docs/FORM/

@@ -82,6 +82,13 @@ public enum ErrorCode {
     DUPLICATE_SERIAL(2021, "A serial appears more than once", HttpStatus.BAD_REQUEST),
     STATUS_NOT_ALLOWED(2022, "This status cannot be set here", HttpStatus.BAD_REQUEST),
     NEW_EXPORT_INVALID(2023, "Exchange export receipt must differ from the original export receipt", HttpStatus.BAD_REQUEST),
+    PAYMENT_NOT_FOUND(2024, "Payment not found", HttpStatus.NOT_FOUND),
+    WARRANTY_CLAIM_NOT_FOUND(2025, "Warranty claim not found", HttpStatus.NOT_FOUND),
+    SUPPLIER_RETURN_NOT_FOUND(2026, "Supplier return not found", HttpStatus.NOT_FOUND),
+
+    // 4xxx: in biểu mẫu
+    PRINT_TEMPLATE_INVALID(4001, "Unknown print template", HttpStatus.BAD_REQUEST),
+    PRINT_RENDER_FAILED(4002, "Could not render the document", HttpStatus.INTERNAL_SERVER_ERROR),
 
     // 3xxx: hệ thống
     ALERT_NOT_FOUND(3001, "Alert not found", HttpStatus.NOT_FOUND),
