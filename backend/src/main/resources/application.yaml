@@ -3,6 +3,9 @@ spring:
     import:
       - optional:file:.env[.properties]          # chạy từ thư mục backend
       - optional:file:backend/.env[.properties]  # chạy từ thư mục gốc TIGERNET
+      # thông tin doanh nghiệp in trên biểu mẫu (có dấu tiếng Việt nên để file YAML UTF-8, không để trong .env)
+      - optional:file:company.yaml
+      - optional:file:backend/company.yaml
   application:
     name: backend
   datasource:
@@ -35,7 +38,8 @@ tigernet:
   rental:
     due-warning-days: 7     # cảnh báo/lọc phiếu thuê sắp đến hạn trong N ngày
     penalty-after-days: 10  # quá hạn từ N ngày trở lên mới tính phạt
-  # Thông tin doanh nghiệp in trên biểu mẫu (đặt trong backend/.env, để trống thì phiếu in dòng chấm)
+  # Thông tin doanh nghiệp in trên biểu mẫu: chép backend/company.example.yaml thành backend/company.yaml rồi sửa.
+  # (.env đọc theo ISO-8859-1 nên tiếng Việt có dấu bị lỗi.) Để trống thì phiếu in dòng chấm để ghi tay.
   company:
     name: ${COMPANY_NAME:}
     english-name: ${COMPANY_ENGLISH_NAME:}

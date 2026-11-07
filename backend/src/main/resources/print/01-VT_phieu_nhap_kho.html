@@ -4,16 +4,16 @@
 <meta charset="UTF-8"/>
 <title th:text="'Phiếu nhập kho ' + ${code}">Phiếu nhập kho</title>
 <style>
-  /* Bản gốc: PNK (Word), khổ Letter dọc, lề 1 inch, Times New Roman 8–12pt */
-  @page { size: 8.5in 11in; margin: 1in; }
+  /* Bản gốc: PNK (Word), khổ Letter dọc; bảng trong bản gốc tràn ra ngoài lề 1 inch nên lề thực tế khoảng 0.35in trên, 0.65in hai bên */
+  @page { size: 8.5in 11in; margin: 0.35in 0.65in 0.5in 0.65in; }
   body { font-family: 'Times New Roman', serif; font-size: 9pt; margin: 0; color: #000; }
   table { border-collapse: collapse; }
   .head { width: 100%; }
   .head td { vertical-align: top; padding: 0; }
-  .company { font-size: 9pt; line-height: 1.2; }
+  .company { font-size: 9pt; line-height: 1.2; padding-left: 0.93in !important; }
   .form-no { text-align: center; font-size: 9pt; font-weight: bold; }
   .form-law { text-align: center; font-size: 8pt; font-style: italic; font-weight: normal; }
-  h1 { text-align: center; font-size: 12pt; font-weight: bold; margin: 6pt 0 0 0; }
+  h1 { text-align: center; font-size: 12pt; font-weight: bold; margin: 2pt 0 0 0; }
   .meta { width: 100%; font-size: 8pt; }
   .meta td { padding: 0; }
   .meta .c { text-align: center; }
