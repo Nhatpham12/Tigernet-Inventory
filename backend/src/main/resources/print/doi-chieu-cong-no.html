@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="'Biên bản đối chiếu công nợ ' + ${f.dmy(to)}">Biên bản đối chiếu công nợ</title>
+<style>
+  /* Bản gốc: Biên_bản_đối_chiếu_công_nợ (Word), A4 dọc, lề T12.5/B20/L30/R20mm; gốc dùng Cambria, ở đây dùng Times New Roman nhúng */
+  @page { size: A4; margin: 12.5mm 20mm 20mm 30mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 12pt; margin: 0; color: #000; line-height: 1.3; }
+  table { border-collapse: collapse; }
+  .nh { text-align: center; font-weight: bold; margin-top: 12pt; }
+  .nh2 span { border-bottom: 1px solid #000; padding: 0 4pt 1pt 4pt; }
+  h1 { text-align: center; font-size: 16pt; font-weight: bold; margin: 16pt 0 8pt 0; }
+  p { margin: 0; }
+  .ind { text-indent: 1.2cm; }
+  .li { margin: 4pt 0 0 0; }
+  .sec { font-weight: bold; padding-left: 1.2cm; }
+  .num { padding-left: 1.9cm; }
+  .rep td { padding: 0; }
+  .detail { width: 100%; font-size: 11pt; margin: 4pt 0 6pt 0; line-height: 1.25; }
+  .detail th, .detail td { border: 0.75pt solid #000; padding: 2pt 3pt; vertical-align: top; }
+  .detail th { font-weight: bold; text-align: center; }
+  .r { text-align: right; }
+  .c { text-align: center; }
+  .sig { width: 100%; margin-top: 8pt; }
+  .sig td { width: 50%; text-align: center; font-weight: bold; padding: 0; }
+  .sig .s { font-style: italic; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="nh">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+<div class="nh nh2" style="margin-top:0"><span>Độc lập – Tự do – Hạnh phúc</span></div>
+<h1>BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ</h1>
+
+<p class="ind">Hôm nay, <span th:text="${f.longDate(to).toLowerCase()}">ngày … tháng … năm …</span> chúng tôi gồm có:</p>
+
+<p class="li"><b>Bên A (Bên mua): <span th:text="${f.blank(party.name) ? '……………' : party.name}"></span></b></p>
+<p class="li">- Địa chỉ: <span th:text="${f.blank(party.address) ? '……………' : party.address}"></span></p>
+<p class="li">- Điện thoại: <span th:text="${f.blank(party.phone) ? '……………' : party.phone}"></span></p>
+<p class="li">- Mã số thuế: <span th:text="${f.blank(party.taxCode) ? '……………' : party.taxCode}"></span></p>
+<p class="li">- Đại diện: Ông <b>……………………</b> &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; Chức vụ: <b>……………</b></p>
+
+<p class="li"><b>Bên B (Bên bán): <span th:text="${f.blank(company.name) ? '……………' : company.name}"></span></b></p>
+<p class="li">- Địa chỉ: <span th:text="${f.blank(company.address) ? '……………' : company.address}"></span></p>
+<p class="li">- Điện thoại: <span th:text="${f.blank(company.phone) ? '……………' : company.phone}"></span></p>
+<p class="li">- Mã số thuế: <span th:text="${f.blank(company.taxCode) ? '……………' : company.taxCode}"></span></p>
+<p class="li">- Đại diện: <span th:unless="${!f.blank(company.representative) and (company.representative.startsWith('Ông') or company.representative.startsWith('Bà'))}">Ông </span><b th:text="${f.blank(company.representative) ? '……………………' : company.representative}"></b> &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; Chức vụ: <b th:text="${f.blank(company.representativeTitle) ? '……………' : company.representativeTitle}"></b></p>
+
+<p class="ind" style="margin-top:6pt">Hai bên cùng nhau đối chiếu công nợ từ <span th:text="${f.longDate(from).toLowerCase()}"></span> đến <span th:text="${f.longDate(to).toLowerCase()}"></span>, cụ thể như sau:</p>
+
+<p class="sec">1. Đối chiếu công nợ</p>
+<p class="num">1. Số dư đầu kỳ: <span th:text="${f.money(statement.opening)}"></span> VND.</p>
+<p class="num">2. Số phát sinh tăng trong kỳ: <span th:text="${f.money(statement.increase)}"></span> VND.</p>
+<p class="num">3. Số phát sinh giảm trong kỳ: <span th:text="${f.money(statement.decrease)}"></span> VND.</p>
+<p class="num">4. Số dư cuối kỳ: <span th:text="${f.money(statement.closing)}"></span> VND.</p>
+<p><i>(Bằng chữ: <span th:text="${f.words(statement.closing)}"></span>).</i></p>
+
+<p class="sec">2. Công nợ chi tiết:</p>
+<p class="ind">Tính đến hết ngày <span th:text="${f.dmy(to)}"></span>, <span th:text="${f.blank(party.name) ? '……………' : party.name}"></span>
+  <span th:text="${statement.closing.signum() >= 0 ? 'còn nợ' : 'đã tạm ứng cho'}"></span>
+  <span th:text="${f.blank(company.name) ? '……………' : company.name}"></span> số tiền là:
+  <span th:text="${f.money(statement.closing.abs())}"></span> VND (<i>Bằng chữ: <span th:text="${f.words(statement.closing.abs())}"></span></i>).</p>
+
+<table class="detail" th:if="${!statement.lines.isEmpty()}">
+  <tr><th style="width:15%">Ngày</th><th style="width:19%">Số chứng từ</th><th>Diễn giải</th><th style="width:16%">Phát sinh tăng</th><th style="width:16%">Phát sinh giảm</th></tr>
+  <tr th:each="l : ${statement.lines}">
+    <td class="c" th:text="${f.dmy(l.date)}"></td>
+    <td th:text="${l.voucher}"></td>
+    <td th:text="${l.description}"></td>
+    <td class="r" th:text="${l.increase.signum() == 0 ? '' : f.money(l.increase)}"></td>
+    <td class="r" th:text="${l.decrease.signum() == 0 ? '' : f.money(l.decrease)}"></td>
+  </tr>
+  <tr><td colspan="3" class="r"><b>Cộng phát sinh trong kỳ</b></td>
+    <td class="r"><b th:text="${f.money(statement.increase)}"></b></td>
+    <td class="r"><b th:text="${f.money(statement.decrease)}"></b></td></tr>
+</table>
+
+<p class="ind">Biên bản này được lập thành 02 bản có giá trị pháp lý như nhau. Mỗi bên giữ 01 bản.</p>
+
+<table class="sig">
+  <tr><td>ĐẠI DIỆN BÊN A</td><td>ĐẠI DIỆN BÊN B</td></tr>
+  <tr><td class="s">(Ký tên, đóng dấu)</td><td class="s">(Ký tên, đóng dấu)</td></tr>
+</table>
+</body>
+</html>
