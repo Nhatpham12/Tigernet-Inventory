@@ -13,10 +13,12 @@ import '../../shared/widgets/section_card.dart';
 import '../common/lookups.dart';
 
 /// Figma 1366:1796 "Sản phẩm / Thêm sản phẩm". [productId] != null thì sửa.
+/// [inDialog]: mở trong hộp thoại (vd. từ phiếu nhập), lưu xong trả sản phẩm vừa tạo qua Navigator.pop.
 class ProductFormPage extends ConsumerStatefulWidget {
-  const ProductFormPage({super.key, this.productId});
+  const ProductFormPage({super.key, this.productId, this.inDialog = false});
 
   final int? productId;
+  final bool inDialog;
 
   @override
   ConsumerState<ProductFormPage> createState() => _ProductFormPageState();
@@ -82,24 +84,27 @@ class _ProductFormPageState extends ConsumerState<ProductFormPage> {
     };
     try {
       final api = ref.read(apiClientProvider);
-      if (_isEdit) {
-        await api.put('/bff/api/products/${widget.productId}', data: body);
-      } else {
-        await api.post('/bff/api/products', data: body);
-      }
+      final saved = _isEdit
+          ? await api.put('/bff/api/products/${widget.productId}', data: body)
+          : await api.post('/bff/api/products', data: body);
       if (!mounted) return;
       Toast.success(
         context,
         _isEdit ? 'Đã cập nhật sản phẩm.' : 'Đã thêm sản phẩm.',
       );
       ref.invalidate(productsLookupProvider);
-      context.go('/app/products');
+      _close(saved is Map ? Map<String, dynamic>.from(saved) : null);
     } catch (e) {
       if (mounted) Toast.error(context, e);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
+
+  /// Trong hộp thoại: đóng và trả [saved] (null = hủy). Ngoài trang: về danh sách sản phẩm.
+  void _close([Map<String, dynamic>? saved]) => widget.inDialog
+      ? Navigator.pop(context, saved)
+      : context.go('/app/products');
 
   @override
   Widget build(BuildContext context) {
@@ -122,14 +127,15 @@ class _ProductFormPageState extends ConsumerState<ProductFormPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              PageHeader(
-                title: _isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm',
-                crumbs: [
-                  const Crumb('Trang chủ', '/app/dashboard'),
-                  const Crumb('Sản phẩm', '/app/products'),
-                  Crumb(_isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm'),
-                ],
-              ),
+              if (!widget.inDialog)
+                PageHeader(
+                  title: _isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm',
+                  crumbs: [
+                    const Crumb('Trang chủ', '/app/dashboard'),
+                    const Crumb('Sản phẩm', '/app/products'),
+                    Crumb(_isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm'),
+                  ],
+                ),
               SectionCard(
                 title: 'Thông tin cơ bản',
                 child: FormGrid(
@@ -233,7 +239,7 @@ class _ProductFormPageState extends ConsumerState<ProductFormPage> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => context.go('/app/products'),
+                    onPressed: () => _close(),
                     child: const Text('Hủy'),
                   ),
                   const SizedBox(width: 12),

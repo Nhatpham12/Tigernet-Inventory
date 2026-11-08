@@ -78,25 +78,144 @@ Object? _decode(Object? detail) {
   }
 }
 
-/// Tóm tắt cột "Chi tiết": đường dẫn API hoặc các trường đã đổi.
+/// Tên tiếng Việt của các trường hay gặp trong chi tiết nhật ký.
+const _fieldLabels = <String, String>{
+  'username': 'Tên đăng nhập',
+  'fullName': 'Họ tên',
+  'email': 'Email',
+  'role': 'Vai trò',
+  'isActive': 'Đang hoạt động',
+  'code': 'Mã phiếu',
+  'amount': 'Số tiền',
+  'pages': 'Trang được phân quyền',
+  'reason': 'Lý do',
+  'method': 'Loại thao tác',
+  'path': 'Đường dẫn',
+};
+
+const _methodLabels = <String, String>{
+  'POST': 'Thêm mới',
+  'PUT': 'Cập nhật',
+  'PATCH': 'Cập nhật',
+  'DELETE': 'Xóa / hủy',
+};
+
+String _fieldLabel(Object? key) => _fieldLabels['$key'] ?? '$key';
+
+/// Giá trị hiển thị: true/false → Có/Không, danh sách → nối dấu phẩy, rỗng → —.
+String _valueText(Object? key, Object? v) => switch (v) {
+  null || '' => '—',
+  true => 'Có',
+  false => 'Không',
+  List() => v.isEmpty ? '—' : v.join(', '),
+  num() when key == 'amount' => Fmt.money(v),
+  _ when key == 'method' => _methodLabels['$v'] ?? '$v',
+  _ => '$v',
+};
+
+/// "PUT /suppliers/5" → "Cập nhật Nhà cung cấp #5".
+String _requestText(Map d) {
+  final segments = '${d['path'] ?? ''}'
+      .split('/')
+      .where((s) => s.isNotEmpty)
+      .toList();
+  if (segments.isEmpty) return _valueText('method', d['method']);
+  final id = segments.length > 1 && int.tryParse(segments[1]) != null
+      ? segments[1]
+      : null;
+  return '${_valueText('method', d['method'])} ${targetLabel(segments.first, id)}';
+}
+
+/// Các dòng (trường, trước, sau) của chi tiết; [before] null khi không có giá trị cũ.
+List<(String field, String? before, String after)> detailRows(Object? detail) {
+  final d = _decode(detail);
+  if (d == null) return const [];
+  if (d is! Map) return [('Nội dung', null, '$d')];
+  final before = d['before'], after = d['after'];
+  if (before is Map && after is Map) {
+    return [
+      for (final k in {...before.keys, ...after.keys})
+        if ('${before[k]}' != '${after[k]}')
+          (_fieldLabel(k), _valueText(k, before[k]), _valueText(k, after[k])),
+      if (d['passwordReset'] == true) ('Mật khẩu', null, 'Đã đặt lại'),
+    ];
+  }
+  if (d['path'] != null) {
+    return [
+      ('Thao tác', null, _requestText(d)),
+      ('Đường dẫn', null, '${d['path']}'),
+    ];
+  }
+  return [
+    for (final e in d.entries)
+      (_fieldLabel(e.key), null, _valueText(e.key, e.value)),
+  ];
+}
+
+/// Tóm tắt cột "Chi tiết": các trường đã đổi hoặc mô tả thao tác.
 String detailSummary(Object? detail) {
   final d = _decode(detail);
   if (d == null) return '—';
-  if (d is Map) {
-    if (d['path'] != null) return '${d['method'] ?? ''} ${d['path']}'.trim();
-    final before = d['before'], after = d['after'];
-    if (before is Map && after is Map) {
-      final changed = [
-        for (final k in after.keys)
-          if ('${before[k]}' != '${after[k]}') '$k: ${before[k]} → ${after[k]}',
-        if (d['passwordReset'] == true) 'đặt lại mật khẩu',
-      ];
-      return changed.isEmpty ? 'Không đổi' : changed.join('; ');
-    }
-    if (d['pages'] is List) return '${(d['pages'] as List).length} trang';
-    return d.entries.map((e) => '${e.key}: ${e.value}').join('; ');
+  if (d is Map && d['path'] != null) return _requestText(d);
+  if (d is Map && d['pages'] is List) {
+    return '${(d['pages'] as List).length} trang';
   }
-  return '$d';
+  final rows = detailRows(d);
+  if (rows.isEmpty) return 'Không đổi';
+  return rows
+      .map(
+        (r) => r.$2 == null ? '${r.$1}: ${r.$3}' : '${r.$1}: ${r.$2} → ${r.$3}',
+      )
+      .join('; ');
+}
+
+/// Bảng chi tiết trong hộp thoại: 2 cột (trường, giá trị) hoặc 3 cột khi có giá trị trước/sau.
+class _DetailTable extends StatelessWidget {
+  const _DetailTable({required this.rows});
+
+  final List<(String field, String? before, String after)> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final hasBefore = rows.any((r) => r.$2 != null);
+    final head = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+      color: c.text,
+    );
+    final cellStyle = TextStyle(fontSize: 13, color: c.text);
+    Widget cell(String text, {TextStyle? style, Color? color}) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: SelectableText(
+        text,
+        style: (style ?? cellStyle).copyWith(color: color),
+      ),
+    );
+    return Table(
+      border: TableBorder(horizontalInside: BorderSide(color: c.divider)),
+      columnWidths: const {0: IntrinsicColumnWidth(flex: 1)},
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        TableRow(
+          decoration: BoxDecoration(color: c.surfaceMuted),
+          children: [
+            cell('Trường', style: head),
+            if (hasBefore) cell('Trước', style: head),
+            cell(hasBefore ? 'Sau' : 'Giá trị', style: head),
+          ],
+        ),
+        for (final (field, before, after) in rows)
+          TableRow(
+            children: [
+              cell(field, style: head.copyWith(fontWeight: FontWeight.w600)),
+              if (hasBefore) cell(before ?? '—', color: c.muted),
+              cell(after, color: hasBefore ? c.success : null),
+            ],
+          ),
+      ],
+    );
+  }
 }
 
 /// Lịch sử thao tác của nhân viên (QT-03) — GET /bff/audit-logs, chỉ Quản trị.
@@ -106,7 +225,7 @@ class AuditLogPage extends ConsumerWidget {
   final int? initialUserId;
 
   void _showDetail(BuildContext context, RowData r) {
-    final d = _decode(r['detail']);
+    final rows = detailRows(r['detail']);
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -122,12 +241,9 @@ class AuditLogPage extends ConsumerWidget {
                   'Đối tượng: ${targetLabel(r['targetTable'], r['targetId'])}',
                 ),
                 const SizedBox(height: 12),
-                SelectableText(
-                  d == null
-                      ? 'Không có chi tiết.'
-                      : const JsonEncoder.withIndent('  ').convert(d),
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                ),
+                rows.isEmpty
+                    ? const Text('Không có chi tiết.')
+                    : _DetailTable(rows: rows),
               ],
             ),
           ),

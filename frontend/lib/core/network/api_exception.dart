@@ -36,7 +36,8 @@ const Map<int, String> kErrorMessages = {
   1202: 'Mã kho đã tồn tại.',
   1203: 'Tên kho đã tồn tại.',
   1204: 'Kho đã ngừng hoạt động.',
-  1205: 'Kho đang được sử dụng, không thể xóa.',
+  1205:
+      'Kho đã có phiếu hoặc tồn kho nên không xóa được. Hãy chuyển kho sang "Ngừng hoạt động".',
   1301: 'Không tìm thấy danh mục sản phẩm.',
   1302: 'Tên danh mục đã tồn tại.',
   1303: 'Danh mục vẫn còn sản phẩm.',

@@ -50,7 +50,11 @@ class _AppShellState extends ConsumerState<AppShell> {
           Expanded(
             child: Column(
               children: [
-                _Header(session: session, showMenuButton: mobile),
+                _Header(
+                  session: session,
+                  showMenuButton: mobile,
+                  location: widget.location,
+                ),
                 // Navigator lồng của ShellRoute cần chiều cao hữu hạn: mỗi trang tự cuộn qua PageBody.
                 Expanded(child: widget.child),
               ],
@@ -466,10 +470,17 @@ class _SubItem extends StatelessWidget {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.session, required this.showMenuButton});
+  const _Header({
+    required this.session,
+    required this.showMenuButton,
+    required this.location,
+  });
 
   final Session? session;
   final bool showMenuButton;
+
+  /// Đường dẫn đang mở, để tô nút Cài đặt / Thông báo khi đang ở trang đó.
+  final String location;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -532,6 +543,8 @@ class _Header extends ConsumerWidget {
           _RoundButton(
             tooltip: 'Cài đặt',
             icon: Icons.settings_outlined,
+            selectedIcon: Icons.settings,
+            selected: location.startsWith('/app/settings'),
             onTap: () => context.go('/app/settings'),
           ),
           const SizedBox(width: 10),
@@ -542,6 +555,8 @@ class _Header extends ConsumerWidget {
             child: _RoundButton(
               tooltip: 'Cảnh báo và thông báo',
               icon: Icons.notifications_none,
+              selectedIcon: Icons.notifications,
+              selected: location.startsWith('/app/alerts'),
               onTap: () => context.go('/app/alerts'),
             ),
           ),
@@ -611,36 +626,50 @@ class _WarehouseSelector extends ConsumerWidget {
   }
 }
 
+/// Nút tròn trên thanh đầu trang. [selected]: đang ở trang của nút → tô màu nhấn (giống nút sáng/tối).
 class _RoundButton extends StatelessWidget {
   const _RoundButton({
     required this.icon,
     required this.onTap,
     required this.tooltip,
     this.filled = false,
+    this.selected = false,
+    this.selectedIcon,
   });
 
   final IconData icon;
+  final IconData? selectedIcon;
   final VoidCallback onTap;
   final String tooltip;
   final bool filled;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final on = filled || selected;
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: filled ? c.accent : c.surface,
-        shape: CircleBorder(
-          side: filled ? BorderSide.none : BorderSide(color: c.border),
-        ),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 32,
-            height: 32,
-            child: Icon(icon, size: 18, color: filled ? Colors.white : c.text),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: on ? c.accent : c.surface,
+          shape: CircleBorder(
+            side: on ? BorderSide.none : BorderSide(color: c.border),
+          ),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: Icon(
+                selected ? (selectedIcon ?? icon) : icon,
+                size: 18,
+                color: on ? Colors.white : c.text,
+              ),
+            ),
           ),
         ),
       ),

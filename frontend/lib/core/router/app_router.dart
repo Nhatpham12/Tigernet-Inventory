@@ -99,11 +99,33 @@ final routerProvider = Provider<GoRouter>((ref) {
             '/app/suppliers/new',
             (_) => const PartnerForm(kind: PartnerKind.supplier),
           ),
+          page(
+            '/app/suppliers/:id/edit',
+            (s) => PartnerForm(
+              key: ValueKey(s.pathParameters['id']),
+              kind: PartnerKind.supplier,
+              partnerId: int.tryParse(s.pathParameters['id']!),
+            ),
+          ),
           page('/app/customers', (_) => const CustomerListPage()),
           page('/app/import-receipts', (_) => const ImportReceiptListPage()),
           page(
             '/app/import-receipts/new',
             (_) => const ImportReceiptFormPage(),
+          ),
+          page(
+            '/app/import-receipts/:id/edit',
+            (s) => ImportReceiptFormPage(
+              key: ValueKey('edit-${s.pathParameters['id']}'),
+              receiptId: int.tryParse(s.pathParameters['id']!),
+            ),
+          ),
+          page(
+            '/app/import-receipts/:id',
+            (s) => ImportReceiptDetailPage(
+              key: ValueKey(s.pathParameters['id']),
+              id: int.parse(s.pathParameters['id']!),
+            ),
           ),
           page('/app/export-receipts', (_) => const ExportReceiptListPage()),
           page(
@@ -208,6 +230,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               direction: s.uri.queryParameters['direction'] == 'OUT'
                   ? 'OUT'
                   : 'IN',
+              initialRefType: s.uri.queryParameters['refType'],
+              initialRefId: int.tryParse(s.uri.queryParameters['refId'] ?? ''),
             ),
           ),
           page(

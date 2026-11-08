@@ -222,10 +222,19 @@ List<String> _kindsFor(String direction) => direction == 'OUT'
 /// Tạo phiếu thu / phiếu chi — POST /bff/api/payments.
 /// Phiếu gốc bắt buộc; đối tượng (Parties.ID) và số tiền còn lại tự điền theo phiếu gốc.
 class PaymentFormPage extends ConsumerStatefulWidget {
-  const PaymentFormPage({super.key, required this.direction});
+  const PaymentFormPage({
+    super.key,
+    required this.direction,
+    this.initialRefType,
+    this.initialRefId,
+  });
 
   /// IN hoặc OUT
   final String direction;
+
+  /// Phiếu gốc chọn sẵn (vd. mở từ chi tiết phiếu nhập): Reference_Type + ID.
+  final String? initialRefType;
+  final int? initialRefId;
 
   @override
   ConsumerState<PaymentFormPage> createState() => _PaymentFormPageState();
@@ -235,7 +244,10 @@ class _PaymentFormPageState extends ConsumerState<PaymentFormPage> {
   final _form = GlobalKey<FormState>();
   final _amount = TextEditingController();
   final _note = TextEditingController();
-  late String _refType = _kindsFor(widget.direction).first;
+  late String _refType =
+      _kindsFor(widget.direction).contains(widget.initialRefType)
+      ? widget.initialRefType!
+      : _kindsFor(widget.direction).first;
   int? _referenceId;
   _Json? _ref;
   String _method = 'CASH';
@@ -256,7 +268,7 @@ class _PaymentFormPageState extends ConsumerState<PaymentFormPage> {
     final page = await ref
         .read(apiClientProvider)
         .getPage(_refKinds[_refType]!.$2, query: {'size': 100});
-    return page.items.where((r) {
+    final list = page.items.where((r) {
       if (r['status'] == 'CANCELLED') return false;
       // phiếu xuất/nhập: chỉ lấy phiếu còn nợ
       if (_refType == 'Export_Receipts' || _refType == 'Import_Receipts') {
@@ -264,6 +276,26 @@ class _PaymentFormPageState extends ConsumerState<PaymentFormPage> {
       }
       return true;
     }).toList();
+    _preselect(list);
+    return list;
+  }
+
+  /// Chọn sẵn phiếu gốc truyền vào lần đầu tải danh sách (chỉ một lần).
+  void _preselect(List<_Json> list) {
+    final id = widget.initialRefId;
+    if (id == null ||
+        _referenceId != null ||
+        _refType != widget.initialRefType) {
+      return;
+    }
+    final match = list.where((r) => r['id'] == id).firstOrNull;
+    if (match == null || !mounted) return;
+    setState(() {
+      _referenceId = id;
+      _ref = match;
+      final remain = Fmt.toNum(match['remain']) ?? 0;
+      if (remain > 0) _amount.text = '${remain.toInt()}';
+    });
   }
 
   /// Parties.ID của đối tượng trong phiếu gốc (khách hàng → party qua danh mục khách).
