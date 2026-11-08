@@ -27,6 +27,11 @@ const Map<int, String> kErrorMessages = {
   1004: 'Tài khoản đã bị khóa.',
   1005: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
   1006: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
+  1007: 'Bạn không có quyền thực hiện thao tác này.',
+  1008:
+      'Không thể xóa, khóa hoặc bỏ quyền Quản trị của chính tài khoản đang đăng nhập.',
+  1009: 'Trang được chọn không hợp lệ.',
+  1101: 'Không tìm thấy vai trò.',
   1201: 'Không tìm thấy kho.',
   1202: 'Mã kho đã tồn tại.',
   1203: 'Tên kho đã tồn tại.',

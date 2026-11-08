@@ -277,6 +277,21 @@ public class ViewController {
                 r -> Json.text(r, "username") + " " + Json.text(r, "fullName") + " " + Json.text(r, "email"));
     }
 
+    // ===== Lịch sử thao tác của nhân viên (chỉ ADMIN, backend chặn quyền) =====
+    @GetMapping("/audit-logs")
+    ApiResponse<PageResponse<JsonNode>> auditLogs(@RequestHeader(HttpHeaders.AUTHORIZATION) String auth,
+                                                  @RequestParam(required = false) Integer userId,
+                                                  @RequestParam(required = false) String action,
+                                                  @RequestParam(required = false) String from, @RequestParam(required = false) String to,
+                                                  @RequestParam(required = false) String keyword, @RequestParam(required = false) String sort,
+                                                  @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+        List<JsonNode> rows = backend.getList("/audit-logs",
+                mapOf("userId", userId, "action", action, "from", from, "to", to), auth);
+        return page(rows, keyword, sort == null ? "createdAt,desc" : sort, page, size,
+                r -> Json.text(r, "username") + " " + Json.text(r, "action") + " " + Json.text(r, "targetTable")
+                        + " " + Json.text(r, "targetId") + " " + Json.text(r, "detail"));
+    }
+
     // ===== helpers =====
     private static ApiResponse<PageResponse<JsonNode>> page(List<JsonNode> rows, String keyword, String sort,
                                                             Integer page, Integer size, Function<JsonNode, String> text) {

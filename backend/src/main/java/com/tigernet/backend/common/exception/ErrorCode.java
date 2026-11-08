@@ -12,6 +12,9 @@ public enum ErrorCode {
     USER_INACTIVE(1004, "User account is inactive", HttpStatus.FORBIDDEN),
     AUTHENTICATION_REQUIRED(1005, "Missing, invalid or expired access token", HttpStatus.UNAUTHORIZED),
     INVALID_REFRESH_TOKEN(1006, "Invalid or expired refresh token", HttpStatus.UNAUTHORIZED),
+    ACCESS_DENIED(1007, "You do not have permission to perform this action", HttpStatus.FORBIDDEN),
+    CANNOT_MODIFY_SELF(1008, "You cannot delete, lock or remove the admin role from your own account", HttpStatus.BAD_REQUEST),
+    INVALID_PAGE_KEY(1009, "Invalid page key", HttpStatus.BAD_REQUEST),
 
     // 11xx: role
     ROLE_NOT_FOUND(1101, "Role not found", HttpStatus.NOT_FOUND),

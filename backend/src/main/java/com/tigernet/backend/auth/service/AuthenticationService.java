@@ -7,6 +7,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.tigernet.backend.audit.service.AuditLogService;
 import com.tigernet.backend.auth.dto.request.AuthenticationRequest;
 import com.tigernet.backend.auth.dto.response.AuthenticationResponse;
 import com.tigernet.backend.common.exception.AppException;
@@ -42,6 +43,7 @@ public class AuthenticationService {
 
     UserRepository userRepository;
     PasswordEncoder passwordEncoder;
+    AuditLogService auditLogService;
 
     @NonFinal
     @Value("${jwt.signer-key}")
@@ -56,7 +58,7 @@ public class AuthenticationService {
     long refreshDuration; // giây, mặc định 7 ngày
 
     // đăng nhập thành công thì trả token, thất bại thì ném AppException
-    @Transactional(readOnly = true) // giữ session để đọc role (LAZY) khi tạo token
+    @Transactional // giữ session để đọc role (LAZY) khi tạo token + ghi nhật ký đăng nhập
     public AuthenticationResponse authenticate(AuthenticationRequest request){
         // sai username và sai mật khẩu trả cùng 1 lỗi để không lộ username nào tồn tại
         var user = userRepository.findByUsername(request.getUsername())
@@ -70,7 +72,9 @@ public class AuthenticationService {
             throw new AppException(ErrorCode.USER_INACTIVE);
         }
 
-        return issueTokens(user);
+        AuthenticationResponse response = issueTokens(user);
+        auditLogService.log(user, "LOGIN", "Users", user.getUserId(), null);
+        return response;
     }
 
     // refresh token hợp lệ + user còn hoạt động thì cấp cặp token mới (xoay vòng refresh token)

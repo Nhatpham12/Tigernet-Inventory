@@ -3,12 +3,15 @@ package com.tigernet.backend.audit.service;
 import com.tigernet.backend.audit.dto.response.AuditLogResponse;
 import com.tigernet.backend.audit.entity.AuditLogEntity;
 import com.tigernet.backend.audit.repository.AuditLogRepository;
+import com.tigernet.backend.user.entity.UserEntity;
 import com.tigernet.backend.user.service.CurrentUserService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDate;
@@ -24,16 +27,27 @@ public class AuditLogService {
     CurrentUserService currentUserService;
     JsonMapper jsonMapper;
 
+    // request đã có dòng nhật ký nghiệp vụ thì AuditInterceptor không ghi thêm dòng chung
+    public static final String LOGGED_ATTRIBUTE = AuditLogService.class.getName() + ".logged";
+
     // ghi 1 dòng nhật ký cho user đang đăng nhập; detail được lưu dạng JSON
     public void log(String action, String targetTable, Integer targetId, Object detail) {
+        log(currentUserService.getCurrentUser(), action, targetTable, targetId, detail);
+    }
+
+    // dùng khi chưa có token trong SecurityContext (vd đăng nhập)
+    public void log(UserEntity user, String action, String targetTable, Integer targetId, Object detail) {
         AuditLogEntity auditLog = new AuditLogEntity();
-        auditLog.setUser(currentUserService.getCurrentUser());
+        auditLog.setUser(user);
         auditLog.setAction(action);
         auditLog.setTargetTable(targetTable);
         auditLog.setTargetId(targetId);
         auditLog.setDetail(detail == null ? null : jsonMapper.writeValueAsString(detail));
         auditLog.setCreatedAt(LocalDateTime.now());
         auditLogRepository.save(auditLog);
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            attributes.getRequest().setAttribute(LOGGED_ATTRIBUTE, Boolean.TRUE);
+        }
     }
 
     // to là ngày cuối (tính cả ngày đó)
