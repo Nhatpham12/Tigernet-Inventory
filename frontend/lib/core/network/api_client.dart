@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../config/env.dart';
@@ -40,6 +43,53 @@ class ApiClient {
       _send(() => _dio.put(path, data: data));
 
   Future<dynamic> delete(String path) => _send(() => _dio.delete(path));
+
+  /// GET một file (PDF in giấy tờ). Tên file lấy từ header Content-Disposition của backend.
+  Future<DownloadedFile> getFile(
+    String path, {
+    Map<String, dynamic>? query,
+    String fallbackName = 'tai_lieu.pdf',
+  }) async {
+    try {
+      final res = await _dio.get<List<int>>(
+        path,
+        queryParameters: _clean(query),
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final name =
+          fileNameFromDisposition(res.headers.value('content-disposition')) ??
+          fallbackName;
+      return DownloadedFile(
+        name: name,
+        bytes: Uint8List.fromList(res.data ?? const []),
+        contentType: res.headers.value('content-type') ?? 'application/pdf',
+      );
+    } on DioException catch (e) {
+      // lỗi trả về JSON nhưng đang đọc dạng bytes: giải mã lại để lấy mã lỗi
+      final data = e.response?.data;
+      if (data is List<int>) {
+        try {
+          e.response!.data = jsonDecode(utf8.decode(data));
+        } catch (_) {}
+      }
+      throw _toApiException(e);
+    }
+  }
+
+  /// filename*=UTF-8''... được ưu tiên hơn filename="...".
+  static String? fileNameFromDisposition(String? header) {
+    if (header == null) return null;
+    final star = RegExp(
+      r"filename\*=UTF-8''([^;]+)",
+      caseSensitive: false,
+    ).firstMatch(header);
+    if (star != null) return Uri.decodeComponent(star.group(1)!.trim());
+    final plain = RegExp(
+      r'filename="?([^";]+)"?',
+      caseSensitive: false,
+    ).firstMatch(header);
+    return plain?.group(1)?.trim();
+  }
 
   /// GET một danh sách đã phân trang từ BFF.
   Future<PageData<Map<String, dynamic>>> getPage(
@@ -194,4 +244,16 @@ class _AuthInterceptor extends QueuedInterceptor {
       handler.next(e);
     }
   }
+}
+
+class DownloadedFile {
+  const DownloadedFile({
+    required this.name,
+    required this.bytes,
+    required this.contentType,
+  });
+
+  final String name;
+  final Uint8List bytes;
+  final String contentType;
 }

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="${title} + ' ' + ${code}">Phiếu thu</title>
+<style>
+  /* Bản gốc: PT2022/PC2022 (Word), A5 ngang, Times New Roman 10–16pt. In 1 trang/liên (bản gốc tràn sang trang 2) */
+  @page { size: 210mm 148mm; margin: 5mm 10mm 5mm 9.5mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; margin: 0; color: #000; }
+  table { border-collapse: collapse; }
+  .head { width: 100%; }
+  .head td { vertical-align: top; padding: 0; }
+  .company { font-size: 10pt; line-height: 1.3; }
+  .form-no { text-align: center; font-size: 9pt; font-weight: bold; }
+  .form-law { text-align: center; font-size: 8pt; font-style: italic; font-weight: normal; }
+  .meta { width: 100%; margin-top: 2pt; }
+  .meta td { padding: 0; vertical-align: top; font-size: 10pt; }
+  h1 { text-align: center; font-size: 16pt; font-weight: bold; margin: 0; }
+  .date { text-align: center; font-style: italic; margin-top: 3pt; }
+  .acc td { padding: 0 0 1pt 0; }
+  .info { margin-top: 8pt; line-height: 1.45; }
+  .info .row td { padding-top: 5pt; }
+  .row { width: 100%; }
+  .row td { padding: 0; vertical-align: bottom; }
+  .fill { border-bottom: 1px dotted #000; }
+  .sign { width: 100%; margin-top: 12pt; }
+  .sign td { text-align: center; vertical-align: top; padding: 0; width: 20%; }
+  .sign .t { font-weight: bold; font-size: 10pt; }
+  .sign .s { font-style: italic; font-size: 9pt; }
+  .space { height: 50pt; }
+  .recv { margin-top: 10pt; }
+</style>
+</head>
+<body>
+<table class="head">
+  <tr>
+    <td style="width:60%" class="company">
+      <div style="font-weight:bold" th:text="${f.blank(company.name) ? 'Đơn vị: ……………………………………' : company.name}">Tên đơn vị</div>
+      <div th:text="'Địa chỉ: ' + ${f.blank(company.address) ? '……………………………………' : company.address}">Địa chỉ</div>
+    </td>
+    <td style="width:40%">
+      <div class="form-no" th:text="'Mẫu số ' + ${formNo}">Mẫu số 01-TT</div>
+      <div class="form-law">(Ban hành theo Thông tư số 200/2014/TT-BTC<br/>Ngày 22/12/2014 của Bộ Tài chính)</div>
+    </td>
+  </tr>
+</table>
+
+<table class="meta">
+  <tr>
+    <td style="width:25%"></td>
+    <td style="width:45%">
+      <h1 th:text="${title}">PHIẾU THU</h1>
+      <div class="date" th:text="${f.longDate(date)}">Ngày … tháng … năm …</div>
+    </td>
+    <td style="width:30%">
+      <table class="acc" style="width:100%">
+        <tr><td style="width:50%">Quyển số: ………</td><td>Số: <span th:text="${code}"></span></td></tr>
+        <tr><td></td><td>Nợ: <span th:text="${f.blank(debit) ? '' : debit}"></span></td></tr>
+        <tr><td></td><td>Có: <span th:text="${f.blank(credit) ? '' : credit}"></span></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<div class="info">
+  <table class="row"><tr>
+    <td style="width:1%; white-space:nowrap" th:text="${receipt} ? 'Họ tên người nộp tiền: ' : 'Họ tên người nhận tiền: '">Họ tên người nộp tiền: </td>
+    <td class="fill" th:text="${party.name}">&nbsp;</td></tr></table>
+  <table class="row"><tr>
+    <td style="width:1%; white-space:nowrap">Địa chỉ: </td>
+    <td class="fill" th:text="${party.address}">&nbsp;</td></tr></table>
+  <table class="row"><tr>
+    <td style="width:1%; white-space:nowrap">Lý do: </td>
+    <td class="fill" th:text="${reason}">&nbsp;</td></tr></table>
+  <table class="row"><tr>
+    <td style="width:1%; white-space:nowrap">Số tiền: </td>
+    <td class="fill"><b th:text="${f.money(amount)} + ' đồng'">0 đồng</b></td></tr></table>
+  <table class="row"><tr>
+    <td style="width:1%; white-space:nowrap">Bằng chữ: </td>
+    <td class="fill"><i th:text="${f.words(amount)}">…</i></td></tr></table>
+  <div style="padding-top:5pt">Kèm theo: ……… HĐ ……………… chứng từ gốc.</div>
+</div>
+
+<table class="sign">
+  <tr th:if="${receipt}">
+    <td><div class="t">Giám đốc</div><div class="s">(Ký, họ tên, đóng dấu)</div></td>
+    <td><div class="t">Kế toán trưởng</div><div class="s">(Ký, họ tên)</div></td>
+    <td><div class="t">Người nộp tiền</div><div class="s">(Ký, họ tên)</div></td>
+    <td><div class="t">Người lập phiếu</div><div class="s">(Ký, họ tên)</div></td>
+    <td><div class="t">Thủ quỹ</div><div class="s">(Ký, họ tên)</div></td>
+  </tr>
+  <tr th:unless="${receipt}">
+    <td><div class="t">Giám đốc</div><div class="s">(Ký, họ tên, đóng dấu)</div></td>
+    <td><div class="t">Kế toán trưởng</div><div class="s">(Ký, họ tên)</div></td>
+    <td><div class="t">Thủ quỹ</div><div class="s">(Ký, họ tên)</div></td>
+    <td><div class="t">Người lập phiếu</div><div class="s">(Ký, họ tên)</div></td>
+    <td><div class="t">Người nhận tiền</div><div class="s">(Ký, họ tên)</div></td>
+  </tr>
+  <tr class="space"><td></td><td></td><td></td><td th:text="${createdBy}" style="vertical-align:bottom"></td><td></td></tr>
+</table>
+
+<table class="row recv"><tr>
+  <td style="width:1%; white-space:nowrap">Đã nhận đủ số tiền (viết bằng chữ): </td>
+  <td class="fill">&nbsp;</td></tr></table>
+</body>
+</html>
