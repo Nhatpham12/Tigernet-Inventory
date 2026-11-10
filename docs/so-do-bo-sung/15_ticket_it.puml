@@ -1,0 +1,33 @@
+@startuml
+!pragma layout smetana
+!include _style.iuml
+actor "Người dùng\n(mọi vai trò)" as ND
+actor "Nhân viên IT" as IT
+actor "Trưởng nhóm IT /\nQuản lý" as TN
+actor "Hệ thống\n(tác vụ tự động)" as SYS
+rectangle "Báo lỗi cho phòng IT (ticket)" {
+  usecase "Bấm “Báo lỗi”\nngay tại màn hình gặp lỗi" as T1
+  usecase "Tự chụp màn hình,\nghi thời điểm, màn hình, phiên bản" <<auto>> as T1a
+  usecase "Mô tả, chọn mức độ,\nđính kèm thêm ảnh" <<in>> as T1b
+  usecase "Tiếp nhận, phân loại,\ngiao người sửa" as T2
+  usecase "Sửa lỗi" as T3
+  usecase "Tạm hoãn (deferred)\nkèm hạn xử lý mới" as T3a
+  usecase "Đánh dấu gián đoạn (interrupted)\nkèm lý do" as T3b
+  usecase "Phát hành bản vá nóng\n(hot update)" as T4
+  usecase "Người báo xác nhận\nđã hết lỗi (check-done)" as T5
+  usecase "Theo dõi trạng thái\nticket của mình" as T6
+  usecase "Nhắc khi quá hạn xử lý\ntheo mức độ" <<auto>> as T7
+}
+ND -- T1
+T1 .> T1a : <<include>>
+T1 .> T1b : <<include>>
+ND -- T6
+ND -- T5
+IT -- T2
+IT -- T3
+T3a .> T3 : <<extend>>
+T3b .> T3 : <<extend>>
+TN -- T3a
+TN -- T4
+T7 -- SYS
+@enduml

@@ -1,0 +1,28 @@
+@startuml
+!pragma layout smetana
+!include _style.iuml
+actor "Nhân viên" as NV
+actor "Kế toán /\nNhân sự" as KT
+actor "Quản trị\nhệ thống" as QT
+actor "Hệ thống\n(tác vụ tự động)" as SYS
+rectangle "Xem phiếu lương bằng mã PIN" {
+  usecase "Tạo mã PIN 6 số\n(lần đầu)" as P1
+  usecase "Nhập PIN để mở\nphiếu lương của mình" as P2
+  usecase "Khóa 15 phút\nsau 5 lần nhập sai" <<auto>> as P2a
+  usecase "Tự khóa lại sau\n5 phút không thao tác" <<auto>> as P2b
+  usecase "Đổi PIN / quên PIN\n(nhận mã OTP qua email)" as P3
+  usecase "Nhập bảng lương tháng\n(từ Excel)" as P4
+  usecase "Công bố phiếu lương\ncho nhân viên" as P5
+  usecase "Đặt lại PIN cho nhân viên\n(không xem được PIN)" as P6
+  usecase "Ghi nhật ký mỗi lần\nmở phiếu lương" <<auto>> as P7
+}
+NV -- P1
+NV -- P2
+NV -- P3
+P2a .> P2 : <<extend>>
+P2b .> P2 : <<extend>>
+KT -- P4
+KT -- P5
+QT -- P6
+P7 -- SYS
+@enduml

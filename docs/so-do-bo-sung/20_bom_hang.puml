@@ -1,0 +1,53 @@
+@startuml
+skinparam dpi 150
+skinparam defaultFontName "Liberation Sans"
+skinparam shadowing false
+skinparam ActivityBackgroundColor #DAE8FC
+skinparam ActivityBorderColor #6C8EBF
+skinparam ActivityDiamondBackgroundColor #FFF2CC
+start
+:<b>[Nhân viên bán hàng]</b>\nKhách đặt hàng;
+:<b>[Hệ thống]</b>\nKiểm tra lịch sử khách\n(số lần bom, số điện thoại trong danh sách đen);
+if (Khách có rủi ro?) then (có)
+  :<b>[Nhân viên bán hàng]</b>\nYêu cầu đặt cọc hoặc chuyển khoản trước;
+  if (Khách đồng ý?) then (không)
+    :<b>[Nhân viên bán hàng]</b>\nHủy đơn, nhả hàng đang giữ;
+    stop
+  else (có)
+    :<b>[Nhân viên bán hàng]</b>\nGhi nhận tiền cọc;
+  endif
+else (không)
+endif
+:<b>[Nhân viên bán hàng]</b>\nGọi xác nhận đơn trước khi giao;
+:<b>[Thủ kho]</b>\nXuất kho, đóng gói, in phiếu gửi hàng;
+:<b>[Đơn vị giao hàng]</b>\nGiao hàng (tối đa 3 lần);
+if (Khách nhận hàng?) then (nhận)
+  :<b>[Đơn vị giao hàng]</b>\nThu tiền / giao thành công;
+  stop
+else (không nhận)
+endif
+:<b>[Nhân viên bán hàng]</b>\nLiên hệ lại khách trong 24 giờ;
+if (Khách hẹn giao lại?) then (có)
+  :<b>[Nhân viên bán hàng]</b>\nHẹn ngày giao mới;
+  stop
+else (không / không liên lạc được)
+  :<b>[Nhân viên bán hàng]</b>\nĐánh dấu “Khách bom hàng”\nghi lý do;
+endif
+:<b>[Thủ kho]</b>\nNhận hàng hoàn về, kiểm tra tình trạng;
+if (Hàng còn tốt?) then (tốt)
+  :<b>[Thủ kho]</b>\nNhập lại kho, hàng bán tiếp được;
+else (hư / thiếu)
+  :<b>[Thủ kho]</b>\nGhi hàng hư, lập biên bản\nđòi đơn vị giao hàng bồi thường;
+endif
+:<b>[Kế toán]</b>\nGhi chi phí vận chuyển 2 chiều;\ntrừ vào tiền cọc nếu có;
+:<b>[Kế toán]</b>\nHủy doanh thu / công nợ của đơn;\nđiều chỉnh hóa đơn nếu đã xuất;
+:<b>[Hệ thống]</b>\nCộng 1 lần bom vào hồ sơ khách;
+if (Số lần bom?) then (lần 1)
+  :<b>[Hệ thống]</b>\nGhi chú cảnh báo trên hồ sơ khách;
+elseif () then (lần 2)
+  :<b>[Hệ thống]</b>\nBắt buộc cọc cho đơn sau;
+else (từ lần 3)
+  :<b>[Hệ thống]</b>\nĐưa vào danh sách đen,\nbáo quản lý;
+endif
+stop
+@enduml
