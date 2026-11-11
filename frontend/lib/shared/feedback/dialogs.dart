@@ -71,7 +71,7 @@ Future<Map<String, String>?> formDialog(
                             : null
                       : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
               ],
             ],
           ),

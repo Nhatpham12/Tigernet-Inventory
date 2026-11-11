@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/session_controller.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/data_table/app_data_table.dart';
@@ -11,6 +12,7 @@ import '../../shared/feedback/state_views.dart';
 import '../../shared/feedback/toast.dart';
 import '../../shared/form/fields.dart';
 import '../../shared/form/form_footer.dart';
+import '../../shared/form/unsaved_changes.dart';
 import '../../shared/form/receipt_line_editor.dart';
 import '../../shared/widgets/page_header.dart';
 import '../../shared/widgets/print_button.dart';
@@ -283,6 +285,7 @@ class _RentalFormPageState extends ConsumerState<RentalFormPage> {
         context,
         'Đã lưu phiếu ${(result as Map?)?['receiptCode'] ?? ''}.',
       );
+      UnsavedChanges.clear();
       context.go(widget.kind.basePath);
     } catch (e) {
       if (mounted) Toast.error(context, e);
@@ -301,144 +304,141 @@ class _RentalFormPageState extends ConsumerState<RentalFormPage> {
         ? _dueDate!.difference(_dateOut!).inDays
         : 0;
 
-    return Form(
-      key: _form,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PageHeader(
-            title: 'Tạo phiếu cho ${widget.kind.noun}',
-            crumbs: [
-              const Crumb('Trang chủ', '/app/dashboard'),
-              Crumb(widget.kind.menu, widget.kind.basePath),
-              Crumb('Tạo phiếu ${widget.kind.noun}'),
-            ],
-          ),
-          SectionCard(
-            title: 'Thông tin phiếu',
-            child: FormGrid(
-              children: [
-                customers.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (e, _) => Text('$e'),
-                  data: (list) => AppDropdown<int>(
-                    label: _lend ? 'Người / đơn vị mượn' : 'Khách thuê',
-                    required: true,
-                    hint: 'Chọn khách hàng',
-                    value: _customerId,
-                    items: [
-                      for (final c in list)
-                        ((c['id'] as num).toInt(), partyName(c)),
-                    ],
-                    onChanged: (v) {
-                      final party =
-                          (list.firstWhere(
-                                (c) => c['id'] == v,
-                                orElse: () => {},
-                              )['party']
-                              as Map?) ??
-                          {};
-                      setState(() {
-                        _customerId = v;
-                        _receiverName.text = '${party['fullName'] ?? ''}';
-                        _receiverPhone.text = '${party['phone'] ?? ''}';
-                        _receiverAddress.text = '${party['address'] ?? ''}';
-                      });
-                    },
-                  ),
-                ),
-                warehouses.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (e, _) => Text('$e'),
-                  data: (list) => AppDropdown<int>(
-                    label: 'Kho xuất',
-                    required: true,
-                    hint: 'Chọn kho',
-                    value: _warehouseId,
-                    items: [
-                      for (final w in list)
-                        ((w['id'] as num).toInt(), '${w['warehouseName']}'),
-                    ],
-                    onChanged: (v) => setState(() => _warehouseId = v),
-                  ),
-                ),
-                AppTextField(
-                  label: 'Người nhận hàng',
-                  controller: _receiverName,
-                ),
-                DateField(
-                  label: 'Ngày xuất',
+    return FormPageLayout(
+      formKey: _form,
+      children: [
+        PageHeader(
+          title: 'Tạo phiếu cho ${widget.kind.noun}',
+          crumbs: [
+            const Crumb('Trang chủ', '/app/dashboard'),
+            Crumb(widget.kind.menu, widget.kind.basePath),
+            Crumb('Tạo phiếu ${widget.kind.noun}'),
+          ],
+        ),
+        SectionCard(
+          title: 'Thông tin phiếu',
+          child: FormGrid(
+            children: [
+              customers.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (e, _) => Text(userMessage(e)),
+                data: (list) => AppDropdown<int>(
+                  label: _lend ? 'Người / đơn vị mượn' : 'Khách thuê',
                   required: true,
-                  value: _dateOut,
-                  onChanged: (d) => setState(() => _dateOut = d),
+                  hint: 'Chọn khách hàng',
+                  value: _customerId,
+                  items: [
+                    for (final c in list)
+                      ((c['id'] as num).toInt(), partyName(c)),
+                  ],
+                  onChanged: (v) {
+                    final party =
+                        (list.firstWhere(
+                              (c) => c['id'] == v,
+                              orElse: () => {},
+                            )['party']
+                            as Map?) ??
+                        {};
+                    setState(() {
+                      _customerId = v;
+                      _receiverName.text = '${party['fullName'] ?? ''}';
+                      _receiverPhone.text = '${party['phone'] ?? ''}';
+                      _receiverAddress.text = '${party['address'] ?? ''}';
+                    });
+                  },
                 ),
-                DateField(
-                  label: 'Hạn trả',
+              ),
+              warehouses.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (e, _) => Text(userMessage(e)),
+                data: (list) => AppDropdown<int>(
+                  label: 'Kho xuất',
                   required: true,
-                  value: _dueDate,
-                  onChanged: (d) => setState(() => _dueDate = d),
+                  hint: 'Chọn kho',
+                  value: _warehouseId,
+                  items: [
+                    for (final w in list)
+                      ((w['id'] as num).toInt(), '${w['warehouseName']}'),
+                  ],
+                  onChanged: (v) => setState(() => _warehouseId = v),
                 ),
+              ),
+              AppTextField(
+                label: 'Người nhận hàng',
+                controller: _receiverName,
+              ),
+              DateField(
+                label: 'Ngày xuất',
+                required: true,
+                value: _dateOut,
+                onChanged: (d) => setState(() => _dateOut = d),
+              ),
+              DateField(
+                label: 'Hạn trả',
+                required: true,
+                value: _dueDate,
+                onChanged: (d) => setState(() => _dueDate = d),
+              ),
+              AppTextField(
+                label: 'SĐT người nhận',
+                controller: _receiverPhone,
+                keyboardType: TextInputType.phone,
+              ),
+              if (!_lend)
                 AppTextField(
-                  label: 'SĐT người nhận',
-                  controller: _receiverPhone,
-                  keyboardType: TextInputType.phone,
-                ),
-                if (!_lend)
-                  AppTextField(
-                    label: 'Tiền đặt cọc (₫)',
-                    controller: _deposit,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: digitsOnly,
-                  ),
-                AppTextField(
-                  label: 'Giá thuê / ngày (tính phạt quá hạn)',
-                  controller: _pricePerDay,
+                  label: 'Tiền đặt cọc (₫)',
+                  controller: _deposit,
                   keyboardType: TextInputType.number,
                   inputFormatters: digitsOnly,
                 ),
-                AppTextField(label: 'Địa chỉ', controller: _receiverAddress),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          SectionCard(
-            title: 'Hàng ${widget.kind.noun}',
-            child: products.when(
-              loading: () => const LoadingView(),
-              error: (e, _) => StateView.error(e),
-              data: (list) => ReceiptLineEditor(
-                lines: _lines,
-                products: list,
-                showPrice: !_lend,
-                priceLabel: 'Giá thuê cả kỳ',
-                defaultPrice: (_) => null,
-                onChanged: () => setState(() {}),
+              AppTextField(
+                label: 'Giá thuê / ngày (tính phạt quá hạn)',
+                controller: _pricePerDay,
+                keyboardType: TextInputType.number,
+                inputFormatters: digitsOnly,
               ),
+              AppTextField(label: 'Địa chỉ', controller: _receiverAddress),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SectionCard(
+          title: 'Hàng ${widget.kind.noun}',
+          child: products.when(
+            loading: () => const LoadingView(),
+            error: (e, _) => StateView.error(e),
+            data: (list) => ReceiptLineEditor(
+              lines: _lines,
+              products: list,
+              showPrice: !_lend,
+              priceLabel: 'Giá thuê cả kỳ',
+              defaultPrice: (_) => null,
+              onChanged: () => setState(() {}),
             ),
           ),
-          const SizedBox(height: 16),
-          SectionCard(
-            title: 'Tổng kết',
-            child: TotalsPanel(
-              rows: [
-                ('Số ngày ${widget.kind.noun}', '$days ngày', false),
-                if (!_lend)
-                  (
-                    'Tiền đặt cọc',
-                    Fmt.money(parseNumber(_deposit.text) ?? 0),
-                    false,
-                  ),
-                if (!_lend) ('Tổng tiền thuê', Fmt.money(totalRent), true),
-                if (_lend) ('Số mặt hàng', '${_lines.length}', true),
-              ],
-            ),
+        ),
+        const SizedBox(height: 16),
+        SectionCard(
+          title: 'Tổng kết',
+          child: TotalsPanel(
+            rows: [
+              ('Số ngày ${widget.kind.noun}', '$days ngày', false),
+              if (!_lend)
+                (
+                  'Tiền đặt cọc',
+                  Fmt.money(parseNumber(_deposit.text) ?? 0),
+                  false,
+                ),
+              if (!_lend) ('Tổng tiền thuê', Fmt.money(totalRent), true),
+              if (_lend) ('Số mặt hàng', '${_lines.length}', true),
+            ],
           ),
-          FormFooter(
-            saving: _saving,
-            onCancel: () => context.go(widget.kind.basePath),
-            onSave: _save,
-          ),
-        ],
+        ),
+      ],
+      footer: FormFooter(
+        saving: _saving,
+        onCancel: () => guardedGo(context, widget.kind.basePath),
+        onSave: _save,
       ),
     );
   }

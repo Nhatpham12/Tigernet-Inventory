@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'app_tokens.dart';
 
 /// ThemeData theo Figma: Open Sans, input cao 44px bo 8px, nút 40px.
 class AppTheme {
@@ -20,10 +21,10 @@ class AppTheme {
       useMaterial3: true,
       fontFamily: fontFamily,
     );
-    final textTheme = base.textTheme.apply(
-      bodyColor: c.text,
-      displayColor: c.text,
-    );
+    // Text Styles đặt tên (AppText) đè lên bộ mặc định của Material.
+    final textTheme = base.textTheme
+        .apply(bodyColor: c.text, displayColor: c.text)
+        .merge(AppText.theme(c));
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(radius),
       borderSide: BorderSide(color: c.muted),
@@ -53,7 +54,7 @@ class AppTheme {
         fillColor: c.surface,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 12,
+          vertical: 12, // chữ 14px × 1,5 + 2×12 ≈ 44px: chiều cao input theo Figma
         ),
         hintStyle: TextStyle(color: c.muted, fontSize: 14),
         border: border,

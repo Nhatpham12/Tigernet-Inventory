@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../core/utils/formatters.dart';
 import 'fields.dart';
+import 'unsaved_changes.dart';
 
 /// Một dòng hàng trên phiếu (nhập / xuất / thuê / mượn / chuyển kho).
 class ReceiptLine {
@@ -66,11 +68,36 @@ class ReceiptLineEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final header = TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.w700,
-      color: c.text,
+    // Mọi thay đổi dòng hàng cũng tính là "đang nhập dở" (TextField ở đây không phải FormField).
+    void changed() {
+      UnsavedChanges.mark();
+      onChanged();
+    }
+
+    final header = context.text.label.copyWith(fontWeight: FontWeight.w700);
+    final cellText = context.text.body2;
+
+    Widget deleteButton(ReceiptLine line) => IconButton(
+      tooltip: 'Xóa dòng',
+      icon: Icon(Icons.delete_outline, color: c.danger, size: 20),
+      style: IconButton.styleFrom(
+        backgroundColor: c.dangerBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      onPressed: () {
+        lines.remove(line);
+        line.dispose();
+        changed();
+      },
     );
+
+    Widget serialField(ReceiptLine line) => TextField(
+      controller: line.serial,
+      style: cellText,
+      onChanged: (_) => UnsavedChanges.mark(),
+      decoration: const InputDecoration(hintText: 'SN-...'),
+    );
+
     Widget cell(
       Widget child, {
       int flex = 2,
@@ -78,15 +105,19 @@ class ReceiptLineEditor extends StatelessWidget {
     }) => Expanded(
       flex: flex,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        padding: const EdgeInsets.all(AppSpace.s4),
         child: Align(alignment: align, child: child),
       ),
     );
+
     final table = Column(
       children: [
         Container(
           color: c.surfaceMuted,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.s4,
+            vertical: AppSpace.s8,
+          ),
           child: Row(
             children: [
               cell(Text('SKU / Sản phẩm', style: header), flex: 5),
@@ -121,7 +152,10 @@ class ReceiptLineEditor extends StatelessWidget {
         ),
         for (final line in lines)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.s4,
+              vertical: AppSpace.s2,
+            ),
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: c.divider)),
             ),
@@ -130,23 +164,16 @@ class ReceiptLineEditor extends StatelessWidget {
                 cell(
                   Text(
                     '${Fmt.productCode(line.productId)} · ${line.product['productName']}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: c.text,
-                    ),
+                    style: cellText.copyWith(fontWeight: FontWeight.w600),
                   ),
                   flex: 5,
                 ),
                 cell(
-                  Text(
-                    '${line.product['unit'] ?? ''}',
-                    style: TextStyle(fontSize: 13, color: c.text),
-                  ),
+                  Text('${line.product['unit'] ?? ''}', style: cellText),
                   flex: 1,
                 ),
                 cell(
-                  _NumberBox(controller: line.qty, onChanged: onChanged),
+                  _NumberBox(controller: line.qty, onChanged: changed),
                   flex: 2,
                   align: Alignment.centerRight,
                 ),
@@ -154,7 +181,7 @@ class ReceiptLineEditor extends StatelessWidget {
                   cell(
                     _NumberBox(
                       controller: line.price,
-                      onChanged: onChanged,
+                      onChanged: changed,
                       suffix: '₫',
                     ),
                     flex: 3,
@@ -164,71 +191,156 @@ class ReceiptLineEditor extends StatelessWidget {
                   cell(
                     Text(
                       Fmt.money(line.lineTotal),
-                      style: TextStyle(
-                        fontSize: 13,
+                      style: context.text.label.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: c.text,
                       ),
                     ),
                     flex: 3,
                     align: Alignment.centerRight,
                   ),
-                if (showSerial)
-                  cell(
-                    TextField(
-                      controller: line.serial,
-                      style: const TextStyle(fontSize: 13),
-                      decoration: const InputDecoration(hintText: 'SN-...'),
-                    ),
-                    flex: 3,
-                  ),
+                if (showSerial) cell(serialField(line), flex: 3),
                 if (showWarranty)
                   cell(
-                    _NumberBox(controller: line.warranty, onChanged: onChanged),
+                    _NumberBox(controller: line.warranty, onChanged: changed),
                     flex: 2,
                   ),
-                cell(
-                  IconButton(
-                    tooltip: 'Xóa dòng',
-                    icon: Icon(Icons.delete_outline, color: c.danger, size: 20),
-                    style: IconButton.styleFrom(
-                      backgroundColor: c.dangerBg,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    onPressed: () {
-                      lines.remove(line);
-                      line.dispose();
-                      onChanged();
-                    },
-                  ),
-                  flex: 1,
-                  align: Alignment.center,
-                ),
+                cell(deleteButton(line), flex: 1, align: Alignment.center),
               ],
             ),
           ),
       ],
     );
+
+    // Điện thoại: mỗi dòng hàng là một thẻ, nhập liệu không phải cuộn ngang.
+    Widget lineCard(ReceiptLine line) => Container(
+      margin: const EdgeInsets.only(bottom: AppSpace.s8),
+      padding: const EdgeInsets.all(AppSpace.s16),
+      decoration: BoxDecoration(
+        border: Border.all(color: c.divider),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${Fmt.productCode(line.productId)} · ${line.product['productName']}',
+                      style: context.text.label,
+                    ),
+                    Text(
+                      'ĐVT: ${line.product['unit'] ?? '—'}',
+                      style: context.text.caption.copyWith(color: c.muted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpace.s8),
+              deleteButton(line),
+            ],
+          ),
+          const SizedBox(height: AppSpace.s8),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniField(
+                  label: 'Số lượng',
+                  child: _NumberBox(controller: line.qty, onChanged: changed),
+                ),
+              ),
+              if (showPrice) ...[
+                const SizedBox(width: AppSpace.s8),
+                Expanded(
+                  flex: 2,
+                  child: _MiniField(
+                    label: priceLabel,
+                    child: _NumberBox(
+                      controller: line.price,
+                      onChanged: changed,
+                      suffix: '₫',
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (showSerial || showWarranty) ...[
+            const SizedBox(height: AppSpace.s8),
+            Row(
+              children: [
+                if (showSerial)
+                  Expanded(
+                    flex: 2,
+                    child: _MiniField(
+                      label: 'Serial',
+                      child: serialField(line),
+                    ),
+                  ),
+                if (showSerial && showWarranty)
+                  const SizedBox(width: AppSpace.s8),
+                if (showWarranty)
+                  Expanded(
+                    child: _MiniField(
+                      label: 'BH (tháng)',
+                      child: _NumberBox(
+                        controller: line.warranty,
+                        onChanged: changed,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+          if (showPrice) ...[
+            const SizedBox(height: AppSpace.s8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Thành tiền',
+                    style: cellText.copyWith(color: c.muted),
+                  ),
+                ),
+                Text(
+                  Fmt.money(line.lineTotal),
+                  style: context.text.label.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+
     return Column(
       children: [
         LayoutBuilder(
-          builder: (context, constraints) => constraints.maxWidth < 900
-              ? SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(width: 900, child: table),
-                )
-              : table,
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 600) {
+              return Column(children: [for (final l in lines) lineCard(l)]);
+            }
+            return constraints.maxWidth < 900
+                ? SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(width: 900, child: table),
+                  )
+                : table;
+          },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.s16),
         Row(
           children: [
             Expanded(
               child: _ProductSearch(products: products, onSelected: _add),
             ),
             if (onCreateProduct != null) ...[
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.s8),
               OutlinedButton.icon(
                 icon: const Icon(Icons.add_box_outlined, size: 18),
                 label: const Text('Thêm sản phẩm mới'),
@@ -255,8 +367,31 @@ class ReceiptLineEditor extends StatelessWidget {
     } else {
       lines.add(ReceiptLine(product: p, price: defaultPrice(p)));
     }
+    UnsavedChanges.mark();
     onChanged();
   }
+}
+
+/// Nhãn nhỏ + ô nhập, dùng trong thẻ dòng hàng trên điện thoại.
+class _MiniField extends StatelessWidget {
+  const _MiniField({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        label,
+        style: context.text.caption.copyWith(color: context.colors.muted),
+      ),
+      const SizedBox(height: AppSpace.s4),
+      child,
+    ],
+  );
 }
 
 class _NumberBox extends StatelessWidget {
@@ -276,7 +411,7 @@ class _NumberBox extends StatelessWidget {
     textAlign: TextAlign.right,
     keyboardType: TextInputType.number,
     inputFormatters: digitsOnly,
-    style: const TextStyle(fontSize: 13),
+    style: context.text.body2,
     onChanged: (_) => onChanged(),
     decoration: InputDecoration(suffixText: suffix),
   );
@@ -340,22 +475,24 @@ class TotalsPanel extends StatelessWidget {
       children: [
         for (final (label, value, emphasize) in rows)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: AppSpace.s8),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     label,
-                    style: TextStyle(fontSize: 14, color: c.muted),
+                    style: context.text.body1.copyWith(color: c.muted),
                   ),
                 ),
                 Text(
                   value,
-                  style: TextStyle(
-                    fontSize: emphasize ? 20 : 14,
-                    fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
-                    color: emphasize ? c.accent : c.text,
-                  ),
+                  // Tổng cộng: Heading 2 đậm, màu chữ cam đủ tương phản.
+                  style: emphasize
+                      ? context.text.h2.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: c.accentText,
+                        )
+                      : context.text.label,
                 ),
               ],
             ),

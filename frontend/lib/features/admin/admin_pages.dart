@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/role.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/config/env.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/theme_mode_provider.dart';
@@ -340,13 +341,13 @@ class _UserDialogState extends ConsumerState<UserDialog> {
                       ? null
                       : 'Từ 3–50 ký tự: chữ không dấu, số, dấu . _ -',
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 AppTextField(
                   label: 'Họ tên',
                   required: true,
                   controller: _fullName,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 AppTextField(
                   label: 'Email',
                   controller: _email,
@@ -359,7 +360,7 @@ class _UserDialogState extends ConsumerState<UserDialog> {
                         : 'Email không hợp lệ';
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 AppTextField(
                   label: _editing
                       ? 'Mật khẩu mới (để trống nếu không đổi)'
@@ -374,10 +375,10 @@ class _UserDialogState extends ConsumerState<UserDialog> {
                         : null;
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 roles.when(
                   loading: () => const LinearProgressIndicator(),
-                  error: (e, _) => Text('$e'),
+                  error: (e, _) => Text(userMessage(e)),
                   data: (list) => AppDropdown<int>(
                     label: 'Vai trò',
                     required: true,

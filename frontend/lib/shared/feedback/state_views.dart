@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 
 /// Trạng thái chung theo Figma "Trạng thái / error | 403 | 404 | Đang tải".
 class StateView extends StatelessWidget {
@@ -32,7 +33,7 @@ class StateView extends StatelessWidget {
     return StateView(
       icon: Icons.cloud_off_outlined,
       title: 'Không tải được dữ liệu',
-      message: '$error',
+      message: userMessage(error),
       action: onRetry == null
           ? null
           : OutlinedButton.icon(
@@ -53,7 +54,7 @@ class StateView extends StatelessWidget {
     final c = context.colors;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(AppSpace.s32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -66,27 +67,23 @@ class StateView extends StatelessWidget {
               ),
               child: Icon(icon, size: 32, color: tone ?? c.muted),
             ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: c.text,
-              ),
-            ),
+            const SizedBox(height: AppSpace.s16),
+            Text(title, style: context.text.h2, textAlign: TextAlign.center),
             if (message != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.s8),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
                 child: Text(
                   message!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: c.muted),
+                  style: context.text.body1.copyWith(color: c.muted),
                 ),
               ),
             ],
-            if (action != null) ...[const SizedBox(height: 16), action!],
+            if (action != null) ...[
+              const SizedBox(height: AppSpace.s16),
+              action!,
+            ],
           ],
         ),
       ),

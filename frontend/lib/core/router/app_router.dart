@@ -26,6 +26,7 @@ import '../../features/warranty/warranty_detail_page.dart';
 import '../../features/warranty/warranty_form_page.dart';
 import '../../features/warranty/warranty_list_page.dart';
 import '../../shared/feedback/state_views.dart';
+import '../../shared/form/form_footer.dart';
 import '../../shared/layout/app_shell.dart';
 import '../auth/session.dart';
 import '../auth/session_controller.dart';
@@ -52,7 +53,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     path: path,
     pageBuilder: (context, state) => NoTransitionPage(
       key: state.pageKey,
-      child: PageBody(child: build(state)),
+      // Trang tạo/sửa (FormPageLayout) tự cuộn để thanh Lưu/Hủy dính đáy.
+      child: PageBody(
+        scroll: !FormPageLayout.handles(state.matchedLocation),
+        child: build(state),
+      ),
     ),
   );
 
@@ -66,7 +71,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final atLogin = state.matchedLocation == '/login';
       if (!loggedIn) return atLogin ? null : '/login';
       if (atLogin || state.matchedLocation == '/') return '/app/dashboard';
-      if (!_allowed(state.matchedLocation, session.value!)) return '/app/403';
+      if (!_allowed(state.matchedLocation, session.value!)) {
+        return '/app/403';
+      }
       return null;
     },
     errorBuilder: (context, state) => const NotFoundPage(),
@@ -84,6 +91,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             (s) => ProductListPage(
               key: ValueKey(s.uri.query),
               initialStockStatus: s.uri.queryParameters['stockStatus'],
+              initialKeyword: s.uri.queryParameters['q'],
             ),
           ),
           page('/app/products/new', (_) => const ProductFormPage()),
@@ -108,7 +116,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           page('/app/customers', (_) => const CustomerListPage()),
-          page('/app/import-receipts', (_) => const ImportReceiptListPage()),
+          page(
+            '/app/import-receipts',
+            (s) => ImportReceiptListPage(
+              key: ValueKey(s.uri.query),
+              initialKeyword: s.uri.queryParameters['q'],
+            ),
+          ),
           page(
             '/app/import-receipts/new',
             (_) => const ImportReceiptFormPage(),
@@ -127,7 +141,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               id: int.parse(s.pathParameters['id']!),
             ),
           ),
-          page('/app/export-receipts', (_) => const ExportReceiptListPage()),
+          page(
+            '/app/export-receipts',
+            (s) => ExportReceiptListPage(
+              key: ValueKey(s.uri.query),
+              initialKeyword: s.uri.queryParameters['q'],
+            ),
+          ),
           page(
             '/app/export-receipts/new',
             (_) => const ExportReceiptFormPage(),

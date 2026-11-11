@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 
 typedef RowData = Map<String, dynamic>;
 
@@ -71,11 +72,7 @@ class _CellText extends StatelessWidget {
     textAlign: align == Alignment.centerRight
         ? TextAlign.right
         : (align == Alignment.center ? TextAlign.center : TextAlign.left),
-    style: TextStyle(
-      fontSize: 14,
-      color: context.colors.text,
-      fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
-    ),
+    style: bold ? context.text.label : context.text.body1,
   );
 }
 
@@ -207,11 +204,7 @@ class _AppDataTableState extends State<AppDataTable> {
     final label = Text(
       col.label,
       softWrap: false,
-      style: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w700,
-        color: c.text,
-      ),
+      style: context.text.label.copyWith(fontWeight: FontWeight.w700),
     );
     final content = col.sortKey == null || widget.onSort == null
         ? label

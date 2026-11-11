@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../core/utils/formatters.dart';
 
 /// Nhãn đặt trên, input cao 44px (Figma "List UI/Input").
@@ -19,20 +20,12 @@ class LabeledField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          required ? '$label *' : label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: c.text,
-          ),
-        ),
-        const SizedBox(height: 6),
+        Text(required ? '$label *' : label, style: context.text.label),
+        const SizedBox(height: AppSpace.s8),
         child,
       ],
     );
@@ -44,6 +37,7 @@ class AppTextField extends StatelessWidget {
     super.key,
     required this.label,
     this.controller,
+    this.initialValue,
     this.hint,
     this.required = false,
     this.readOnly = false,
@@ -60,6 +54,9 @@ class AppTextField extends StatelessWidget {
 
   final String label;
   final TextEditingController? controller;
+
+  /// Giá trị cố định cho ô chỉ đọc (không cần tạo controller trong build).
+  final String? initialValue;
   final String? hint;
   final bool required;
   final bool readOnly;
@@ -81,6 +78,7 @@ class AppTextField extends StatelessWidget {
       required: required,
       child: TextFormField(
         controller: controller,
+        initialValue: controller == null ? initialValue : null,
         readOnly: readOnly,
         obscureText: obscure,
         keyboardType: keyboardType,
@@ -89,7 +87,7 @@ class AppTextField extends StatelessWidget {
         autofillHints: autofillHints,
         onChanged: onChanged,
         onFieldSubmitted: onSubmitted,
-        style: TextStyle(fontSize: 14, color: c.text),
+        style: context.text.body1,
         validator:
             validator ??
             (required
@@ -138,8 +136,11 @@ class AppDropdown<T> extends StatelessWidget {
         isExpanded: true,
         hint: hint == null
             ? null
-            : Text(hint!, style: TextStyle(color: c.muted, fontSize: 14)),
-        style: TextStyle(fontSize: 14, color: c.text),
+            : Text(
+                hint!,
+                style: context.text.body1.copyWith(color: c.muted),
+              ),
+        style: context.text.body1,
         icon: Icon(Icons.keyboard_arrow_down, color: c.muted),
         validator: required
             ? (v) => v == null ? 'Vui lòng chọn $label' : null
@@ -207,8 +208,7 @@ class DateField extends StatelessWidget {
             ),
             child: Text(
               value == null ? 'dd/mm/yyyy' : Fmt.date(value),
-              style: TextStyle(
-                fontSize: 14,
+              style: context.text.body1.copyWith(
                 color: value == null ? c.muted : c.text,
               ),
             ),
