@@ -1,0 +1,28 @@
+@startuml
+!pragma layout smetana
+!include _style.iuml
+actor "Nhân viên" as NV
+actor "Người trên quyền" as QL
+actor "Nhân sự /\nQuản trị" as HR
+actor "Hệ thống\n(tác vụ tự động)" as SYS
+rectangle "Hồ sơ nhân viên và chấm công online" {
+  usecase "Lập hồ sơ: ngày vào làm,\nngày chính thức, ca làm" as H1
+  usecase "Ghi ngày nghỉ việc\n(ngày ra làm)" as H2
+  usecase "Tự khóa tài khoản,\ngiao lại việc đang dở" <<auto>> as H2a
+  usecase "Chấm công vào / ra\ntrên app" as H3
+  usecase "Kiểm tra vị trí: mạng công ty\nhoặc gần kho (GPS)" <<in>> as H3a
+  usecase "Giải trình quên chấm,\nđi muộn, xin nghỉ" as H4
+  usecase "Duyệt giải trình / đơn nghỉ" as H5
+  usecase "Bảng công tháng\n(xuất Excel, chuyển sang lương)" as H6
+  usecase "Nhắc quên chấm công ra" <<auto>> as H7
+}
+HR -- H1
+HR -- H2
+H2 .> H2a : <<include>>
+NV -- H3
+H3 .> H3a : <<include>>
+NV -- H4
+QL -- H5
+HR -- H6
+H7 -- SYS
+@enduml

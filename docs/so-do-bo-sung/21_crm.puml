@@ -1,0 +1,34 @@
+@startuml
+!pragma layout smetana
+!include _style.iuml
+actor "Nhân viên\nbán hàng" as BH
+actor "Chăm sóc\nkhách hàng" as CS
+actor "Nhà quản lý" as QL
+actor "Hệ thống\n(tác vụ tự động)" as SYS
+rectangle "Quản lý quan hệ khách hàng (CRM)" {
+  usecase "Ghi nhận khách tiềm năng\n(từ web, Zalo, giới thiệu...)" as R1
+  usecase "Phân công người phụ trách" as R2
+  usecase "Ghi lịch sử chăm sóc:\ngọi, gặp, nhắn, email" as R3
+  usecase "Tạo cơ hội bán hàng\nvà theo dõi giai đoạn" as R4
+  usecase "Lập báo giá, gửi khách" as R5
+  usecase "Chốt đơn → phiếu xuất" as R6
+  usecase "Hồ sơ khách 360°\n(mua, thuê, nợ, bảo hành)" as R7
+  usecase "Tiếp nhận khiếu nại,\nphản hồi của khách" as R8
+  usecase "Phân nhóm khách\n(VIP, thường, rủi ro)" as R9
+  usecase "Chiến dịch chăm sóc:\nnhắc gia hạn, sinh nhật, ưu đãi" as R10
+  usecase "Nhắc việc, nhắc hẹn" <<auto>> as R11
+  usecase "Báo cáo phễu bán hàng,\ndoanh số theo nhân viên" as R12
+}
+BH -- R1
+BH -- R3
+BH -- R4
+BH -- R5
+BH -- R6
+CS -- R8
+CS -- R10
+QL -- R2
+QL -- R9
+QL -- R12
+BH -- R7
+R11 -- SYS
+@enduml

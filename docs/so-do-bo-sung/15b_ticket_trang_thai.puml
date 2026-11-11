@@ -1,0 +1,33 @@
+@startuml
+!pragma layout smetana
+skinparam dpi 150
+skinparam defaultFontName "Liberation Sans"
+skinparam shadowing false
+skinparam state {
+  BackgroundColor #DAE8FC
+  BorderColor #6C8EBF
+}
+hide empty description
+[*] --> Moi : Người dùng gửi báo lỗi
+state "10 · Mới" as Moi
+state "20 · Đã tiếp nhận" as TiepNhan
+state "30 · Đang sửa" as DangSua
+state "35 · Gián đoạn\n(interrupted)" as GianDoan #FFE6CC
+state "40 · Tạm hoãn\n(deferred)" as TamHoan #FFF2CC
+state "50 · Chờ phát hành\n(bản vá / hot update)" as ChoPH
+state "60 · Chờ người báo kiểm tra" as ChoKT
+state "90 · Hoàn tất (check-done)" as Done #D5E8D4
+state "98 · Không phải lỗi /\ntrùng ticket" as Reject #F8CECC
+Moi --> TiepNhan : IT nhận, phân loại mức độ
+Moi --> Reject : thao tác sai / trùng
+TiepNhan --> DangSua : giao người sửa
+DangSua --> GianDoan : bị ngắt (việc gấp hơn,\nchờ thông tin, sự cố máy chủ)
+GianDoan --> DangSua : làm tiếp
+DangSua --> TamHoan : dời sang bản sau\n(cần duyệt nếu mức Cao trở lên)
+TamHoan --> DangSua : đến hạn mới
+DangSua --> ChoPH : sửa xong, đã kiểm thử
+ChoPH --> ChoKT : đã cập nhật lên hệ thống
+ChoKT --> Done : người báo xác nhận hết lỗi\n(hoặc tự đóng sau 3 ngày)
+ChoKT --> DangSua : vẫn còn lỗi (mở lại)
+Done --> [*]
+@enduml
