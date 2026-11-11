@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/admin/admin_pages.dart';
+import '../../features/admin/audit_log_page.dart';
+import '../../features/admin/page_permissions_page.dart';
 import '../../features/alerts/alerts_page.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/dashboard/dashboard_page.dart';
@@ -10,13 +12,23 @@ import '../../features/export_receipts/export_receipt_pages.dart';
 import '../../features/import_receipts/import_receipt_pages.dart';
 import '../../features/inventory/inventory_pages.dart';
 import '../../features/partners/partner_pages.dart';
+import '../../features/payments/payment_pages.dart';
+import '../../features/payments/reconciliation_page.dart';
 import '../../features/products/product_form_page.dart';
 import '../../features/products/product_groups_page.dart';
 import '../../features/products/product_list_page.dart';
 import '../../features/rentals/rental_pages.dart';
+import '../../features/return_receipts/return_receipt_pages.dart';
+import '../../features/sales_returns/sales_return_pages.dart';
+import '../../features/stocktakes/stocktake_pages.dart';
 import '../../features/reports/report_pages.dart';
+import '../../features/warranty/warranty_detail_page.dart';
+import '../../features/warranty/warranty_form_page.dart';
+import '../../features/warranty/warranty_list_page.dart';
 import '../../shared/feedback/state_views.dart';
+import '../../shared/form/form_footer.dart';
 import '../../shared/layout/app_shell.dart';
+import '../auth/session.dart';
 import '../auth/session_controller.dart';
 import 'menu.dart';
 
@@ -27,14 +39,26 @@ class _SessionListenable extends ChangeNotifier {
   }
 }
 
+/// Chặn cả khi gõ URL trực tiếp (PUB-01 AC2): theo vai trò hoặc phân quyền trang riêng của nhân viên.
+bool _allowed(String location, Session session) {
+  final key = pageKeyFor(location);
+  return key == null || canOpenPage(key, session);
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
   final listenable = _SessionListenable(ref);
   ref.onDispose(listenable.dispose);
 
   GoRoute page(String path, Widget Function(GoRouterState s) build) => GoRoute(
     path: path,
-    pageBuilder: (context, state) =>
-        NoTransitionPage(key: state.pageKey, child: build(state)),
+    pageBuilder: (context, state) => NoTransitionPage(
+      key: state.pageKey,
+      // Trang tạo/sửa (FormPageLayout) tự cuộn để thanh Lưu/Hủy dính đáy.
+      child: PageBody(
+        scroll: !FormPageLayout.handles(state.matchedLocation),
+        child: build(state),
+      ),
+    ),
   );
 
   return GoRouter(
@@ -47,7 +71,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final atLogin = state.matchedLocation == '/login';
       if (!loggedIn) return atLogin ? null : '/login';
       if (atLogin || state.matchedLocation == '/') return '/app/dashboard';
-      if (!canAccessPath(state.matchedLocation, session.value!.role)) {
+      if (!_allowed(state.matchedLocation, session.value!)) {
         return '/app/403';
       }
       return null;
@@ -83,6 +107,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             '/app/suppliers/new',
             (_) => const PartnerForm(kind: PartnerKind.supplier),
           ),
+          page(
+            '/app/suppliers/:id/edit',
+            (s) => PartnerForm(
+              key: ValueKey(s.pathParameters['id']),
+              kind: PartnerKind.supplier,
+              partnerId: int.tryParse(s.pathParameters['id']!),
+            ),
+          ),
           page('/app/customers', (_) => const CustomerListPage()),
           page(
             '/app/import-receipts',
@@ -96,6 +128,20 @@ final routerProvider = Provider<GoRouter>((ref) {
             (_) => const ImportReceiptFormPage(),
           ),
           page(
+            '/app/import-receipts/:id/edit',
+            (s) => ImportReceiptFormPage(
+              key: ValueKey('edit-${s.pathParameters['id']}'),
+              receiptId: int.tryParse(s.pathParameters['id']!),
+            ),
+          ),
+          page(
+            '/app/import-receipts/:id',
+            (s) => ImportReceiptDetailPage(
+              key: ValueKey(s.pathParameters['id']),
+              id: int.parse(s.pathParameters['id']!),
+            ),
+          ),
+          page(
             '/app/export-receipts',
             (s) => ExportReceiptListPage(
               key: ValueKey(s.uri.query),
@@ -106,7 +152,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             '/app/export-receipts/new',
             (_) => const ExportReceiptFormPage(),
           ),
-          page('/app/sales-returns', (_) => const SalesReturnListPage()),
           page(
             '/app/rentals',
             (s) => RentalListPage(
@@ -129,9 +174,47 @@ final routerProvider = Provider<GoRouter>((ref) {
             '/app/lends/new',
             (_) => const RentalFormPage(kind: RentalKind.lend),
           ),
+          // Kiểm kê
+          page('/app/stocktakes', (_) => const StocktakeListPage()),
+          page('/app/stocktakes/new', (_) => const StocktakeFormPage()),
+          page(
+            '/app/stocktakes/:id',
+            (s) => StocktakeDetailPage(
+              key: ValueKey(s.pathParameters['id']),
+              id: int.parse(s.pathParameters['id']!),
+            ),
+          ),
+          // Đổi trả hàng bán
+          page('/app/sales-returns', (_) => const SalesReturnListPage()),
+          page(
+            '/app/sales-returns/new',
+            (s) => SalesReturnFormPage(
+              exportReceiptId: int.tryParse(
+                s.uri.queryParameters['exportReceiptId'] ?? '',
+              ),
+            ),
+          ),
+          page(
+            '/app/sales-returns/:id',
+            (s) =>
+                SalesReturnDetailPage(id: int.parse(s.pathParameters['id']!)),
+          ),
+          // Trả hàng thuê / mượn
+          page('/app/return-receipts', (_) => const ReturnReceiptListPage()),
+          page(
+            '/app/return-receipts/new',
+            (s) => ReturnReceiptFormPage(
+              key: ValueKey(s.uri.query),
+              rentalId: int.tryParse(s.uri.queryParameters['rentalId'] ?? ''),
+            ),
+          ),
+          page(
+            '/app/return-receipts/:id',
+            (s) =>
+                ReturnReceiptDetailPage(id: int.parse(s.pathParameters['id']!)),
+          ),
           page('/app/transfers', (_) => const TransferListPage()),
           page('/app/warehouses', (_) => const WarehouseListPage()),
-          page('/app/stocktakes', (_) => const StocktakeListPage()),
           page('/app/reports/stock', (_) => const StockReportPage()),
           page('/app/reports/movements', (_) => const MovementReportPage()),
           page('/app/reports/receivables', (_) => const ReceivablesPage()),
@@ -139,7 +222,60 @@ final routerProvider = Provider<GoRouter>((ref) {
             '/app/reports/rentals',
             (_) => const RentalListPage(kind: null, asReport: true),
           ),
+          // Bảo hành
+          page('/app/warranty-claims', (_) => const WarrantyClaimListPage()),
+          page(
+            '/app/warranty-claims/new',
+            (_) => const WarrantyClaimFormPage(),
+          ),
+          page(
+            '/app/warranty-claims/:id',
+            (s) => WarrantyClaimDetailPage(
+              key: ValueKey(s.pathParameters['id']),
+              claimId: int.parse(s.pathParameters['id']!),
+            ),
+          ),
+          // hết Bảo hành
+          // Thu chi + đối chiếu công nợ
+          page(
+            '/app/payments',
+            (s) => PaymentListPage(
+              initialDirection: s.uri.queryParameters['direction'],
+            ),
+          ),
+          page(
+            '/app/payments/new',
+            (s) => PaymentFormPage(
+              key: ValueKey(s.uri.query),
+              direction: s.uri.queryParameters['direction'] == 'OUT'
+                  ? 'OUT'
+                  : 'IN',
+              initialRefType: s.uri.queryParameters['refType'],
+              initialRefId: int.tryParse(s.uri.queryParameters['refId'] ?? ''),
+            ),
+          ),
+          page(
+            '/app/reports/reconciliation',
+            (_) => const ReconciliationPage(),
+          ),
           page('/app/users', (_) => const UserListPage()),
+          page(
+            '/app/permissions',
+            (s) => PagePermissionsPage(
+              initialUserId: int.tryParse(
+                s.uri.queryParameters['userId'] ?? '',
+              ),
+            ),
+          ),
+          page(
+            '/app/audit-logs',
+            (s) => AuditLogPage(
+              key: ValueKey(s.uri.query),
+              initialUserId: int.tryParse(
+                s.uri.queryParameters['userId'] ?? '',
+              ),
+            ),
+          ),
           page('/app/settings', (_) => const SettingsPage()),
           page('/app/403', (_) => const ForbiddenPage()),
         ],

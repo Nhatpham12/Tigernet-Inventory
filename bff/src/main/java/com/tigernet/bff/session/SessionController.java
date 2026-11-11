@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +36,7 @@ public class SessionController {
 
     public record SessionView(Integer userId, String username, String fullName, String email, String role,
                               boolean canViewAllWarehouses, List<WarehouseOption> warehouses,
-                              Integer defaultWarehouseId, long unreadAlerts) {
+                              Integer defaultWarehouseId, long unreadAlerts, List<String> pages) {
     }
 
     @GetMapping("/bff/session")
@@ -55,6 +56,8 @@ public class SessionController {
                                 Json.text(w, "warehouseName"), Boolean.TRUE.equals(w.path("isDefault").asBoolean())))
                         .toList());
         CompletableFuture<JsonNode> unread = async(() -> backend.get("/alerts/unread-count", Map.of(), authorization));
+        // trang được xem do Quản trị phân quyền riêng; null = dùng quyền mặc định theo vai trò
+        CompletableFuture<JsonNode> permissions = async(() -> backend.get("/users/me/page-permissions", Map.of(), authorization));
 
         List<WarehouseOption> options = await(warehouses);
         Integer defaultWarehouseId = options.stream().filter(WarehouseOption::isDefault).map(WarehouseOption::id)
@@ -62,9 +65,17 @@ public class SessionController {
                 // QL/QT/KT mặc định "Tất cả kho" (null); TK/BH lấy kho đầu tiên được phân công
                 .orElse(allWarehouses || options.isEmpty() ? null : options.getFirst().id());
         JsonNode unreadNode = await(unread);
+        JsonNode permissionNode = await(permissions);
+        List<String> pages = null;
+        if (permissionNode != null && permissionNode.path("custom").asBoolean(false)) {
+            pages = new ArrayList<>();
+            for (JsonNode page : permissionNode.path("pages")) {
+                pages.add(page.asText());
+            }
+        }
 
         return ApiResponse.success(new SessionView(userId, Json.text(user, "username"), Json.text(user, "fullName"),
                 Json.text(user, "email"), role, allWarehouses, options, defaultWarehouseId,
-                unreadNode == null ? 0 : unreadNode.asLong()));
+                unreadNode == null ? 0 : unreadNode.asLong(), pages));
     }
 }

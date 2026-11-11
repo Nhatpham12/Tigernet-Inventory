@@ -12,6 +12,9 @@ public enum ErrorCode {
     USER_INACTIVE(1004, "User account is inactive", HttpStatus.FORBIDDEN),
     AUTHENTICATION_REQUIRED(1005, "Missing, invalid or expired access token", HttpStatus.UNAUTHORIZED),
     INVALID_REFRESH_TOKEN(1006, "Invalid or expired refresh token", HttpStatus.UNAUTHORIZED),
+    ACCESS_DENIED(1007, "You do not have permission to perform this action", HttpStatus.FORBIDDEN),
+    CANNOT_MODIFY_SELF(1008, "You cannot delete, lock or remove the admin role from your own account", HttpStatus.BAD_REQUEST),
+    INVALID_PAGE_KEY(1009, "Invalid page key", HttpStatus.BAD_REQUEST),
 
     // 11xx: role
     ROLE_NOT_FOUND(1101, "Role not found", HttpStatus.NOT_FOUND),
@@ -82,6 +85,16 @@ public enum ErrorCode {
     DUPLICATE_SERIAL(2021, "A serial appears more than once", HttpStatus.BAD_REQUEST),
     STATUS_NOT_ALLOWED(2022, "This status cannot be set here", HttpStatus.BAD_REQUEST),
     NEW_EXPORT_INVALID(2023, "Exchange export receipt must differ from the original export receipt", HttpStatus.BAD_REQUEST),
+    PAYMENT_NOT_FOUND(2024, "Payment not found", HttpStatus.NOT_FOUND),
+    WARRANTY_CLAIM_NOT_FOUND(2025, "Warranty claim not found", HttpStatus.NOT_FOUND),
+    SUPPLIER_RETURN_NOT_FOUND(2026, "Supplier return not found", HttpStatus.NOT_FOUND),
+    PAYMENT_REFERENCE_INVALID(2027, "Payment reference is missing or does not match the direction/party", HttpStatus.BAD_REQUEST),
+    PAYMENT_ALREADY_CANCELLED(2028, "Payment has already been cancelled", HttpStatus.CONFLICT),
+    WARRANTY_STATUS_INVALID(2029, "Warranty claim cannot move to this status from its current status", HttpStatus.CONFLICT),
+
+    // 4xxx: in biểu mẫu
+    PRINT_TEMPLATE_INVALID(4001, "Unknown print template", HttpStatus.BAD_REQUEST),
+    PRINT_RENDER_FAILED(4002, "Could not render the document", HttpStatus.INTERNAL_SERVER_ERROR),
 
     // 3xxx: hệ thống
     ALERT_NOT_FOUND(3001, "Alert not found", HttpStatus.NOT_FOUND),

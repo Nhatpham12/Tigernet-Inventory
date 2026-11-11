@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/auth/role.dart';
 import '../../core/auth/session_controller.dart';
@@ -20,7 +21,8 @@ import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/status_chip.dart';
 import '../common/lookups.dart';
 
-/// Người dùng (QT-01) — GET /bff/users, tạo qua /bff/api/users.
+/// Nhân viên (QT-01) — danh sách GET /bff/users; Quản trị thêm/sửa/khóa/xóa qua /bff/api/users.
+/// Quản lý chỉ xem danh sách (backend chặn ghi với vai trò khác ADMIN).
 class UserListPage extends ConsumerStatefulWidget {
   const UserListPage({super.key});
 
@@ -37,85 +39,225 @@ class _UserListPageState extends ConsumerState<UserListPage> {
     super.dispose();
   }
 
-  Future<void> _add() async {
-    final created = await showDialog<bool>(
+  Future<void> _edit([RowData? user]) async {
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (_) => const _UserDialog(),
+      builder: (_) => UserDialog(user: user),
     );
-    if (created == true) _controller.reload();
+    if (saved == true) _controller.reload();
+  }
+
+  Future<void> _setActive(RowData user, bool active) async {
+    final name = '${user['username']}';
+    if (!active) {
+      final ok = await confirmDialog(
+        context,
+        title: 'Khóa tài khoản $name',
+        message:
+            'Nhân viên sẽ không đăng nhập được nữa. Lịch sử thao tác vẫn được giữ.',
+        confirmLabel: 'Khóa tài khoản',
+        danger: true,
+      );
+      if (!ok) return;
+    }
+    try {
+      await ref
+          .read(apiClientProvider)
+          .put('/bff/api/users/${user['userId']}', data: {'isActive': active});
+      if (!mounted) return;
+      Toast.success(
+        context,
+        active ? 'Đã mở khóa tài khoản $name.' : 'Đã khóa tài khoản $name.',
+      );
+      _controller.reload();
+    } catch (e) {
+      if (mounted) Toast.error(context, e);
+    }
+  }
+
+  Future<void> _delete(RowData user) async {
+    final name = '${user['username']}';
+    final ok = await confirmDialog(
+      context,
+      title: 'Xóa nhân viên $name',
+      message:
+          'Tài khoản chưa dùng sẽ bị xóa hẳn. Tài khoản đã có lịch sử (đăng nhập, lập phiếu...) '
+          'chỉ bị khóa để giữ lịch sử giao dịch.',
+      confirmLabel: 'Xóa',
+      danger: true,
+    );
+    if (!ok) return;
+    try {
+      final result = await ref
+          .read(apiClientProvider)
+          .delete('/bff/api/users/${user['userId']}');
+      if (!mounted) return;
+      final deleted = result is! Map || result['deleted'] != false;
+      Toast.success(
+        context,
+        deleted
+            ? 'Đã xóa nhân viên $name.'
+            : 'Nhân viên $name đã có lịch sử nên được khóa tài khoản thay vì xóa.',
+      );
+      _controller.reload();
+    } catch (e) {
+      if (mounted) Toast.error(context, e);
+    }
   }
 
   @override
-  Widget build(BuildContext context) => PagedListView(
-    title: 'Người dùng',
-    subtitle: 'Tài khoản, vai trò và trạng thái hoạt động',
-    crumbs: const [Crumb('Trang chủ', '/app/dashboard'), Crumb('Người dùng')],
-    controller: _controller,
-    actions: [
-      ElevatedButton(onPressed: _add, child: const Text('Thêm người dùng')),
-    ],
-    endpoint: '/bff/users',
-    useWarehouseScope: false,
-    searchHint: 'Tìm tên đăng nhập, họ tên, email...',
-    itemLabel: 'người dùng',
-    columns: [
-      TableColumnDef.text(
-        'Tên đăng nhập',
-        (r) => '${r['username']}',
-        minWidth: 130,
-        sortKey: 'username',
-        bold: true,
-      ),
-      TableColumnDef.text(
-        'Họ tên',
-        (r) => '${r['fullName'] ?? '—'}',
-        flex: 3,
-        minWidth: 160,
-        sortKey: 'fullName',
-      ),
-      TableColumnDef.text(
-        'Email',
-        (r) => '${r['email'] ?? '—'}',
-        flex: 3,
-        minWidth: 180,
-      ),
-      TableColumnDef.text(
-        'Vai trò',
-        (r) => AppRole.fromCode(r['roleName'] as String?).label,
-        minWidth: 120,
-      ),
-      TableColumnDef.text(
-        'Ngày tạo',
-        (r) => Fmt.date(r['createdAt']),
-        minWidth: 100,
-        sortKey: 'createdAt',
-      ),
-      TableColumnDef(
-        label: 'Trạng thái',
-        minWidth: 120,
-        cell: (r) => r['isActive'] == true
-            ? const StatusChip(label: 'Hoạt động', tone: ChipTone.success)
-            : const StatusChip(label: 'Đã khóa', tone: ChipTone.danger),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final session = ref.watch(sessionProvider).value;
+    final isAdmin = session?.role == AppRole.admin;
+    return PagedListView(
+      title: 'Nhân viên',
+      subtitle: isAdmin
+          ? 'Tài khoản, vai trò, trạng thái hoạt động và quyền xem trang'
+          : 'Tài khoản và vai trò của nhân viên (chỉ Quản trị được chỉnh sửa)',
+      crumbs: const [
+        Crumb('Trang chủ', '/app/dashboard'),
+        Crumb('Quản trị'),
+        Crumb('Nhân viên'),
+      ],
+      controller: _controller,
+      actions: [
+        if (isAdmin)
+          ElevatedButton(
+            onPressed: () => _edit(),
+            child: const Text('Thêm nhân viên'),
+          ),
+      ],
+      endpoint: '/bff/users',
+      useWarehouseScope: false,
+      searchHint: 'Tìm tên đăng nhập, họ tên, email...',
+      itemLabel: 'nhân viên',
+      onRowTap: isAdmin ? _edit : null,
+      columns: [
+        TableColumnDef.text(
+          'Tên đăng nhập',
+          (r) => '${r['username']}',
+          minWidth: 130,
+          sortKey: 'username',
+          bold: true,
+        ),
+        TableColumnDef.text(
+          'Họ tên',
+          (r) => '${r['fullName'] ?? '—'}',
+          flex: 3,
+          minWidth: 160,
+          sortKey: 'fullName',
+        ),
+        TableColumnDef.text(
+          'Email',
+          (r) => '${r['email'] ?? '—'}',
+          flex: 3,
+          minWidth: 180,
+        ),
+        TableColumnDef.text(
+          'Vai trò',
+          (r) => AppRole.fromCode(r['roleName'] as String?).label,
+          minWidth: 120,
+          sortKey: 'roleName',
+        ),
+        TableColumnDef.text(
+          'Ngày tạo',
+          (r) => Fmt.date(r['createdAt']),
+          minWidth: 100,
+          sortKey: 'createdAt',
+        ),
+        TableColumnDef(
+          label: 'Trạng thái',
+          minWidth: 120,
+          cell: (r) => r['isActive'] == true
+              ? const StatusChip(label: 'Hoạt động', tone: ChipTone.success)
+              : const StatusChip(label: 'Đã khóa', tone: ChipTone.danger),
+        ),
+        if (isAdmin)
+          TableColumnDef(
+            label: 'Thao tác',
+            minWidth: 90,
+            flex: 1,
+            align: Alignment.center,
+            cell: (r) {
+              final self = r['userId'] == session?.userId;
+              return PopupMenuButton<String>(
+                tooltip: 'Thao tác',
+                icon: const Icon(Icons.more_horiz),
+                onSelected: (v) => switch (v) {
+                  'edit' => _edit(r),
+                  'pages' => context.go(
+                    '/app/permissions?userId=${r['userId']}',
+                  ),
+                  'audit' => context.go(
+                    '/app/audit-logs?userId=${r['userId']}',
+                  ),
+                  'lock' => _setActive(r, false),
+                  'unlock' => _setActive(r, true),
+                  _ => _delete(r),
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Text('Sửa thông tin'),
+                  ),
+                  if (r['roleName'] != AppRole.admin.code)
+                    const PopupMenuItem(
+                      value: 'pages',
+                      child: Text('Phân quyền trang'),
+                    ),
+                  const PopupMenuItem(
+                    value: 'audit',
+                    child: Text('Lịch sử thao tác'),
+                  ),
+                  if (!self)
+                    r['isActive'] == true
+                        ? const PopupMenuItem(
+                            value: 'lock',
+                            child: Text('Khóa tài khoản'),
+                          )
+                        : const PopupMenuItem(
+                            value: 'unlock',
+                            child: Text('Mở khóa tài khoản'),
+                          ),
+                  if (!self)
+                    const PopupMenuItem(value: 'delete', child: Text('Xóa')),
+                ],
+              );
+            },
+          ),
+      ],
+    );
+  }
 }
 
-class _UserDialog extends ConsumerStatefulWidget {
-  const _UserDialog();
+/// Hộp thoại thêm (user = null) hoặc sửa nhân viên. Sửa: không đổi tên đăng nhập,
+/// để trống mật khẩu thì giữ mật khẩu cũ.
+class UserDialog extends ConsumerStatefulWidget {
+  const UserDialog({super.key, this.user});
+
+  final RowData? user;
 
   @override
-  ConsumerState<_UserDialog> createState() => _UserDialogState();
+  ConsumerState<UserDialog> createState() => _UserDialogState();
 }
 
-class _UserDialogState extends ConsumerState<_UserDialog> {
+class _UserDialogState extends ConsumerState<UserDialog> {
   final _form = GlobalKey<FormState>();
-  final _username = TextEditingController();
-  final _fullName = TextEditingController();
-  final _email = TextEditingController();
+  late final _username = TextEditingController(
+    text: '${widget.user?['username'] ?? ''}',
+  );
+  late final _fullName = TextEditingController(
+    text: '${widget.user?['fullName'] ?? ''}',
+  );
+  late final _email = TextEditingController(
+    text: '${widget.user?['email'] ?? ''}',
+  );
   final _password = TextEditingController();
-  int? _roleId;
+  late int? _roleId = (widget.user?['roleId'] as num?)?.toInt();
+  late bool _active = widget.user?['isActive'] != false;
   bool _saving = false;
+
+  bool get _editing => widget.user != null;
 
   @override
   void dispose() {
@@ -128,87 +270,142 @@ class _UserDialogState extends ConsumerState<_UserDialog> {
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     setState(() => _saving = true);
+    final api = ref.read(apiClientProvider);
+    final email = _email.text.trim();
     try {
-      await ref
-          .read(apiClientProvider)
-          .post(
-            '/bff/api/users',
-            data: {
-              'username': _username.text.trim(),
-              'fullName': _fullName.text.trim(),
-              'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
-              'password': _password.text,
-              'roleId': _roleId,
-              'isActive': true,
-            },
-          );
+      if (_editing) {
+        await api.put(
+          '/bff/api/users/${widget.user!['userId']}',
+          data: {
+            'fullName': _fullName.text.trim(),
+            'email': email,
+            'roleId': _roleId,
+            'isActive': _active,
+            if (_password.text.isNotEmpty) 'password': _password.text,
+          },
+        );
+      } else {
+        await api.post(
+          '/bff/api/users',
+          data: {
+            'username': _username.text.trim(),
+            'fullName': _fullName.text.trim(),
+            'email': email.isEmpty ? null : email,
+            'password': _password.text,
+            'roleId': _roleId,
+            'isActive': _active,
+          },
+        );
+      }
       if (!mounted) return;
-      Toast.success(context, 'Đã tạo tài khoản ${_username.text.trim()}.');
+      Toast.success(
+        context,
+        _editing
+            ? 'Đã cập nhật nhân viên ${_username.text.trim()}.'
+            : 'Đã tạo tài khoản ${_username.text.trim()}.',
+      );
       Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) Toast.error(context, e);
-      setState(() => _saving = false);
+      if (mounted) {
+        Toast.error(context, e);
+        setState(() => _saving = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final roles = ref.watch(rolesLookupProvider);
+    final self =
+        _editing &&
+        widget.user!['userId'] == ref.watch(sessionProvider).value?.userId;
     return AlertDialog(
-      title: const Text('Thêm người dùng'),
+      title: Text(_editing ? 'Sửa nhân viên' : 'Thêm nhân viên'),
       content: SizedBox(
         width: 460,
-        child: Form(
-          key: _form,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppTextField(
-                label: 'Tên đăng nhập',
-                required: true,
-                controller: _username,
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: 'Họ tên',
-                required: true,
-                controller: _fullName,
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: 'Email',
-                controller: _email,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-              AppTextField(
-                label: 'Mật khẩu',
-                required: true,
-                obscure: true,
-                controller: _password,
-                validator: (v) => (v == null || v.length < 8)
-                    ? 'Mật khẩu tối thiểu 8 ký tự'
-                    : null,
-              ),
-              const SizedBox(height: 16),
-              roles.when(
-                loading: () => const LinearProgressIndicator(),
-                error: (e, _) => Text(userMessage(e)),
-                data: (list) => AppDropdown<int>(
-                  label: 'Vai trò',
+        child: SingleChildScrollView(
+          child: Form(
+            key: _form,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppTextField(
+                  label: 'Tên đăng nhập',
                   required: true,
-                  value: _roleId,
-                  items: [
-                    for (final r in list)
-                      (
-                        (r['id'] as num).toInt(),
-                        AppRole.fromCode(r['roleName'] as String?).label,
-                      ),
-                  ],
-                  onChanged: (v) => setState(() => _roleId = v),
+                  readOnly: _editing,
+                  controller: _username,
+                  validator: (v) =>
+                      RegExp(
+                        r'^[A-Za-z0-9._-]{3,50}$',
+                      ).hasMatch(v?.trim() ?? '')
+                      ? null
+                      : 'Từ 3–50 ký tự: chữ không dấu, số, dấu . _ -',
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                AppTextField(
+                  label: 'Họ tên',
+                  required: true,
+                  controller: _fullName,
+                ),
+                const SizedBox(height: 16),
+                AppTextField(
+                  label: 'Email',
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (v) {
+                    final t = v?.trim() ?? '';
+                    return t.isEmpty ||
+                            RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(t)
+                        ? null
+                        : 'Email không hợp lệ';
+                  },
+                ),
+                const SizedBox(height: 16),
+                AppTextField(
+                  label: _editing
+                      ? 'Mật khẩu mới (để trống nếu không đổi)'
+                      : 'Mật khẩu',
+                  required: !_editing,
+                  obscure: true,
+                  controller: _password,
+                  validator: (v) {
+                    if (_editing && (v == null || v.isEmpty)) return null;
+                    return (v == null || v.length < 8)
+                        ? 'Mật khẩu tối thiểu 8 ký tự'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                roles.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (e, _) => Text(userMessage(e)),
+                  data: (list) => AppDropdown<int>(
+                    label: 'Vai trò',
+                    required: true,
+                    value: _roleId,
+                    items: [
+                      for (final r in list)
+                        if (!self || r['roleName'] == AppRole.admin.code)
+                          (
+                            (r['id'] as num).toInt(),
+                            AppRole.fromCode(r['roleName'] as String?).label,
+                          ),
+                    ],
+                    onChanged: (v) => setState(() => _roleId = v),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Đang hoạt động'),
+                  subtitle: self
+                      ? const Text('Không thể tự khóa tài khoản của mình')
+                      : null,
+                  value: _active,
+                  onChanged: self ? null : (v) => setState(() => _active = v),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -219,7 +416,11 @@ class _UserDialogState extends ConsumerState<_UserDialog> {
         ),
         ElevatedButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Đang lưu...' : 'Tạo tài khoản'),
+          child: Text(
+            _saving
+                ? 'Đang lưu...'
+                : (_editing ? 'Lưu thay đổi' : 'Tạo tài khoản'),
+          ),
         ),
       ],
     );

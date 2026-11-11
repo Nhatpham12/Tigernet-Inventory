@@ -44,6 +44,7 @@ class PagedListView extends ConsumerStatefulWidget {
     this.crumbs = const [],
     this.actions = const [],
     this.filters = const [],
+    this.initialFilters = const {},
     this.extraQuery = const {},
     this.searchHint = 'Tìm kiếm...',
     this.defaultSort,
@@ -63,6 +64,9 @@ class PagedListView extends ConsumerStatefulWidget {
   final String endpoint;
   final List<TableColumnDef> columns;
   final List<ListFilter> filters;
+
+  /// Giá trị lọc ban đầu theo key của [filters] (vd mở từ đường dẫn có ?userId=).
+  final Map<String, String?> initialFilters;
   final Map<String, dynamic> extraQuery;
   final String searchHint;
   final String? defaultSort;
@@ -86,7 +90,7 @@ class _PagedListViewState extends ConsumerState<PagedListView> {
   final _search = TextEditingController();
   Timer? _debounce;
   late Map<String, String?> _filterValues = {
-    for (final f in widget.filters) f.key: null,
+    for (final f in widget.filters) f.key: widget.initialFilters[f.key],
   };
   String? _sortKey;
   bool _sortAsc = true;

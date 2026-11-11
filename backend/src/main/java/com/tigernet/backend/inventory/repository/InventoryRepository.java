@@ -10,6 +10,8 @@ import java.util.List;
 public interface InventoryRepository extends JpaRepository<InventoryEntity, Integer> {
     boolean existsBySerial(String serial);
 
+    java.util.Optional<InventoryEntity> findBySerial(String serial);
+
     // tham số null thì bỏ qua điều kiện đó
     @Query("""
             select i from InventoryEntity i

@@ -1,6 +1,7 @@
 package com.tigernet.backend.stocktake.controller;
 
 import com.tigernet.backend.common.response.ApiResponse;
+import com.tigernet.backend.stocktake.dto.request.StocktakeCompleteRequest;
 import com.tigernet.backend.stocktake.dto.request.StocktakeCreationRequest;
 import com.tigernet.backend.stocktake.dto.request.StocktakeItemsRequest;
 import com.tigernet.backend.stocktake.dto.response.StockAdjustmentResponse;
@@ -46,6 +47,12 @@ public class StocktakeController {
     ApiResponse<StocktakeResponse> updateItems(@PathVariable Integer stocktakeId,
                                                @RequestBody @Valid StocktakeItemsRequest request) {
         return ApiResponse.success(stocktakeService.updateItems(stocktakeId, request));
+    }
+
+    @PutMapping("/stocktakes/{stocktakeId}/complete")
+    ApiResponse<StocktakeResponse> completeStocktake(@PathVariable Integer stocktakeId,
+                                                     @RequestBody(required = false) StocktakeCompleteRequest request) {
+        return ApiResponse.success(stocktakeService.completeStocktake(stocktakeId, request));
     }
 
     @DeleteMapping("/stocktakes/{stocktakeId}")

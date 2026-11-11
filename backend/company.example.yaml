@@ -1,0 +1,19 @@
+# Thông tin doanh nghiệp in trên các biểu mẫu (phiếu nhập/xuất, phiếu thu/chi, biên bản bàn giao...).
+# Chép file này thành backend/company.yaml (đã có trong .gitignore) rồi điền thông tin thật.
+# Lưu file dạng UTF-8. Trường nào để trống thì phiếu in dòng chấm để ghi tay.
+tigernet:
+  company:
+    name: "CÔNG TY TNHH ..."
+    english-name: "... COMPANY LIMITED"
+    address: "Số nhà, đường, phường/xã, tỉnh/thành phố, Việt Nam"
+    tax-code: ""
+    phone: ""
+    email: ""
+    website: ""
+    logo: ""                       # VD file:C:/tigernet/logo.png (ảnh PNG/JPG, in góc phải biên bản bàn giao)
+    representative: ""             # VD "Ông Nguyễn Văn A" (biên bản đối chiếu công nợ)
+    representative-title: "Giám đốc"
+    warranty-address: ""           # địa chỉ tiếp nhận bảo hành; trống thì dùng address
+    hotline: ""
+    slogan: ""                     # dòng chân trang biên bản bàn giao
+    place: ""                      # nơi lập biên bản: "<nơi>, ngày … tháng … năm …"

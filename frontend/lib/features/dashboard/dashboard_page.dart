@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/auth/role.dart';
+import '../../core/auth/session.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/providers.dart';
 import '../../core/router/menu.dart';
@@ -32,7 +32,7 @@ class DashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(dashboardProvider);
-    final role = ref.watch(sessionProvider).value?.role ?? AppRole.unknown;
+    final session = ref.watch(sessionProvider).value;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -51,7 +51,7 @@ class DashboardPage extends ConsumerWidget {
             e,
             onRetry: () => ref.invalidate(dashboardProvider),
           ),
-          data: (d) => _DashboardBody(data: d, role: role),
+          data: (d) => _DashboardBody(data: d, session: session),
         ),
       ],
     );
@@ -59,10 +59,10 @@ class DashboardPage extends ConsumerWidget {
 }
 
 class _DashboardBody extends StatelessWidget {
-  const _DashboardBody({required this.data, required this.role});
+  const _DashboardBody({required this.data, required this.session});
 
   final Map<String, dynamic> data;
-  final AppRole role;
+  final Session? session;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +100,7 @@ class _DashboardBody extends StatelessWidget {
         subtitle: 'Cho mượn tài sản',
         path: '/app/lends/new',
       ),
-    ].where((a) => canAccessPath(a.path, role)).toList();
+    ].where((a) => canAccessPath(a.path, session)).toList();
 
     // Màu theo đúng ý nghĩa trạng thái: đỏ = tồn thấp/quá hạn, vàng = chờ duyệt (như chip).
     final attentionCards = [
@@ -131,7 +131,7 @@ class _DashboardBody extends StatelessWidget {
         subtitle: 'Cần xử lý hoàn trả',
         path: '/app/rentals?state=OVERDUE',
       ),
-    ].where((a) => canAccessPath(a.path, role)).toList();
+    ].where((a) => canAccessPath(a.path, session)).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,7 +185,7 @@ class _DashboardBody extends StatelessWidget {
         Row(
           children: [
             Expanded(child: Text('Giao dịch gần nhất', style: sectionTitle)),
-            if (canAccessPath('/app/reports/movements', role))
+            if (canAccessPath('/app/reports/movements', session))
               TextButton(
                 onPressed: () => context.go('/app/reports/movements'),
                 child: Text('Xem tất cả', style: TextStyle(color: c.info)),
@@ -202,7 +202,7 @@ class _DashboardBody extends StatelessWidget {
               final base = row['type'] == 'IMPORT'
                   ? '/app/import-receipts'
                   : '/app/export-receipts';
-              if (!canAccessPath(base, role)) return;
+              if (!canAccessPath(base, session)) return;
               final code = '${row['receiptCode'] ?? ''}';
               context.go(
                 Uri(

@@ -9,8 +9,9 @@ import '../../shared/feedback/dialogs.dart';
 import '../../shared/feedback/toast.dart';
 import '../../shared/widgets/page_header.dart';
 import '../../shared/widgets/status_chip.dart';
+import '../common/lookups.dart';
 
-/// Danh sách kho (QL-12) — GET /bff/warehouses, thêm kho qua /bff/api/warehouses.
+/// Danh sách kho (QL-12) — GET /bff/warehouses; thêm / sửa / ngừng / xóa kho qua /bff/api/warehouses.
 class WarehouseListPage extends ConsumerStatefulWidget {
   const WarehouseListPage({super.key});
 
@@ -46,7 +47,84 @@ class _WarehouseListPageState extends ConsumerState<WarehouseListPage> {
       if (mounted) {
         Toast.success(context, 'Đã thêm kho ${values['warehouseName']}.');
       }
-      _controller.reload();
+      _changed();
+    } catch (e) {
+      if (mounted) Toast.error(context, e);
+    }
+  }
+
+  /// Danh sách kho ở các ô chọn (phiếu nhập, xuất...) cũng phải tải lại.
+  void _changed() {
+    ref.invalidate(warehousesLookupProvider);
+    _controller.reload();
+  }
+
+  /// PUT /bff/api/warehouses/{id}: [data] chỉ chứa trường cần đổi.
+  Future<void> _update(
+    RowData r,
+    Map<String, Object?> data,
+    String done,
+  ) async {
+    try {
+      await ref
+          .read(apiClientProvider)
+          .put('/bff/api/warehouses/${r['id']}', data: data);
+      if (mounted) Toast.success(context, done);
+      _changed();
+    } catch (e) {
+      if (mounted) Toast.error(context, e);
+    }
+  }
+
+  Future<void> _edit(RowData r) async {
+    final values = await formDialog(
+      context,
+      title: 'Sửa kho ${r['warehouseCode']}',
+      fields: [
+        ('warehouseName', 'Tên kho', '${r['warehouseName'] ?? ''}', true),
+        ('address', 'Địa chỉ', '${r['address'] ?? ''}', true),
+        ('phone', 'Số điện thoại', '${r['phone'] ?? ''}', false),
+      ],
+    );
+    if (values == null) return;
+    await _update(r, values, 'Đã cập nhật kho ${values['warehouseName']}.');
+  }
+
+  Future<void> _toggleActive(RowData r) async {
+    final active = r['isActive'] == true;
+    final ok = await confirmDialog(
+      context,
+      title: active
+          ? 'Ngừng hoạt động kho ${r['warehouseName']}'
+          : 'Mở lại kho ${r['warehouseName']}',
+      message: active
+          ? 'Kho sẽ không chọn được khi lập phiếu mới. Phiếu và tồn kho cũ vẫn giữ nguyên.'
+          : 'Kho sẽ chọn lại được khi lập phiếu.',
+      confirmLabel: active ? 'Ngừng hoạt động' : 'Mở lại',
+      danger: active,
+    );
+    if (!ok) return;
+    await _update(r, {
+      'isActive': !active,
+    }, active ? 'Đã ngừng kho ${r['warehouseName']}.' : 'Đã mở lại kho.');
+  }
+
+  Future<void> _delete(RowData r) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Xóa kho ${r['warehouseName']}',
+      message:
+          'Chỉ xóa được kho chưa có phiếu hay tồn kho nào. Thao tác này không hoàn tác được.',
+      confirmLabel: 'Xóa kho',
+      danger: true,
+    );
+    if (!ok) return;
+    try {
+      await ref
+          .read(apiClientProvider)
+          .delete('/bff/api/warehouses/${r['id']}');
+      if (mounted) Toast.success(context, 'Đã xóa kho ${r['warehouseName']}.');
+      _changed();
     } catch (e) {
       if (mounted) Toast.error(context, e);
     }
@@ -105,80 +183,29 @@ class _WarehouseListPageState extends ConsumerState<WarehouseListPage> {
             ? const StatusChip(label: 'Hoạt động', tone: ChipTone.success)
             : const StatusChip(label: 'Ngừng', tone: ChipTone.neutral),
       ),
-    ],
-  );
-}
-
-/// Figma 3005:11028 "Kiểm kê / Danh sách đợt kiểm kê" — GET /bff/stocktakes.
-class StocktakeListPage extends StatelessWidget {
-  const StocktakeListPage({super.key});
-
-  @override
-  Widget build(BuildContext context) => PagedListView(
-    title: 'Danh sách đợt kiểm kê',
-    subtitle: 'Kiểm đếm, đối chiếu chênh lệch và chốt điều chỉnh tồn',
-    crumbs: const [
-      Crumb('Trang chủ', '/app/dashboard'),
-      Crumb('Kho'),
-      Crumb('Kiểm kê'),
-    ],
-    endpoint: '/bff/stocktakes',
-    defaultSort: 'stocktakeDate,desc',
-    searchHint: 'Tìm mã đợt, kho...',
-    itemLabel: 'đợt',
-    filters: const [
-      ListFilter(
-        key: 'status',
-        label: 'Trạng thái',
-        options: [
-          (null, 'Tất cả'),
-          ('DRAFT', 'Đang kiểm'),
-          ('COMPLETED', 'Đã chốt'),
-        ],
-      ),
-    ],
-    columns: [
-      TableColumnDef.text(
-        'Mã đợt',
-        (r) => '${r['stocktakeCode']}',
-        minWidth: 110,
-        sortKey: 'stocktakeCode',
-        bold: true,
-      ),
-      TableColumnDef.text(
-        'Kho',
-        (r) => '${r['warehouseName'] ?? r['warehouseCode']}',
-        flex: 2,
-        minWidth: 130,
-      ),
-      TableColumnDef.text(
-        'Ngày kiểm',
-        (r) => Fmt.date(r['stocktakeDate']),
-        minWidth: 100,
-        sortKey: 'stocktakeDate',
-      ),
-      TableColumnDef.text(
-        'Số SP',
-        (r) => '${(r['details'] as List?)?.length ?? 0}',
-        flex: 1,
-        minWidth: 70,
-        align: Alignment.centerRight,
-      ),
-      TableColumnDef.text(
-        'Người lập',
-        (r) => '${r['createdByName'] ?? '—'}',
-        minWidth: 130,
-      ),
       TableColumnDef(
-        label: 'Trạng thái',
-        minWidth: 120,
-        cell: (r) => r['status'] == 'COMPLETED'
-            ? const StatusChip(
-                label: 'Đã chốt',
-                tone: ChipTone.success,
-                icon: Icons.check,
-              )
-            : const StatusChip(label: 'Đang kiểm', tone: ChipTone.warning),
+        label: 'Thao tác',
+        minWidth: 90,
+        align: Alignment.center,
+        cell: (r) => PopupMenuButton<String>(
+          tooltip: 'Thao tác',
+          icon: const Icon(Icons.more_horiz),
+          onSelected: (v) => switch (v) {
+            'edit' => _edit(r),
+            'toggle' => _toggleActive(r),
+            _ => _delete(r),
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'edit', child: Text('Sửa thông tin')),
+            PopupMenuItem(
+              value: 'toggle',
+              child: Text(
+                r['isActive'] == true ? 'Ngừng hoạt động' : 'Mở lại kho',
+              ),
+            ),
+            const PopupMenuItem(value: 'delete', child: Text('Xóa kho')),
+          ],
+        ),
       ),
     ],
   );
@@ -255,101 +282,6 @@ class TransferListPage extends StatelessWidget {
       TableColumnDef(
         label: 'Trạng thái',
         minWidth: 130,
-        cell: (r) => Statuses.receipt(r['status'] as String?),
-      ),
-    ],
-  );
-}
-
-/// Figma 1138:10049 "Đổi trả / Danh sách phiếu" — GET /bff/sales-returns.
-class SalesReturnListPage extends StatelessWidget {
-  const SalesReturnListPage({super.key});
-
-  @override
-  Widget build(BuildContext context) => PagedListView(
-    title: 'Danh sách phiếu đổi / trả',
-    subtitle: 'Trả hàng hoàn tiền, đổi sản phẩm hoặc chuyển bảo hành',
-    crumbs: const [
-      Crumb('Trang chủ', '/app/dashboard'),
-      Crumb('Xuất kho'),
-      Crumb('Danh sách đổi trả'),
-    ],
-    endpoint: '/bff/sales-returns',
-    defaultSort: 'returnDate,desc',
-    searchHint: 'Tìm mã phiếu, phiếu xuất gốc, khách hàng...',
-    itemLabel: 'phiếu',
-    filters: const [
-      ListFilter(
-        key: 'returnType',
-        label: 'Loại',
-        options: [
-          (null, 'Tất cả'),
-          ('REFUND', 'Trả hàng'),
-          ('EXCHANGE', 'Đổi hàng'),
-          ('WARRANTY', 'Bảo hành'),
-        ],
-      ),
-    ],
-    columns: [
-      TableColumnDef.text(
-        'Mã phiếu',
-        (r) => '${r['receiptCode']}',
-        minWidth: 110,
-        sortKey: 'receiptCode',
-        bold: true,
-      ),
-      TableColumnDef.text(
-        'Phiếu gốc',
-        (r) => '${r['exportReceiptCode'] ?? '—'}',
-        minWidth: 110,
-      ),
-      TableColumnDef.text(
-        'Khách hàng',
-        (r) => '${r['partyName'] ?? '—'}',
-        flex: 3,
-        minWidth: 160,
-      ),
-      TableColumnDef.text(
-        'Ngày trả',
-        (r) => Fmt.date(r['returnDate']),
-        minWidth: 100,
-        sortKey: 'returnDate',
-      ),
-      TableColumnDef(
-        label: 'Loại',
-        minWidth: 100,
-        cell: (r) => switch (r['returnType']) {
-          'EXCHANGE' => const StatusChip(
-            label: 'Đổi hàng',
-            tone: ChipTone.info,
-          ),
-          'WARRANTY' => const StatusChip(
-            label: 'Bảo hành',
-            tone: ChipTone.purple,
-          ),
-          _ => const StatusChip(label: 'Trả hàng', tone: ChipTone.warning),
-        },
-      ),
-      TableColumnDef.text(
-        'Phí',
-        (r) => Fmt.money(r['feeAmount']),
-        minWidth: 100,
-        align: Alignment.centerRight,
-      ),
-      TableColumnDef(
-        label: 'Hoàn / Thu thêm',
-        minWidth: 130,
-        align: Alignment.centerRight,
-        cell: (r) {
-          final v = Fmt.toNum(r['refundAmount']) ?? 0;
-          return Text(
-            v < 0 ? 'Thu thêm ${Fmt.money(-v)}' : 'Hoàn ${Fmt.money(v)}',
-          );
-        },
-      ),
-      TableColumnDef(
-        label: 'Trạng thái',
-        minWidth: 120,
         cell: (r) => Statuses.receipt(r['status'] as String?),
       ),
     ],

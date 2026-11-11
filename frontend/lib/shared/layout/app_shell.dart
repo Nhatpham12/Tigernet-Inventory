@@ -8,7 +8,6 @@ import '../../core/router/menu.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/theme/theme_mode_provider.dart';
-import '../form/form_footer.dart';
 import '../form/unsaved_changes.dart';
 import '../widgets/brand_logo.dart';
 
@@ -54,7 +53,9 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  bool _collapsed = false;
+  /// null = tự theo bề rộng màn hình (thu gọn khi < [ShellBreakpoints.railAuto]);
+  /// khác null = người dùng đã bấm nút menu.
+  bool? _userCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -63,41 +64,61 @@ class _AppShellState extends ConsumerState<AppShell> {
     final width = MediaQuery.sizeOf(context).width;
     final mobile = width < ShellBreakpoints.drawer;
     final compact = width < ShellBreakpoints.compact;
+    final collapsed =
+        !mobile && (_userCollapsed ?? width < ShellBreakpoints.railAuto);
     final sidebar = _Sidebar(
       location: widget.location,
       session: session,
-      collapsed: !mobile && (_collapsed || width < ShellBreakpoints.railAuto),
+      collapsed: collapsed,
       // Trên điện thoại bộ chọn kho nằm đầu drawer thay vì chiếm chỗ trên header.
       showWarehouseSelector: compact,
       inDrawer: mobile,
-      onToggle: () => setState(() => _collapsed = !_collapsed),
+      onToggle: () => setState(() => _userCollapsed = !collapsed),
     );
-    // Trang form tự cuộn để thanh Lưu/Hủy dính đáy (FormPageLayout).
-    final body = FormPageLayout.handles(widget.location)
-        ? widget.child
-        : SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: mobile ? AppSpace.s16 : AppSpace.s24,
-              vertical: AppSpace.s16,
-            ),
-            child: widget.child,
-          );
     return Scaffold(
       backgroundColor: c.page,
       drawer: mobile ? Drawer(width: 280, child: sidebar) : null,
       body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (!mobile) sidebar,
           Expanded(
             child: Column(
               children: [
-                _Header(session: session, showMenuButton: mobile),
-                Expanded(child: body),
+                _Header(
+                  session: session,
+                  showMenuButton: mobile,
+                  location: widget.location,
+                ),
+                // Navigator lồng của ShellRoute cần chiều cao hữu hạn: mỗi trang tự cuộn qua PageBody.
+                Expanded(child: widget.child),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Khung nội dung của một trang trong AppShell: cuộn dọc và lề theo kích thước màn hình.
+/// Trang form (FormPageLayout) tự cuộn để thanh Lưu/Hủy dính đáy nên [scroll] = false.
+class PageBody extends StatelessWidget {
+  const PageBody({super.key, required this.child, this.scroll = true});
+
+  final Widget child;
+  final bool scroll;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!scroll) return child;
+    final mobile = MediaQuery.sizeOf(context).width < ShellBreakpoints.drawer;
+    return SingleChildScrollView(
+      padding: EdgeInsets.symmetric(
+        horizontal: mobile ? AppSpace.s16 : AppSpace.s24,
+        vertical: AppSpace.s16,
+      ),
+      child: child,
     );
   }
 }
@@ -124,6 +145,9 @@ class _Sidebar extends StatefulWidget {
 }
 
 class _SidebarState extends State<_Sidebar> {
+  static const _collapsedWidth = 76.0;
+  static const _expandedWidth = 236.0;
+
   final Set<String> _open = {};
 
   bool _isActive(String path) =>
@@ -134,111 +158,187 @@ class _SidebarState extends State<_Sidebar> {
       (g.path != null && _isActive(g.path!)) ||
       g.children.any((l) => _isActive(l.path));
 
+  bool _canOpen(String path) {
+    final session = widget.session;
+    return session == null || canOpenPage(path, session);
+  }
+
+  List<MenuLink> _links(MenuGroup g) {
+    final role = widget.session?.role;
+    if (role != null &&
+        !canSee(g.roles, role) &&
+        widget.session?.pages == null) {
+      return const [];
+    }
+    return g.children.where((l) => _canOpen(l.path)).toList();
+  }
+
+  bool _visible(MenuGroup g) =>
+      g.path != null ? _canOpen(g.path!) : _links(g).isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final role = widget.session?.role;
-    List<MenuGroup> visible(List<MenuGroup> menu) =>
-        menu.where((g) => role == null || canSee(g.roles, role)).toList();
-    final collapsed = widget.collapsed;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      width: collapsed ? 76 : 236,
+      width: widget.collapsed ? _collapsedWidth : _expandedWidth,
+      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         color: c.surface,
         border: Border(right: BorderSide(color: c.divider)),
       ),
-      child: Column(
+      // Bố cục theo bề rộng thực tế: trong lúc thu/mở (animation) không bị tràn chữ.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final collapsed = constraints.maxWidth < 180;
+          final pad = collapsed ? AppSpace.s8 : AppSpace.s16;
+          return Column(
+            children: [
+              _brand(context, collapsed),
+              if (widget.showWarehouseSelector && widget.session != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpace.s16,
+                    AppSpace.s16,
+                    AppSpace.s16,
+                    0,
+                  ),
+                  child: _WarehouseSelector(
+                    session: widget.session!,
+                    expand: true,
+                  ),
+                ),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: pad,
+                    vertical: AppSpace.s8,
+                  ),
+                  children: [
+                    for (final g in kMainMenu.where(_visible))
+                      ..._group(context, g, collapsed),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: pad),
+                child: Divider(color: c.border, height: 1),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  pad,
+                  AppSpace.s8,
+                  pad,
+                  AppSpace.s24,
+                ),
+                child: Column(
+                  children: [
+                    for (final g in kAdminMenu.where(_visible))
+                      ..._group(context, g, collapsed),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _brand(BuildContext context, bool collapsed) {
+    final c = context.colors;
+    return Container(
+      height: _barHeight,
+      padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : AppSpace.s16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: c.divider)),
+      ),
+      child: Row(
+        mainAxisAlignment: collapsed
+            ? MainAxisAlignment.center
+            : MainAxisAlignment.start,
         children: [
-          Container(
-            height: _barHeight,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s16),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: c.divider)),
-            ),
-            child: Row(
-              children: [
-                if (!collapsed) const Expanded(child: BrandLogo()),
-                widget.inDrawer
-                    ? _IconBtn(
-                        icon: Icons.close,
-                        tooltip: 'Đóng menu',
-                        onTap: () => Scaffold.of(context).closeDrawer(),
-                      )
-                    : _IconBtn(
-                        icon: Icons.menu,
-                        tooltip: collapsed ? 'Mở rộng menu' : 'Thu gọn menu',
-                        onTap: widget.onToggle,
-                      ),
-              ],
-            ),
-          ),
-          if (widget.showWarehouseSelector && widget.session != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.s16,
-                AppSpace.s16,
-                AppSpace.s16,
-                0,
-              ),
-              child: _WarehouseSelector(
-                session: widget.session!,
-                expand: true,
-              ),
-            ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpace.s16,
-                vertical: AppSpace.s8,
-              ),
-              children: [
-                for (final g in visible(kMainMenu)) ..._group(context, g, role),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s16),
-            child: Divider(color: c.border, height: 1),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpace.s16,
-              AppSpace.s8,
-              AppSpace.s16,
-              AppSpace.s24,
-            ),
-            child: Column(
-              children: [
-                for (final g in visible(kAdminMenu))
-                  ..._group(context, g, role),
-              ],
-            ),
-          ),
+          if (!collapsed) const Expanded(child: BrandLogo()),
+          widget.inDrawer
+              ? _IconBtn(
+                  icon: Icons.close,
+                  tooltip: 'Đóng menu',
+                  onTap: () => Scaffold.of(context).closeDrawer(),
+                )
+              : _IconBtn(
+                  icon: Icons.menu,
+                  tooltip: widget.collapsed ? 'Mở rộng menu' : 'Thu gọn menu',
+                  onTap: widget.onToggle,
+                ),
         ],
       ),
     );
   }
 
-  List<Widget> _group(BuildContext context, MenuGroup g, dynamic role) {
+  /// Menu thu gọn: bấm nhóm thì hiện danh sách trang con bên phải để chọn.
+  Future<void> _showFlyout(
+    BuildContext itemContext,
+    MenuGroup g,
+    List<MenuLink> links,
+  ) async {
+    final box = itemContext.findRenderObject() as RenderBox;
+    final overlay =
+        Overlay.of(itemContext).context.findRenderObject() as RenderBox;
+    final topRight = box.localToGlobal(
+      Offset(box.size.width + AppSpace.s8, 0),
+      ancestor: overlay,
+    );
+    final path = await showMenu<String>(
+      context: itemContext,
+      position: RelativeRect.fromLTRB(
+        topRight.dx,
+        topRight.dy,
+        overlay.size.width - topRight.dx,
+        0,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          height: 36,
+          child: Text(
+            g.label,
+            style: itemContext.text.label.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        for (final l in links)
+          PopupMenuItem<String>(
+            value: l.path,
+            child: Text(
+              l.label,
+              style: itemContext.text.body2.copyWith(
+                fontWeight: widget.location == l.path
+                    ? FontWeight.w700
+                    : FontWeight.w400,
+              ),
+            ),
+          ),
+      ],
+    );
+    if (path != null && itemContext.mounted) _navigate(itemContext, path);
+  }
+
+  List<Widget> _group(BuildContext context, MenuGroup g, bool collapsed) {
     final active = _groupActive(g);
-    final expanded = !widget.collapsed && (_open.contains(g.label) || active);
-    final links = g.children
-        .where((l) => role == null || canSee(l.roles, role))
-        .toList();
+    final links = _links(g);
+    final expanded = !collapsed && (_open.contains(g.label) || active);
     return [
       _NavItem(
         icon: g.icon,
         label: g.label,
         active: active,
-        collapsed: widget.collapsed,
+        collapsed: collapsed,
         hasChildren: links.isNotEmpty,
         expanded: expanded,
-        onTap: () {
+        onTap: (itemContext) {
           if (g.path != null) {
             _navigate(context, g.path!);
-          } else if (widget.collapsed && links.isNotEmpty) {
-            _navigate(context, links.first.path);
+          } else if (collapsed && links.isNotEmpty) {
+            _showFlyout(itemContext, g, links);
           } else {
             setState(
               () => _open.contains(g.label)
@@ -277,7 +377,7 @@ class _NavItem extends StatelessWidget {
   final bool collapsed;
   final bool hasChildren;
   final bool expanded;
-  final VoidCallback onTap;
+  final void Function(BuildContext itemContext) onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -287,7 +387,7 @@ class _NavItem extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: () => onTap(context),
         child: SizedBox(
           height: 48,
           child: Stack(
@@ -308,14 +408,23 @@ class _NavItem extends StatelessWidget {
               Positioned.fill(
                 child: Row(
                   children: [
-                    SizedBox(
-                      width: AppSpace.touch,
-                      child: Icon(
-                        icon,
-                        size: 24,
-                        color: active ? c.navActiveText : c.text,
+                    if (collapsed)
+                      Expanded(
+                        child: Icon(
+                          icon,
+                          size: 24,
+                          color: active ? c.navActiveText : c.text,
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: AppSpace.touch,
+                        child: Icon(
+                          icon,
+                          size: 24,
+                          color: active ? c.navActiveText : c.text,
+                        ),
                       ),
-                    ),
                     if (!collapsed) ...[
                       const SizedBox(width: AppSpace.s8),
                       Expanded(
@@ -407,10 +516,17 @@ class _SubItem extends StatelessWidget {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.session, required this.showMenuButton});
+  const _Header({
+    required this.session,
+    required this.showMenuButton,
+    required this.location,
+  });
 
   final Session? session;
   final bool showMenuButton;
+
+  /// Đường dẫn đang mở, để tô nút Thông báo khi đang ở trang đó.
+  final String location;
 
   /// Ô tìm kiếm chỉ tìm sản phẩm, nên gợi ý nói đúng điều đó.
   static void _search(BuildContext context, String q) {
@@ -574,6 +690,8 @@ class _Header extends ConsumerWidget {
             child: _IconBtn(
               tooltip: 'Cảnh báo và thông báo',
               icon: Icons.notifications_none,
+              selectedIcon: Icons.notifications,
+              selected: location.startsWith('/app/alerts'),
               onTap: () => guardedGo(context, '/app/alerts'),
             ),
           ),
@@ -590,9 +708,7 @@ String _warehouseLabel(Session session, int? selected) {
   if (selected == null) {
     return session.canViewAllWarehouses ? 'Tất cả kho' : 'Chưa phân kho';
   }
-  final w = session.warehouses
-      .where((opt) => opt.id == selected)
-      .firstOrNull;
+  final w = session.warehouses.where((opt) => opt.id == selected).firstOrNull;
   if (w == null) return 'Chưa phân kho';
   return w.name.isNotEmpty ? w.name : w.code;
 }
@@ -654,43 +770,53 @@ class _WarehouseSelector extends ConsumerWidget {
 }
 
 /// Nút icon tròn: hình 32px nhưng vùng bấm 44×44px.
+/// [selected]: đang ở trang của nút → tô màu nhấn (giống nút sáng/tối).
 class _IconBtn extends StatelessWidget {
   const _IconBtn({
     required this.icon,
     required this.onTap,
     required this.tooltip,
     this.filled = false,
+    this.selected = false,
+    this.selectedIcon,
   });
 
   final IconData icon;
+  final IconData? selectedIcon;
   final VoidCallback onTap;
   final String tooltip;
   final bool filled;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final on = filled || selected;
     return Tooltip(
       message: tooltip,
-      child: SizedBox.square(
-        dimension: AppSpace.touch,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: Center(
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: filled ? c.accent : Colors.transparent,
-                ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: filled ? Colors.white : c.text,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: SizedBox.square(
+          dimension: AppSpace.touch,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: Center(
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: on ? c.accent : Colors.transparent,
+                  ),
+                  child: Icon(
+                    selected ? (selectedIcon ?? icon) : icon,
+                    size: 20,
+                    color: on ? Colors.white : c.text,
+                  ),
                 ),
               ),
             ),
