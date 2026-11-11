@@ -3,10 +3,14 @@ spring:
     import:
       - optional:file:.env[.properties]          # chạy từ thư mục backend
       - optional:file:backend/.env[.properties]  # chạy từ thư mục gốc TIGERNET
+      # thông tin doanh nghiệp in trên biểu mẫu (có dấu tiếng Việt nên để file YAML UTF-8, không để trong .env)
+      - optional:file:company.yaml
+      - optional:file:backend/company.yaml
   application:
     name: backend
   datasource:
-    url: jdbc:mysql://localhost:3306/tigernet
+    # DB_NAME trong backend/.env: tigernet (mặc định) hoặc tigernet_dev cho nhánh dev
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tigernet}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
   jpa:
@@ -34,3 +38,20 @@ tigernet:
   rental:
     due-warning-days: 7     # cảnh báo/lọc phiếu thuê sắp đến hạn trong N ngày
     penalty-after-days: 10  # quá hạn từ N ngày trở lên mới tính phạt
+  # Thông tin doanh nghiệp in trên biểu mẫu: chép backend/company.example.yaml thành backend/company.yaml rồi sửa.
+  # (.env đọc theo ISO-8859-1 nên tiếng Việt có dấu bị lỗi.) Để trống thì phiếu in dòng chấm để ghi tay.
+  company:
+    name: ${COMPANY_NAME:}
+    english-name: ${COMPANY_ENGLISH_NAME:}
+    address: ${COMPANY_ADDRESS:}
+    tax-code: ${COMPANY_TAX_CODE:}
+    phone: ${COMPANY_PHONE:}
+    email: ${COMPANY_EMAIL:}
+    website: ${COMPANY_WEBSITE:}
+    logo: ${COMPANY_LOGO:}               # VD file:C:/tigernet/logo.png
+    representative: ${COMPANY_REPRESENTATIVE:}
+    representative-title: ${COMPANY_REPRESENTATIVE_TITLE:Giám đốc}
+    warranty-address: ${COMPANY_WARRANTY_ADDRESS:}
+    hotline: ${COMPANY_HOTLINE:}
+    slogan: ${COMPANY_SLOGAN:}
+    place: ${COMPANY_PLACE:}

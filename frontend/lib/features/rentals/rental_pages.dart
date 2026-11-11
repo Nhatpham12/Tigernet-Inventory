@@ -13,6 +13,7 @@ import '../../shared/form/fields.dart';
 import '../../shared/form/form_footer.dart';
 import '../../shared/form/receipt_line_editor.dart';
 import '../../shared/widgets/page_header.dart';
+import '../../shared/widgets/print_button.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/status_chip.dart';
 import '../common/lookups.dart';
@@ -152,6 +153,35 @@ class RentalListPage extends StatelessWidget {
           label: 'Trạng thái',
           minWidth: 120,
           cell: (r) => Statuses.rental(r['rentalState'] as String?),
+        ),
+        TableColumnDef(
+          label: 'Thao tác',
+          minWidth: 110,
+          align: Alignment.center,
+          cell: (r) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PrintButton(
+                compact: true,
+                docs: [
+                  PrintDoc(
+                    r['rentalType'] == 'LEND'
+                        ? 'Biên bản bàn giao cho mượn'
+                        : 'Biên bản bàn giao cho thuê',
+                    '/bff/api/rental-receipts/${r['id']}/print',
+                  ),
+                ],
+              ),
+              if (!asReport && r['rentalState'] != 'RETURNED')
+                IconButton(
+                  tooltip: 'Trả hàng',
+                  onPressed: () => context.go(
+                    '/app/return-receipts/new?rentalId=${r['id']}',
+                  ),
+                  icon: const Icon(Icons.assignment_return_outlined, size: 20),
+                ),
+            ],
+          ),
         ),
       ],
     );

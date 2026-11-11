@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="'Biên bản bàn giao ' + ${code}">Biên bản bàn giao</title>
+<style>
+  /* Bản gốc: "Mẫu Biên bản bàn giao Tigernet - Thuê" (Word), A4 dọc, lề T/B/L/R 25.4/15.9/18.5/13.7 mm, TNR 10pt */
+  @page { size: 210mm 297mm; margin: 6.3mm 13.7mm 15.9mm 18.5mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 10pt; margin: 0; color: #000; line-height: 1.15; }
+  table { border-collapse: collapse; }
+  .head { width: 100%; height: 19mm; }
+  .head td { vertical-align: top; padding: 0; font-size: 8pt; line-height: 1.15; }
+  .head .logo { text-align: right; }
+  .head img { max-height: 15mm; max-width: 45mm; }
+  h1 { text-align: center; font-size: 11pt; font-weight: bold; margin: 0; padding: 0; }
+  .c { text-align: center; margin: 0; }
+  .b { font-weight: bold; }
+  p { margin: 0; }
+  .phones { width: 100%; }
+  .phones td { padding: 0; vertical-align: top; }
+  .items { width: 97%; margin: 8pt 0 0 0.5mm; }
+  .items th { background: #B4C6E7; border: 0.75pt solid #000; font-weight: bold; text-align: center; padding: 2pt; }
+  .items td { border: 0.75pt solid #000; padding: 2pt 4pt; vertical-align: top; }
+  .items td.c { text-align: center; }
+  .terms p { font-style: italic; }
+  .info { margin-top: 8pt; }
+  .sign { width: 100%; margin-top: 18pt; }
+  .sign td { width: 50%; text-align: center; vertical-align: top; padding: 0; }
+  .sign .s { font-style: italic; margin-top: 12pt; }
+  .foot { position: running(footer); text-align: center; font-size: 9pt; }
+  @page { @bottom-center { content: element(footer); vertical-align: bottom; padding-bottom: 4mm; } }
+</style>
+</head>
+<body>
+<div class="foot" th:text="${company.slogan}">Slogan</div>
+<table class="head">
+  <tr>
+    <td style="width:75%">
+      <div class="b" th:text="${f.blank(company.englishName) ? company.name : company.name + ' | ' + company.englishName}">CÔNG TY | COMPANY</div>
+      <div th:text="'SĐT: ' + ${f.blank(company.phone) ? '……………' : company.phone}">SĐT</div>
+      <div th:text="'Email: ' + ${f.blank(company.email) ? '……………' : company.email} + ' | Web: ' + ${f.blank(company.website) ? '……………' : company.website}">Email | Web</div>
+      <div th:text="'Địa chỉ: ' + ${f.blank(company.address) ? '……………' : company.address}">Địa chỉ</div>
+    </td>
+    <td class="logo" style="width:25%"><img th:if="${logo != null}" th:src="${logo}" alt=""/></td>
+  </tr>
+</table>
+
+<h1 th:text="${lend} ? 'BIÊN BẢN BÀN GIAO | CHO MƯỢN THIẾT BỊ' : 'BIÊN BẢN BÀN GIAO | CHO THUÊ THIẾT BỊ'">BIÊN BẢN BÀN GIAO</h1>
+<p class="c" th:text="'SỐ: ' + ${docNo}">SỐ: …</p>
+<p class="c">**********</p>
+<p class="b">Bên nhận hàng:</p>
+<p><span th:text="${f.blank(customer.taxCode) ? 'Khách hàng:' : 'Công ty:'}">Công ty:</span> <b th:text="${customer.name}">…</b></p>
+<p th:unless="${f.blank(customer.taxCode)}">MST: <span th:text="${f.blank(customer.taxCode) ? '' : customer.taxCode}"></span></p>
+<p><span th:text="${f.blank(customer.taxCode) ? 'Địa chỉ:' : 'Địa chỉ công ty:'}">Địa chỉ công ty:</span> <span th:text="${customer.address}">…</span></p>
+<table class="phones"><tr>
+  <td style="width:52%">Người nhận hàng: <span th:text="${receiverName}">…</span></td>
+  <td>Số điện thoại: <span th:text="${receiverPhone}">…</span></td>
+</tr></table>
+<p>Địa chỉ nhận hàng: <span th:text="${receiverAddress}">…</span></p>
+
+<p style="margin-top:14pt">Hôm nay ngày <b th:text="${f.day(dateOut)}">…</b> tháng <b th:text="${f.month(dateOut)}">…</b> năm <b th:text="${f.year(dateOut)}">…</b>,
+  <b th:text="${f.blank(company.englishName) ? company.name : company.englishName}">…</b>
+  bàn giao và <span th:text="${lend} ? 'cho mượn' : 'cho thuê'">cho thuê</span> thiết bị như sau:</p>
+
+<table class="items">
+  <colgroup><col style="width:6.8%"/><col style="width:57.1%"/><col style="width:11.6%"/><col style="width:24.4%"/></colgroup>
+  <tr><th>STT</th><th>Tên Thiết bị</th><th>SL</th><th>Số Serial</th></tr>
+  <tr th:each="l : ${lines}">
+    <td class="c" th:text="${l.stt}">1</td>
+    <td th:text="${l.name}">Tên</td>
+    <td class="c" th:text="${f.qty2(l.quantity)}">01</td>
+    <td class="c" th:text="${f.blank(l.serial) ? 'No S/N' : l.serial}">No S/N</td>
+  </tr>
+</table>
+<p><b>Ghi chú:</b> .</p>
+
+<div class="info">
+  <p class="b" th:text="${lend} ? 'Thông tin mượn:' : 'Thông tin thuê:'">Thông tin thuê:</p>
+  <p>Thời hạn <span th:text="${lend} ? 'mượn' : 'thuê'">thuê</span>: từ <b th:text="${f.dmy(dateOut)}">…</b> đến <b th:text="${f.dmy(dueDate)}">…</b></p>
+  <p th:if="${lend}">Không thu tiền thuê và tiền cọc.</p>
+  <p th:unless="${lend}">Giá thuê/ngày: <b th:text="${f.money(pricePerDay)} + ' đồng'">…</b></p>
+  <p th:unless="${lend}">Tiền cọc: <b th:text="${f.money(deposit)} + ' đồng'">…</b></p>
+</div>
+
+<div class="terms" style="margin-top:12pt">
+  <p class="b" style="font-style:normal" th:text="${lend} ? 'Điều khoản cho mượn:' : 'Điều khoản cho thuê:'">Điều khoản cho thuê:</p>
+  <p>*) Sản phẩm còn nguyên tem Serial, tem bảo hành.</p>
+  <p>*) Sản phẩm bị lỗi kỹ thuật mà được xác định do lỗi của nhà sản xuất.</p>
+  <p th:text="${lend} ? '*) Thời hạn cho mượn được tính từ ngày bên nhận hàng ký biên bản này (Đối với khách hàng ở tỉnh thì tính từ ngày bên đơn vị vận chuyển giao hàng thành công).' : '*) Thời hạn cho thuê được tính từ ngày bên nhận hàng ký biên bản này (Đối với khách hàng ở tỉnh thì tính từ ngày bên đơn vị vận chuyển giao hàng thành công).'">…</p>
+  <p>*) Bảo hành 1 đổi 1 hoặc hoàn 100% số tiền sản phẩm.</p>
+</div>
+
+<div style="text-align:center; margin-top:14pt">
+  <p><b>Địa chỉ tiếp nhận bảo hành:</b> <span th:text="${f.blank(company.warrantyAddressOrAddress()) ? '……………' : company.warrantyAddressOrAddress()}">…</span></p>
+  <p><b style="font-weight:normal">Hotline:</b> <span th:text="${f.blank(company.hotline) ? '……………' : company.hotline}">…</span></p>
+</div>
+
+<table class="sign">
+  <tr><td class="b">Bên nhận hàng</td><td class="b">Bên giao hàng</td></tr>
+  <tr><td class="s">(Ký, ghi rõ họ tên)</td><td class="s">(Ký, ghi rõ họ tên)</td></tr>
+</table>
+
+</body>
+</html>

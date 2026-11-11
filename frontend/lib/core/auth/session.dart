@@ -34,6 +34,7 @@ class Session {
     required this.warehouses,
     required this.defaultWarehouseId,
     required this.unreadAlerts,
+    this.pages,
   });
 
   final int userId;
@@ -45,6 +46,9 @@ class Session {
   final List<WarehouseOption> warehouses;
   final int? defaultWarehouseId;
   final int unreadAlerts;
+
+  /// Trang được xem do Quản trị phân quyền riêng; null = quyền mặc định theo vai trò.
+  final Set<String>? pages;
 
   String get displayName => fullName.isNotEmpty ? fullName : username;
 
@@ -70,6 +74,9 @@ class Session {
         .toList(),
     defaultWarehouseId: (json['defaultWarehouseId'] as num?)?.toInt(),
     unreadAlerts: (json['unreadAlerts'] as num?)?.toInt() ?? 0,
+    pages: json['pages'] is List
+        ? {for (final p in json['pages'] as List) '$p'}
+        : null,
   );
 
   Session copyWith({int? unreadAlerts}) => Session(
@@ -82,5 +89,6 @@ class Session {
     warehouses: warehouses,
     defaultWarehouseId: defaultWarehouseId,
     unreadAlerts: unreadAlerts ?? this.unreadAlerts,
+    pages: pages,
   );
 }

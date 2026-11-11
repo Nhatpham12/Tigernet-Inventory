@@ -48,7 +48,11 @@ class ReceiptLineEditor extends StatelessWidget {
     this.showPrice = true,
     this.showSerial = true,
     this.showWarranty = false,
+    this.onCreateProduct,
   });
+
+  /// Có giá trị thì hiện nút "Thêm sản phẩm mới" cạnh ô tìm: tạo xong (trả về sản phẩm) thì thêm luôn vào phiếu.
+  final Future<Map<String, dynamic>?> Function()? onCreateProduct;
 
   final List<ReceiptLine> lines;
   final List<Map<String, dynamic>> products;
@@ -218,25 +222,40 @@ class ReceiptLineEditor extends StatelessWidget {
               : table,
         ),
         const SizedBox(height: 12),
-        _ProductSearch(
-          products: products,
-          onSelected: (p) {
-            final existing = lines.where(
-              (l) =>
-                  l.productId == (p['id'] as num).toInt() &&
-                  l.serialValue == null,
-            );
-            if (existing.isNotEmpty && p['isSerialized'] != true) {
-              final line = existing.first;
-              line.qty.text = '${line.quantity + 1}';
-            } else {
-              lines.add(ReceiptLine(product: p, price: defaultPrice(p)));
-            }
-            onChanged();
-          },
+        Row(
+          children: [
+            Expanded(
+              child: _ProductSearch(products: products, onSelected: _add),
+            ),
+            if (onCreateProduct != null) ...[
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.add_box_outlined, size: 18),
+                label: const Text('Thêm sản phẩm mới'),
+                onPressed: () async {
+                  final created = await onCreateProduct!();
+                  if (created != null && created['id'] != null) _add(created);
+                },
+              ),
+            ],
+          ],
         ),
       ],
     );
+  }
+
+  /// Thêm sản phẩm vào phiếu: hàng theo số lượng đã có dòng thì cộng 1, còn lại thêm dòng mới.
+  void _add(Map<String, dynamic> p) {
+    final existing = lines.where(
+      (l) => l.productId == (p['id'] as num).toInt() && l.serialValue == null,
+    );
+    if (existing.isNotEmpty && p['isSerialized'] != true) {
+      final line = existing.first;
+      line.qty.text = '${line.quantity + 1}';
+    } else {
+      lines.add(ReceiptLine(product: p, price: defaultPrice(p)));
+    }
+    onChanged();
   }
 }
 

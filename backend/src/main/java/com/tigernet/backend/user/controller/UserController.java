@@ -4,6 +4,7 @@ import com.tigernet.backend.common.security.SecurityUtils;
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.user.dto.request.UserCreationRequest;
 import com.tigernet.backend.user.dto.request.UserUpdateRequest;
+import com.tigernet.backend.user.dto.response.UserDeleteResponse;
 import com.tigernet.backend.user.dto.response.UserResponse;
 import com.tigernet.backend.user.service.UserService;
 import jakarta.validation.Valid;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+// đọc danh sách: ADMIN, MANAGER; tạo/sửa/xóa: chỉ ADMIN (SecurityConfig)
 @RestController
 @RequestMapping("/users")
 public class UserController {
@@ -28,7 +30,7 @@ public class UserController {
         return ApiResponse.success(userService.getUsers());
     }
 
-    // người dùng đang đăng nhập (đọc userId từ token); cần gửi Bearer token dù /users/** đang mở
+    // người dùng đang đăng nhập (đọc userId từ token)
     @GetMapping("/me")
     ApiResponse<UserResponse> getMyInfo() {
         return ApiResponse.success(userService.getUserById(SecurityUtils.currentUserId()));
@@ -44,9 +46,10 @@ public class UserController {
         return ApiResponse.success(userService.updateUser(userId, request));
     }
 
+    // đã có lịch sử thì chỉ khóa tài khoản (result.deleted = false)
     @DeleteMapping("/{userId}")
-    ApiResponse<Void> deleteUser(@PathVariable Integer userId){
-        userService.deleteUser(userId);
-        return ApiResponse.success("User has been deleted", null);
+    ApiResponse<UserDeleteResponse> deleteUser(@PathVariable Integer userId){
+        UserDeleteResponse result = userService.deleteUser(userId);
+        return ApiResponse.success(result.deleted() ? "User has been deleted" : "User has history and was locked instead", result);
     }
 }

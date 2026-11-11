@@ -227,6 +227,40 @@ public class ViewController {
                 r -> Json.text(r, "receiptCode") + " " + Json.text(r, "exportReceiptCode") + " " + Json.text(r, "partyName"));
     }
 
+    // Phiếu thu / chi (search hoặc keyword: mã phiếu, đối tác, phiếu gốc)
+    @GetMapping("/payments")
+    ApiResponse<PageResponse<JsonNode>> payments(@RequestHeader(HttpHeaders.AUTHORIZATION) String auth,
+                                                 @RequestParam(required = false) String direction,
+                                                 @RequestParam(required = false) Integer partyId,
+                                                 @RequestParam(required = false) String referenceType,
+                                                 @RequestParam(required = false) String from, @RequestParam(required = false) String to,
+                                                 @RequestParam(required = false) String search,
+                                                 @RequestParam(required = false) String keyword, @RequestParam(required = false) String sort,
+                                                 @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+        List<JsonNode> rows = backend.getList("/payments",
+                mapOf("direction", direction, "partyId", partyId, "referenceType", referenceType, "from", from, "to", to), auth);
+        return page(rows, search != null ? search : keyword, sort == null ? "paidAt,desc" : sort, page, size,
+                r -> Json.text(r, "paymentCode") + " " + Json.text(r, "partyName") + " " + Json.text(r, "referenceCode")
+                        + " " + Json.text(r, "note"));
+    }
+
+    // Phiếu tiếp nhận bảo hành
+    @GetMapping("/warranty-claims")
+    ApiResponse<PageResponse<JsonNode>> warrantyClaims(@RequestHeader(HttpHeaders.AUTHORIZATION) String auth,
+                                                       @RequestParam(required = false) String status,
+                                                       @RequestParam(required = false) Integer warehouseId,
+                                                       @RequestParam(required = false) Integer customerId,
+                                                       @RequestParam(required = false) String from, @RequestParam(required = false) String to,
+                                                       @RequestParam(required = false) String search,
+                                                       @RequestParam(required = false) String keyword, @RequestParam(required = false) String sort,
+                                                       @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+        List<JsonNode> rows = backend.getList("/warranty-claims",
+                mapOf("status", status, "warehouseId", warehouseId, "customerId", customerId, "from", from, "to", to), auth);
+        return page(rows, search != null ? search : keyword, sort == null ? "receivedAt,desc" : sort, page, size,
+                r -> Json.text(r, "claimCode") + " " + Json.text(r, "customerName") + " " + Json.text(r, "productName")
+                        + " " + Json.text(r, "serial") + " " + Json.text(r, "exportReceiptCode"));
+    }
+
     @GetMapping("/warehouses")
     ApiResponse<PageResponse<JsonNode>> warehouses(@RequestHeader(HttpHeaders.AUTHORIZATION) String auth,
                                                    @RequestParam(required = false) String keyword, @RequestParam(required = false) String sort,
@@ -241,6 +275,21 @@ public class ViewController {
                                               @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
         return page(backend.getList("/users", Map.of(), auth), keyword, sort, page, size,
                 r -> Json.text(r, "username") + " " + Json.text(r, "fullName") + " " + Json.text(r, "email"));
+    }
+
+    // ===== Lịch sử thao tác của nhân viên (chỉ ADMIN, backend chặn quyền) =====
+    @GetMapping("/audit-logs")
+    ApiResponse<PageResponse<JsonNode>> auditLogs(@RequestHeader(HttpHeaders.AUTHORIZATION) String auth,
+                                                  @RequestParam(required = false) Integer userId,
+                                                  @RequestParam(required = false) String action,
+                                                  @RequestParam(required = false) String from, @RequestParam(required = false) String to,
+                                                  @RequestParam(required = false) String keyword, @RequestParam(required = false) String sort,
+                                                  @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+        List<JsonNode> rows = backend.getList("/audit-logs",
+                mapOf("userId", userId, "action", action, "from", from, "to", to), auth);
+        return page(rows, keyword, sort == null ? "createdAt,desc" : sort, page, size,
+                r -> Json.text(r, "username") + " " + Json.text(r, "action") + " " + Json.text(r, "targetTable")
+                        + " " + Json.text(r, "targetId") + " " + Json.text(r, "detail"));
     }
 
     // ===== helpers =====

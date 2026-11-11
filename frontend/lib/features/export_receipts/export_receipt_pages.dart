@@ -13,6 +13,7 @@ import '../../shared/form/fields.dart';
 import '../../shared/form/form_footer.dart';
 import '../../shared/form/receipt_line_editor.dart';
 import '../../shared/widgets/page_header.dart';
+import '../../shared/widgets/print_button.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/status_chip.dart';
 import '../common/lookups.dart';
@@ -117,27 +118,141 @@ class _ExportReceiptListPageState extends State<ExportReceiptListPage> {
       ),
       TableColumnDef(
         label: 'Thao tác',
-        flex: 1,
-        minWidth: 80,
+        minWidth: 130,
         align: Alignment.center,
-        cell: (r) => PopupMenuButton<String>(
-          icon: const Icon(Icons.more_horiz),
-          onSelected: (_) async {
-            if (await showPaymentDialog(context, r)) _controller.reload();
-          },
-          itemBuilder: (_) => [
-            PopupMenuItem(
-              value: 'pay',
-              enabled:
-                  (Fmt.toNum(r['remain']) ?? 0) > 0 &&
-                  r['status'] != 'CANCELLED',
-              child: const Text('Ghi nhận thanh toán'),
+        cell: (r) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ExportPrintMenu(row: r),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_horiz),
+              onSelected: (_) async {
+                if (await showPaymentDialog(context, r)) _controller.reload();
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'pay',
+                  enabled:
+                      (Fmt.toNum(r['remain']) ?? 0) > 0 &&
+                      r['status'] != 'CANCELLED',
+                  child: const Text('Ghi nhận thanh toán'),
+                ),
+              ],
             ),
           ],
         ),
       ),
     ],
   );
+}
+
+/// In giấy tờ của phiếu xuất: 02-VT, Phiếu gửi hàng (hỏi số kiện), Biên bản bàn giao/bảo hành.
+/// Phiếu đã hủy vẫn in được.
+class _ExportPrintMenu extends ConsumerWidget {
+  const _ExportPrintMenu({required this.row});
+
+  final Map<String, dynamic> row;
+
+  Future<int?> _askParcels(BuildContext context) {
+    final ctrl = TextEditingController(text: '1');
+    return showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Phiếu gửi hàng'),
+        content: SizedBox(
+          width: 280,
+          child: AppTextField(
+            label: 'Số kiện',
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: digitsOnly,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final n = int.tryParse(ctrl.text) ?? 1;
+              Navigator.pop(ctx, n < 1 ? 1 : n);
+            },
+            child: const Text('Tiếp tục'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final path = '/bff/api/export-receipts/${row['id']}/print';
+    // (nhãn, template)
+    const docs = [
+      ('Phiếu xuất kho 02-VT', 'invoice'),
+      ('Phiếu gửi hàng', 'delivery'),
+      ('Biên bản bàn giao / bảo hành', 'handover'),
+    ];
+    final entries = <PopupMenuEntry<(String, String, bool)>>[];
+    for (final (label, tpl) in docs) {
+      entries
+        ..add(
+          PopupMenuItem(
+            enabled: false,
+            height: 32,
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+          ),
+        )
+        ..add(
+          PopupMenuItem(
+            value: (label, tpl, false),
+            child: const ListTile(
+              dense: true,
+              leading: Icon(Icons.print_outlined),
+              title: Text('Xem / In'),
+            ),
+          ),
+        )
+        ..add(
+          PopupMenuItem(
+            value: (label, tpl, true),
+            child: const ListTile(
+              dense: true,
+              leading: Icon(Icons.download_outlined),
+              title: Text('Tải PDF'),
+            ),
+          ),
+        );
+    }
+    return PopupMenuButton<(String, String, bool)>(
+      tooltip: 'In giấy tờ',
+      itemBuilder: (_) => entries,
+      onSelected: (v) async {
+        final (label, tpl, download) = v;
+        var parcels = 1;
+        if (tpl == 'delivery') {
+          final n = await _askParcels(context);
+          if (n == null || !context.mounted) return;
+          parcels = n;
+        }
+        await PrintButton.run(
+          context,
+          ref,
+          PrintDoc(
+            label,
+            path,
+            query: {'template': tpl, if (tpl == 'delivery') 'parcels': parcels},
+          ),
+          download: download,
+        );
+      },
+      child: const Padding(
+        padding: EdgeInsets.all(8),
+        child: Icon(Icons.print_outlined),
+      ),
+    );
+  }
 }
 
 /// Figma 1225:2344 "Xuất hàng / Tạo phiếu xuất hàng" — POST /bff/api/export-receipts.
