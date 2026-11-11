@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/feedback/state_views.dart';
 import '../../shared/feedback/toast.dart';
 import '../../shared/form/fields.dart';
+import '../../shared/form/form_footer.dart';
+import '../../shared/form/unsaved_changes.dart';
 import '../../shared/widgets/page_header.dart';
 import '../../shared/widgets/section_card.dart';
 import '../common/lookups.dart';
@@ -88,6 +92,7 @@ class _ProductFormPageState extends ConsumerState<ProductFormPage> {
         await api.post('/bff/api/products', data: body);
       }
       if (!mounted) return;
+      UnsavedChanges.clear();
       Toast.success(
         context,
         _isEdit ? 'Đã cập nhật sản phẩm.' : 'Đã thêm sản phẩm.',
@@ -117,136 +122,120 @@ class _ProductFormPageState extends ConsumerState<ProductFormPage> {
           return const LoadingView();
         }
         if (snapshot.hasError) return StateView.error(snapshot.error!);
-        return Form(
-          key: _form,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              PageHeader(
-                title: _isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm',
-                crumbs: [
-                  const Crumb('Trang chủ', '/app/dashboard'),
-                  const Crumb('Sản phẩm', '/app/products'),
-                  Crumb(_isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm'),
-                ],
-              ),
-              SectionCard(
-                title: 'Thông tin cơ bản',
-                child: FormGrid(
-                  children: [
-                    AppTextField(
-                      label: 'Mã SP / SKU',
-                      readOnly: true,
-                      controller: TextEditingController(
-                        text: _isEdit
-                            ? Fmt.productCode(widget.productId)
-                            : 'Tự sinh khi lưu',
-                      ),
-                    ),
-                    AppTextField(
-                      label: 'Tên sản phẩm',
-                      required: true,
-                      controller: _name,
-                      hint: 'Máy khoan Bosch GSB 13 RE',
-                    ),
-                    groups.when(
-                      loading: () => const LinearProgressIndicator(),
-                      error: (e, _) => Text('$e'),
-                      data: (list) => AppDropdown<int>(
-                        label: 'Danh mục',
-                        required: true,
-                        value: _groupId,
-                        items: [
-                          for (final g in list)
-                            ((g['id'] as num).toInt(), '${g['groupName']}'),
-                        ],
-                        onChanged: (v) => setState(() => _groupId = v),
-                      ),
-                    ),
-                    AppTextField(
-                      label: 'Đơn vị tính',
-                      required: true,
-                      controller: _unit,
-                    ),
-                    AppDropdown<bool>(
-                      label: 'Theo dõi',
-                      value: _serialized,
-                      items: const [
-                        (false, 'Số lượng'),
-                        (true, 'Serial & bảo hành'),
-                      ],
-                      onChanged: (v) =>
-                          setState(() => _serialized = v ?? false),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SectionCard(
-                title: 'Giá & theo dõi hàng hóa',
-                trailing: margin == null
-                    ? null
-                    : Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.successBg,
-                          border: Border.all(
-                            color: c.success.withValues(alpha: 0.4),
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Biên lợi nhuận: $margin%  ·  Lãi gộp: ${Fmt.money(priceOut! - priceIn!)}/SP',
-                          style: TextStyle(fontSize: 12, color: c.success),
-                        ),
-                      ),
-                child: FormGrid(
-                  children: [
-                    AppTextField(
-                      label: 'Giá nhập (₫)',
-                      required: true,
-                      controller: _priceIn,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: digitsOnly,
-                    ),
-                    AppTextField(
-                      label: 'Giá bán (₫)',
-                      required: true,
-                      controller: _priceOut,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: digitsOnly,
-                    ),
-                    AppTextField(
-                      label: 'Ngưỡng tồn tối thiểu',
-                      controller: _minStock,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: digitsOnly,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+        return FormPageLayout(
+          formKey: _form,
+          children: [
+            PageHeader(
+              title: _isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm',
+              crumbs: [
+                const Crumb('Trang chủ', '/app/dashboard'),
+                const Crumb('Sản phẩm', '/app/products'),
+                Crumb(_isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm'),
+              ],
+            ),
+            SectionCard(
+              title: 'Thông tin cơ bản',
+              child: FormGrid(
                 children: [
-                  TextButton(
-                    onPressed: () => context.go('/app/products'),
-                    child: const Text('Hủy'),
+                  AppTextField(
+                    label: 'Mã SP / SKU',
+                    readOnly: true,
+                    initialValue: _isEdit
+                        ? Fmt.productCode(widget.productId)
+                        : null,
+                    hint: 'Tự sinh khi lưu',
                   ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 140,
-                    child: ElevatedButton(
-                      onPressed: _saving ? null : _save,
-                      child: Text(_saving ? 'Đang lưu...' : 'Lưu sản phẩm'),
+                  AppTextField(
+                    label: 'Tên sản phẩm',
+                    required: true,
+                    controller: _name,
+                    hint: 'Máy khoan Bosch GSB 13 RE',
+                  ),
+                  groups.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (e, _) => Text(userMessage(e)),
+                    data: (list) => AppDropdown<int>(
+                      label: 'Danh mục',
+                      required: true,
+                      value: _groupId,
+                      items: [
+                        for (final g in list)
+                          ((g['id'] as num).toInt(), '${g['groupName']}'),
+                      ],
+                      onChanged: (v) => setState(() => _groupId = v),
                     ),
+                  ),
+                  AppTextField(
+                    label: 'Đơn vị tính',
+                    required: true,
+                    controller: _unit,
+                  ),
+                  AppDropdown<bool>(
+                    label: 'Theo dõi',
+                    value: _serialized,
+                    items: const [
+                      (false, 'Số lượng'),
+                      (true, 'Serial & bảo hành'),
+                    ],
+                    onChanged: (v) =>
+                        setState(() => _serialized = v ?? false),
                   ),
                 ],
               ),
-            ],
+            ),
+            const SizedBox(height: 16),
+            SectionCard(
+              title: 'Giá & theo dõi hàng hóa',
+              trailing: margin == null
+                  ? null
+                  : Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.s8,
+                        vertical: AppSpace.s4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: c.successBg,
+                        border: Border.all(
+                          color: c.success.withValues(alpha: 0.4),
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Biên lợi nhuận: $margin%  ·  Lãi gộp: ${Fmt.money(priceOut! - priceIn!)}/SP',
+                        style: context.text.caption.copyWith(color: c.success),
+                      ),
+                    ),
+              child: FormGrid(
+                children: [
+                  AppTextField(
+                    label: 'Giá nhập (₫)',
+                    required: true,
+                    controller: _priceIn,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: digitsOnly,
+                  ),
+                  AppTextField(
+                    label: 'Giá bán (₫)',
+                    required: true,
+                    controller: _priceOut,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: digitsOnly,
+                  ),
+                  AppTextField(
+                    label: 'Ngưỡng tồn tối thiểu',
+                    controller: _minStock,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: digitsOnly,
+                  ),
+                ],
+              ),
+            ),
+          ],
+          footer: FormFooter(
+            saving: _saving,
+            onCancel: () => guardedGo(context, '/app/products'),
+            onSave: _save,
+            saveLabel: 'Lưu sản phẩm',
           ),
         );
       },

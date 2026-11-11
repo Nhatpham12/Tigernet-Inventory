@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/session_controller.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/data_table/app_data_table.dart';
@@ -11,6 +12,7 @@ import '../../shared/feedback/state_views.dart';
 import '../../shared/feedback/toast.dart';
 import '../../shared/form/fields.dart';
 import '../../shared/form/form_footer.dart';
+import '../../shared/form/unsaved_changes.dart';
 import '../../shared/form/receipt_line_editor.dart';
 import '../../shared/widgets/page_header.dart';
 import '../../shared/widgets/section_card.dart';
@@ -20,7 +22,10 @@ import 'payment_dialog.dart';
 
 /// Figma 978:2335 "Xuất kho / Danh sách phiếu xuất" — GET /bff/export-receipts.
 class ExportReceiptListPage extends StatefulWidget {
-  const ExportReceiptListPage({super.key});
+  const ExportReceiptListPage({super.key, this.initialKeyword});
+
+  /// Từ khóa điền sẵn (vd. mở từ "Giao dịch gần nhất" trên Dashboard).
+  final String? initialKeyword;
 
   @override
   State<ExportReceiptListPage> createState() => _ExportReceiptListPageState();
@@ -37,6 +42,7 @@ class _ExportReceiptListPageState extends State<ExportReceiptListPage> {
 
   @override
   Widget build(BuildContext context) => PagedListView(
+    initialKeyword: widget.initialKeyword,
     title: 'Danh sách phiếu xuất',
     crumbs: const [
       Crumb('Trang chủ', '/app/dashboard'),
@@ -235,6 +241,7 @@ class _ExportReceiptFormPageState extends ConsumerState<ExportReceiptFormPage> {
             },
           );
       if (!mounted) return;
+      UnsavedChanges.clear();
       Toast.success(
         context,
         'Đã lưu phiếu ${(result as Map?)?['receiptCode'] ?? ''}.',
@@ -265,180 +272,177 @@ class _ExportReceiptFormPageState extends ConsumerState<ExportReceiptFormPage> {
     final total = subtotal + vatAmount;
     final paid = parseNumber(_paid.text) ?? 0;
 
-    return Form(
-      key: _form,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const PageHeader(
-            title: 'Tạo phiếu xuất hàng',
-            crumbs: [
-              Crumb('Trang chủ', '/app/dashboard'),
-              Crumb('Xuất kho', '/app/export-receipts'),
-              Crumb('Tạo phiếu xuất'),
+    return FormPageLayout(
+      formKey: _form,
+      children: [
+        const PageHeader(
+          title: 'Tạo phiếu xuất hàng',
+          crumbs: [
+            Crumb('Trang chủ', '/app/dashboard'),
+            Crumb('Xuất kho', '/app/export-receipts'),
+            Crumb('Tạo phiếu xuất'),
+          ],
+        ),
+        SectionCard(
+          title: 'Thông tin phiếu',
+          child: FormGrid(
+            children: [
+              customers.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (e, _) => Text(userMessage(e)),
+                data: (list) => AppDropdown<int>(
+                  label: 'Khách hàng',
+                  required: true,
+                  hint: 'Chọn khách hàng',
+                  value: _customerId,
+                  items: [
+                    for (final c in list)
+                      ((c['id'] as num).toInt(), partyName(c)),
+                  ],
+                  onChanged: (v) {
+                    final customer = list.firstWhere(
+                      (c) => c['id'] == v,
+                      orElse: () => {},
+                    );
+                    final party = (customer['party'] as Map?) ?? {};
+                    setState(() {
+                      _customerId = v;
+                      _receiverName.text = '${party['fullName'] ?? ''}';
+                      _receiverPhone.text = '${party['phone'] ?? ''}';
+                      _receiverAddress.text = '${party['address'] ?? ''}';
+                    });
+                  },
+                ),
+              ),
+              warehouses.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (e, _) => Text(userMessage(e)),
+                data: (list) => AppDropdown<int>(
+                  label: 'Kho xuất',
+                  required: true,
+                  hint: 'Chọn kho',
+                  value: _warehouseId,
+                  items: [
+                    for (final w in list)
+                      ((w['id'] as num).toInt(), '${w['warehouseName']}'),
+                  ],
+                  onChanged: (v) => setState(() => _warehouseId = v),
+                ),
+              ),
+              DateField(
+                label: 'Ngày xuất',
+                required: true,
+                value: _dateOut,
+                onChanged: (d) => setState(() => _dateOut = d),
+              ),
+              AppTextField(label: 'Người nhận', controller: _receiverName),
+              AppTextField(
+                label: 'SĐT người nhận',
+                controller: _receiverPhone,
+                keyboardType: TextInputType.phone,
+              ),
+              AppTextField(
+                label: 'Địa chỉ giao',
+                controller: _receiverAddress,
+              ),
+              DateField(
+                label: 'Ngày giao',
+                value: _deliveryDate,
+                onChanged: (d) => setState(() => _deliveryDate = d),
+              ),
+              vats.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (e, _) => Text(userMessage(e)),
+                data: (list) => AppDropdown<int?>(
+                  label: 'VAT',
+                  value: _vatId,
+                  items: [
+                    (null, 'Không VAT'),
+                    for (final v in list)
+                      ((v['id'] as num).toInt(), '${v['vat']}'),
+                  ],
+                  onChanged: (v) => setState(() => _vatId = v),
+                ),
+              ),
             ],
           ),
-          SectionCard(
-            title: 'Thông tin phiếu',
-            child: FormGrid(
-              children: [
-                customers.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (e, _) => Text('$e'),
-                  data: (list) => AppDropdown<int>(
-                    label: 'Khách hàng',
-                    required: true,
-                    hint: 'Chọn khách hàng',
-                    value: _customerId,
-                    items: [
-                      for (final c in list)
-                        ((c['id'] as num).toInt(), partyName(c)),
-                    ],
-                    onChanged: (v) {
-                      final customer = list.firstWhere(
-                        (c) => c['id'] == v,
-                        orElse: () => {},
-                      );
-                      final party = (customer['party'] as Map?) ?? {};
-                      setState(() {
-                        _customerId = v;
-                        _receiverName.text = '${party['fullName'] ?? ''}';
-                        _receiverPhone.text = '${party['phone'] ?? ''}';
-                        _receiverAddress.text = '${party['address'] ?? ''}';
-                      });
-                    },
-                  ),
-                ),
-                warehouses.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (e, _) => Text('$e'),
-                  data: (list) => AppDropdown<int>(
-                    label: 'Kho xuất',
-                    required: true,
-                    hint: 'Chọn kho',
-                    value: _warehouseId,
-                    items: [
-                      for (final w in list)
-                        ((w['id'] as num).toInt(), '${w['warehouseName']}'),
-                    ],
-                    onChanged: (v) => setState(() => _warehouseId = v),
-                  ),
-                ),
-                DateField(
-                  label: 'Ngày xuất',
-                  required: true,
-                  value: _dateOut,
-                  onChanged: (d) => setState(() => _dateOut = d),
-                ),
-                AppTextField(label: 'Người nhận', controller: _receiverName),
-                AppTextField(
-                  label: 'SĐT người nhận',
-                  controller: _receiverPhone,
-                  keyboardType: TextInputType.phone,
-                ),
-                AppTextField(
-                  label: 'Địa chỉ giao',
-                  controller: _receiverAddress,
-                ),
-                DateField(
-                  label: 'Ngày giao',
-                  value: _deliveryDate,
-                  onChanged: (d) => setState(() => _deliveryDate = d),
-                ),
-                vats.when(
-                  loading: () => const LinearProgressIndicator(),
-                  error: (e, _) => Text('$e'),
-                  data: (list) => AppDropdown<int?>(
-                    label: 'VAT',
-                    value: _vatId,
-                    items: [
-                      (null, 'Không VAT'),
-                      for (final v in list)
-                        ((v['id'] as num).toInt(), '${v['vat']}'),
-                    ],
-                    onChanged: (v) => setState(() => _vatId = v),
-                  ),
-                ),
-              ],
+        ),
+        const SizedBox(height: 16),
+        SectionCard(
+          title: 'Danh sách hàng hóa',
+          child: products.when(
+            loading: () => const LoadingView(),
+            error: (e, _) => StateView.error(e),
+            data: (list) => ReceiptLineEditor(
+              lines: _lines,
+              products: list,
+              priceLabel: 'Đơn giá bán',
+              showWarranty: true,
+              defaultPrice: (p) => p['defaultPriceOut'] as num?,
+              onChanged: () => setState(() {}),
             ),
           ),
-          const SizedBox(height: 16),
-          SectionCard(
-            title: 'Danh sách hàng hóa',
-            child: products.when(
-              loading: () => const LoadingView(),
-              error: (e, _) => StateView.error(e),
-              data: (list) => ReceiptLineEditor(
-                lines: _lines,
-                products: list,
-                priceLabel: 'Đơn giá bán',
-                showWarranty: true,
-                defaultPrice: (p) => p['defaultPriceOut'] as num?,
-                onChanged: () => setState(() {}),
+        ),
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final payment = SectionCard(
+              title: 'Thanh toán',
+              child: Column(
+                children: [
+                  AppTextField(
+                    label: 'Đặt cọc (₫)',
+                    controller: _deposit,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: digitsOnly,
+                  ),
+                  const SizedBox(height: 16),
+                  AppTextField(
+                    label: 'Đã thanh toán (₫)',
+                    controller: _paid,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: digitsOnly,
+                  ),
+                  const SizedBox(height: 16),
+                  AppTextField(
+                    label: 'Ghi chú',
+                    controller: _note,
+                    maxLines: 2,
+                  ),
+                ],
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final payment = SectionCard(
-                title: 'Thanh toán',
-                child: Column(
-                  children: [
-                    AppTextField(
-                      label: 'Đặt cọc (₫)',
-                      controller: _deposit,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: digitsOnly,
-                    ),
-                    const SizedBox(height: 12),
-                    AppTextField(
-                      label: 'Đã thanh toán (₫)',
-                      controller: _paid,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: digitsOnly,
-                    ),
-                    const SizedBox(height: 12),
-                    AppTextField(
-                      label: 'Ghi chú',
-                      controller: _note,
-                      maxLines: 2,
-                    ),
-                  ],
-                ),
-              );
-              final totals = SectionCard(
-                title: 'Tổng tiền',
-                child: TotalsPanel(
-                  rows: [
-                    ('Tạm tính', Fmt.money(subtotal), false),
-                    ('VAT', Fmt.money(vatAmount), false),
-                    ('Tổng cộng', Fmt.money(total), true),
-                    ('Đã thanh toán', Fmt.money(paid), false),
-                    ('Còn lại', Fmt.money(total - paid), false),
-                  ],
-                ),
-              );
-              return constraints.maxWidth < 800
-                  ? Column(
-                      children: [payment, const SizedBox(height: 16), totals],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: payment),
-                        const SizedBox(width: 16),
-                        Expanded(child: totals),
-                      ],
-                    );
-            },
-          ),
-          FormFooter(
-            saving: _saving,
-            onCancel: () => context.go('/app/export-receipts'),
-            onSave: () => _save(total),
-          ),
-        ],
+            );
+            final totals = SectionCard(
+              title: 'Tổng tiền',
+              child: TotalsPanel(
+                rows: [
+                  ('Tạm tính', Fmt.money(subtotal), false),
+                  ('VAT', Fmt.money(vatAmount), false),
+                  ('Tổng cộng', Fmt.money(total), true),
+                  ('Đã thanh toán', Fmt.money(paid), false),
+                  ('Còn lại', Fmt.money(total - paid), false),
+                ],
+              ),
+            );
+            return constraints.maxWidth < 800
+                ? Column(
+                    children: [payment, const SizedBox(height: 16), totals],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: payment),
+                      const SizedBox(width: 16),
+                      Expanded(child: totals),
+                    ],
+                  );
+          },
+        ),
+      ],
+      footer: FormFooter(
+        saving: _saving,
+        onCancel: () => guardedGo(context, '/app/export-receipts'),
+        onSave: () => _save(total),
       ),
     );
   }

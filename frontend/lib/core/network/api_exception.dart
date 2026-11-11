@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Lỗi trả về từ BFF/backend, đã đổi sang câu tiếng Việt để hiển thị toast.
 class ApiException implements Exception {
   ApiException({
@@ -58,3 +60,12 @@ const Map<int, String> kErrorMessages = {
   2021: 'Số serial bị trùng.',
   9503: 'Không kết nối được máy chủ. Vui lòng thử lại.',
 };
+
+/// Câu thông báo an toàn để hiện cho người dùng cuối.
+/// Lỗi từ BFF đã là tiếng Việt; lỗi khác (lỗi code, parse...) không lộ chi tiết kỹ thuật.
+String userMessage(Object error) {
+  if (error is ApiException) return error.message;
+  if (error is String) return error;
+  debugPrint('Lỗi không mong đợi: $error');
+  return 'Đã có lỗi xảy ra. Vui lòng thử lại hoặc liên hệ quản trị viên.';
+}

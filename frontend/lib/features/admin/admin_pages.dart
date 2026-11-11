@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/role.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/config/env.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/theme_mode_provider.dart';
@@ -167,19 +168,19 @@ class _UserDialogState extends ConsumerState<_UserDialog> {
                 required: true,
                 controller: _username,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               AppTextField(
                 label: 'Họ tên',
                 required: true,
                 controller: _fullName,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               AppTextField(
                 label: 'Email',
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               AppTextField(
                 label: 'Mật khẩu',
                 required: true,
@@ -189,10 +190,10 @@ class _UserDialogState extends ConsumerState<_UserDialog> {
                     ? 'Mật khẩu tối thiểu 8 ký tự'
                     : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               roles.when(
                 loading: () => const LinearProgressIndicator(),
-                error: (e, _) => Text('$e'),
+                error: (e, _) => Text(userMessage(e)),
                 data: (list) => AppDropdown<int>(
                   label: 'Vai trò',
                   required: true,

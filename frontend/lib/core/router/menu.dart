@@ -27,6 +27,23 @@ class MenuGroup {
   final Set<AppRole>? roles;
 }
 
+/// Một nghiệp vụ = một icon, dùng chung cho sidebar, Dashboard và nơi khác.
+class AppIcons {
+  const AppIcons._();
+
+  static const dashboard = Icons.home_outlined;
+  static const products = Icons.inventory_2_outlined;
+  static const importGoods = Icons.move_to_inbox_outlined;
+  static const exportGoods = Icons.local_shipping_outlined;
+  static const transfer = Icons.swap_horiz;
+  static const rental = Icons.vpn_key_outlined;
+  static const lend = Icons.handshake_outlined;
+  static const warehouse = Icons.warehouse_outlined;
+  static const reports = Icons.bar_chart;
+  static const users = Icons.group_outlined;
+  static const settings = Icons.settings_outlined;
+}
+
 const _tk = AppRole.warehouse;
 const _kt = AppRole.accountant;
 const _bh = AppRole.sales;
@@ -38,12 +55,12 @@ const _qt = AppRole.admin;
 const kMainMenu = <MenuGroup>[
   MenuGroup(
     label: 'Tổng quan',
-    icon: Icons.home_outlined,
+    icon: AppIcons.dashboard,
     path: '/app/dashboard',
   ),
   MenuGroup(
     label: 'Sản phẩm',
-    icon: Icons.inventory_2_outlined,
+    icon: AppIcons.products,
     children: [
       MenuLink('Danh sách sản phẩm', '/app/products'),
       MenuLink(
@@ -56,15 +73,15 @@ const kMainMenu = <MenuGroup>[
   ),
   MenuGroup(
     label: 'Nhập hàng',
-    icon: Icons.move_to_inbox_outlined,
+    icon: AppIcons.importGoods,
     roles: {_tk, _kt, _ql, _qt},
     children: [
+      MenuLink('Danh sách phiếu nhập', '/app/import-receipts'),
       MenuLink(
         'Tạo phiếu nhập',
         '/app/import-receipts/new',
         roles: {_tk, _ql, _qt},
       ),
-      MenuLink('Danh sách phiếu nhập', '/app/import-receipts'),
       MenuLink('Danh sách nhà cung cấp', '/app/suppliers'),
       MenuLink(
         'Thêm nhà cung cấp',
@@ -75,7 +92,7 @@ const kMainMenu = <MenuGroup>[
   ),
   MenuGroup(
     label: 'Xuất kho',
-    icon: Icons.logout,
+    icon: AppIcons.exportGoods,
     roles: {_tk, _kt, _bh, _ql, _qt},
     children: [
       MenuLink('Danh sách phiếu xuất', '/app/export-receipts'),
@@ -94,13 +111,13 @@ const kMainMenu = <MenuGroup>[
   ),
   MenuGroup(
     label: 'Chuyển kho',
-    icon: Icons.swap_horiz,
+    icon: AppIcons.transfer,
     roles: {_tk, _ql, _qt},
     children: [MenuLink('Danh sách phiếu chuyển kho', '/app/transfers')],
   ),
   MenuGroup(
     label: 'Cho thuê',
-    icon: Icons.description_outlined,
+    icon: AppIcons.rental,
     roles: {_tk, _bh, _ql, _qt},
     children: [
       MenuLink('Danh sách phiếu thuê', '/app/rentals'),
@@ -113,7 +130,7 @@ const kMainMenu = <MenuGroup>[
   ),
   MenuGroup(
     label: 'Cho mượn',
-    icon: Icons.outbox_outlined,
+    icon: AppIcons.lend,
     roles: {_tk, _bh, _ql, _qt},
     children: [
       MenuLink('Danh sách phiếu mượn', '/app/lends'),
@@ -122,7 +139,7 @@ const kMainMenu = <MenuGroup>[
   ),
   MenuGroup(
     label: 'Kho',
-    icon: Icons.warehouse_outlined,
+    icon: AppIcons.warehouse,
     roles: {_tk, _kt, _ql, _qt},
     children: [
       MenuLink('Danh sách kho', '/app/warehouses', roles: {_ql, _qt}),
@@ -131,7 +148,7 @@ const kMainMenu = <MenuGroup>[
   ),
   MenuGroup(
     label: 'Báo cáo',
-    icon: Icons.bar_chart,
+    icon: AppIcons.reports,
     roles: {_tk, _kt, _ql, _qt},
     children: [
       MenuLink('Tồn kho', '/app/reports/stock'),
@@ -149,16 +166,35 @@ const kMainMenu = <MenuGroup>[
 const kAdminMenu = <MenuGroup>[
   MenuGroup(
     label: 'Người dùng',
-    icon: Icons.group_outlined,
+    icon: AppIcons.users,
     path: '/app/users',
     roles: {_ql, _qt},
   ),
   MenuGroup(
     label: 'Cài đặt',
-    icon: Icons.settings_outlined,
+    icon: AppIcons.settings,
     path: '/app/settings',
   ),
 ];
 
 bool canSee(Set<AppRole>? roles, AppRole role) =>
     roles == null || role == AppRole.unknown || roles.contains(role);
+
+/// Vai trò có được mở [location] không (theo ma trận quyền của menu).
+/// Dùng cho router (chặn gõ URL trực tiếp) và để ẩn lối tắt trên Dashboard.
+bool canAccessPath(String location, AppRole role) {
+  final path = Uri.parse(location).path;
+  for (final group in [...kMainMenu, ...kAdminMenu]) {
+    if (group.path != null &&
+        path.startsWith(group.path!) &&
+        !canSee(group.roles, role)) {
+      return false;
+    }
+    for (final link in group.children) {
+      if (path == link.path) {
+        return canSee(group.roles, role) && canSee(link.roles, role);
+      }
+    }
+  }
+  return true;
+}

@@ -6,7 +6,40 @@ import '../../core/auth/session.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/router/menu.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../core/theme/theme_mode_provider.dart';
+import '../form/form_footer.dart';
+import '../form/unsaved_changes.dart';
+import '../widgets/brand_logo.dart';
+
+/// Breakpoint dùng chung của khung app.
+class ShellBreakpoints {
+  const ShellBreakpoints._();
+
+  /// Dưới mức này: header thu gọn (tìm kiếm thành icon, chọn kho chuyển vào drawer).
+  static const compact = 600.0;
+
+  /// Dưới mức này: sidebar thành drawer.
+  static const drawer = 900.0;
+
+  /// Dưới mức này: sidebar tự thu thành cột icon.
+  static const railAuto = 1200.0;
+
+  /// Từ mức này: hiện tên người dùng cạnh avatar.
+  static const wide = 1100.0;
+}
+
+/// Chiều cao chung của header và khối logo sidebar để hai đường viền dưới thẳng hàng.
+const _barHeight = 64.0;
+
+/// Điều hướng từ menu/header: hỏi trước nếu form đang nhập dở, rồi mới đóng drawer.
+Future<void> _navigate(BuildContext context, String path) async {
+  final router = GoRouter.of(context);
+  final scaffold = Scaffold.maybeOf(context);
+  if (!await UnsavedChanges.confirmLeave(context)) return;
+  if (scaffold?.isDrawerOpen ?? false) scaffold!.closeDrawer();
+  router.go(path);
+}
 
 /// Khung ứng dụng (Figma "ERP / Responsive Shell"): sidebar trái + header trên,
 /// header/sidebar đứng yên, phần nội dung cuộn riêng.
@@ -28,16 +61,30 @@ class _AppShellState extends ConsumerState<AppShell> {
     final session = ref.watch(sessionProvider).value;
     final c = context.colors;
     final width = MediaQuery.sizeOf(context).width;
-    final mobile = width < 900;
+    final mobile = width < ShellBreakpoints.drawer;
+    final compact = width < ShellBreakpoints.compact;
     final sidebar = _Sidebar(
       location: widget.location,
       session: session,
-      collapsed: !mobile && (_collapsed || width < 1200),
+      collapsed: !mobile && (_collapsed || width < ShellBreakpoints.railAuto),
+      // Trên điện thoại bộ chọn kho nằm đầu drawer thay vì chiếm chỗ trên header.
+      showWarehouseSelector: compact,
+      inDrawer: mobile,
       onToggle: () => setState(() => _collapsed = !_collapsed),
     );
+    // Trang form tự cuộn để thanh Lưu/Hủy dính đáy (FormPageLayout).
+    final body = FormPageLayout.handles(widget.location)
+        ? widget.child
+        : SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: mobile ? AppSpace.s16 : AppSpace.s24,
+              vertical: AppSpace.s16,
+            ),
+            child: widget.child,
+          );
     return Scaffold(
       backgroundColor: c.page,
-      drawer: mobile ? Drawer(width: 260, child: sidebar) : null,
+      drawer: mobile ? Drawer(width: 280, child: sidebar) : null,
       body: Row(
         children: [
           if (!mobile) sidebar,
@@ -45,15 +92,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: Column(
               children: [
                 _Header(session: session, showMenuButton: mobile),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: mobile ? 16 : 24,
-                      vertical: 16,
-                    ),
-                    child: widget.child,
-                  ),
-                ),
+                Expanded(child: body),
               ],
             ),
           ),
@@ -68,12 +107,16 @@ class _Sidebar extends StatefulWidget {
     required this.location,
     required this.session,
     required this.collapsed,
+    required this.showWarehouseSelector,
+    required this.inDrawer,
     required this.onToggle,
   });
 
   final String location;
   final Session? session;
   final bool collapsed;
+  final bool showWarehouseSelector;
+  final bool inDrawer;
   final VoidCallback onToggle;
 
   @override
@@ -107,62 +150,64 @@ class _SidebarState extends State<_Sidebar> {
       ),
       child: Column(
         children: [
-          SizedBox(
-            height: 78,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  if (!collapsed)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'TIGERNET',
-                            style: TextStyle(
-                              color: c.accent,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              height: 1,
-                            ),
-                          ),
-                          Text(
-                            'INVENTORY',
-                            style: TextStyle(
-                              color: c.accent,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              height: 1.1,
-                            ),
-                          ),
-                        ],
+          Container(
+            height: _barHeight,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s16),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: c.divider)),
+            ),
+            child: Row(
+              children: [
+                if (!collapsed) const Expanded(child: BrandLogo()),
+                widget.inDrawer
+                    ? _IconBtn(
+                        icon: Icons.close,
+                        tooltip: 'Đóng menu',
+                        onTap: () => Scaffold.of(context).closeDrawer(),
+                      )
+                    : _IconBtn(
+                        icon: Icons.menu,
+                        tooltip: collapsed ? 'Mở rộng menu' : 'Thu gọn menu',
+                        onTap: widget.onToggle,
                       ),
-                    ),
-                  IconButton(
-                    tooltip: collapsed ? 'Mở rộng menu' : 'Thu gọn menu',
-                    onPressed: widget.onToggle,
-                    icon: Icon(Icons.menu, color: c.text, size: 20),
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
+          if (widget.showWarehouseSelector && widget.session != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.s16,
+                AppSpace.s16,
+                AppSpace.s16,
+                0,
+              ),
+              child: _WarehouseSelector(
+                session: widget.session!,
+                expand: true,
+              ),
+            ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.s16,
+                vertical: AppSpace.s8,
+              ),
               children: [
                 for (final g in visible(kMainMenu)) ..._group(context, g, role),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s16),
             child: Divider(color: c.border, height: 1),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.s16,
+              AppSpace.s8,
+              AppSpace.s16,
+              AppSpace.s24,
+            ),
             child: Column(
               children: [
                 for (final g in visible(kAdminMenu))
@@ -191,10 +236,9 @@ class _SidebarState extends State<_Sidebar> {
         expanded: expanded,
         onTap: () {
           if (g.path != null) {
-            context.go(g.path!);
-            Scaffold.maybeOf(context)?.closeDrawer();
+            _navigate(context, g.path!);
           } else if (widget.collapsed && links.isNotEmpty) {
-            context.go(links.first.path);
+            _navigate(context, links.first.path);
           } else {
             setState(
               () => _open.contains(g.label)
@@ -209,12 +253,9 @@ class _SidebarState extends State<_Sidebar> {
           _SubItem(
             label: link.label,
             active: widget.location == link.path,
-            onTap: () {
-              context.go(link.path);
-              Scaffold.maybeOf(context)?.closeDrawer();
-            },
+            onTap: () => _navigate(context, link.path),
           ),
-      const SizedBox(height: 4),
+      const SizedBox(height: AppSpace.s4),
     ];
   }
 }
@@ -254,8 +295,8 @@ class _NavItem extends StatelessWidget {
               if (active)
                 Positioned(
                   left: 0,
-                  top: 6,
-                  bottom: 6,
+                  top: AppSpace.s8,
+                  bottom: AppSpace.s8,
                   child: Container(
                     width: 3,
                     decoration: BoxDecoration(
@@ -268,21 +309,20 @@ class _NavItem extends StatelessWidget {
                 child: Row(
                   children: [
                     SizedBox(
-                      width: collapsed ? 52 : 42,
+                      width: AppSpace.touch,
                       child: Icon(
                         icon,
-                        size: 23,
+                        size: 24,
                         color: active ? c.navActiveText : c.text,
                       ),
                     ),
                     if (!collapsed) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.s8),
                       Expanded(
                         child: Text(
                           label,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
+                          style: context.text.h3.copyWith(
                             fontWeight: active
                                 ? FontWeight.w700
                                 : FontWeight.w600,
@@ -292,7 +332,7 @@ class _NavItem extends StatelessWidget {
                       ),
                       if (hasChildren)
                         Padding(
-                          padding: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.only(right: AppSpace.s8),
                           child: Icon(
                             expanded
                                 ? Icons.keyboard_arrow_up
@@ -329,30 +369,29 @@ class _SubItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Padding(
-      padding: const EdgeInsets.only(left: 29, top: 2),
+      padding: const EdgeInsets.only(left: AppSpace.s24, top: AppSpace.s2),
       child: Material(
         color: active ? c.navActive : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
           child: SizedBox(
-            height: 35,
+            height: AppSpace.touch,
             child: Row(
               children: [
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpace.s8),
                 Container(
                   width: 3,
-                  height: 17,
+                  height: AppSpace.s16,
                   color: active ? c.accent : c.border,
                 ),
-                const SizedBox(width: 7),
+                const SizedBox(width: AppSpace.s8),
                 Expanded(
                   child: Text(
                     label,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: context.text.body2.copyWith(
                       fontWeight: active ? FontWeight.w700 : FontWeight.w400,
                       color: active ? c.navActiveText : c.muted,
                     ),
@@ -373,14 +412,86 @@ class _Header extends ConsumerWidget {
   final Session? session;
   final bool showMenuButton;
 
+  /// Ô tìm kiếm chỉ tìm sản phẩm, nên gợi ý nói đúng điều đó.
+  static void _search(BuildContext context, String q) {
+    final query = q.trim();
+    guardedGo(
+      context,
+      Uri(
+        path: '/app/products',
+        queryParameters: query.isEmpty ? null : {'q': query},
+      ).toString(),
+    );
+  }
+
+  /// Điện thoại: chạm icon tìm → overlay tìm kiếm (Open Overlay · Dissolve 200ms).
+  static Future<void> _openSearchOverlay(BuildContext context) async {
+    final q = await showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Đóng tìm kiếm',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 200),
+      transitionBuilder: (context, animation, _, child) =>
+          FadeTransition(opacity: animation, child: child),
+      pageBuilder: (dialogContext, _, _) {
+        final c = dialogContext.colors;
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              color: c.surface,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpace.s8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        autofocus: true,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (v) => Navigator.pop(dialogContext, v),
+                        decoration: InputDecoration(
+                          hintText: 'Tìm sản phẩm theo tên hoặc mã SKU',
+                          prefixIcon: Icon(
+                            Icons.search,
+                            size: 20,
+                            color: c.muted,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.s4),
+                    _IconBtn(
+                      icon: Icons.close,
+                      tooltip: 'Đóng',
+                      onTap: () => Navigator.pop(dialogContext),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (q != null && context.mounted) _search(context, q);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
-    final wide = MediaQuery.sizeOf(context).width >= 1100;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < ShellBreakpoints.compact;
+    final wide = width >= ShellBreakpoints.wide;
     final s = session;
+    final selectedWarehouse = s == null
+        ? null
+        : _warehouseLabel(s, ref.watch(warehouseScopeProvider));
     return Container(
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: _barHeight,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? AppSpace.s8 : AppSpace.s16,
+      ),
       decoration: BoxDecoration(
         color: c.surface,
         border: Border(bottom: BorderSide(color: c.divider)),
@@ -388,77 +499,111 @@ class _Header extends ConsumerWidget {
       child: Row(
         children: [
           if (showMenuButton)
-            IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () => Scaffold.of(context).openDrawer(),
+            _IconBtn(
+              icon: Icons.menu,
+              tooltip: 'Mở menu',
+              onTap: () => Scaffold.of(context).openDrawer(),
             ),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 580),
-                child: TextField(
-                  onSubmitted: (q) => context.go(
-                    Uri(
-                      path: '/app/products',
-                      queryParameters: {'q': q},
-                    ).toString(),
-                  ),
-                  decoration: InputDecoration(
-                    hintText: wide
-                        ? 'Tìm mã phiếu, sản phẩm, kho, người tạo... (Enter)'
-                        : 'Tìm kiếm...',
-                    prefixIcon: Icon(Icons.search, size: 20, color: c.muted),
-                    fillColor: c.surfaceMuted,
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: c.divider),
+          if (compact) ...[
+            const SizedBox(width: AppSpace.s8),
+            // Logo + kho đang làm việc, để luôn biết mình đang ở kho nào.
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const BrandLogo(size: BrandLogoSize.compact),
+                  if (selectedWarehouse != null)
+                    Text(
+                      selectedWarehouse,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.text.caption.copyWith(color: c.muted),
+                    ),
+                ],
+              ),
+            ),
+            _IconBtn(
+              icon: Icons.search,
+              tooltip: 'Tìm kiếm sản phẩm',
+              onTap: () => _openSearchOverlay(context),
+            ),
+          ] else ...[
+            if (showMenuButton) const SizedBox(width: AppSpace.s8),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: TextField(
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (q) => _search(context, q),
+                    style: context.text.body1,
+                    decoration: InputDecoration(
+                      hintText: wide
+                          ? 'Tìm sản phẩm theo tên hoặc mã SKU (Enter)'
+                          : 'Tìm sản phẩm...',
+                      prefixIcon: Icon(Icons.search, size: 20, color: c.muted),
+                      fillColor: c.surfaceMuted,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: c.divider),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          if (s != null) _WarehouseSelector(session: s),
-          const SizedBox(width: 12),
-          _RoundButton(
-            tooltip: 'Đổi giao diện sáng/tối',
-            filled: true,
-            icon: Theme.of(context).brightness == Brightness.dark
-                ? Icons.light_mode
-                : Icons.dark_mode,
-            onTap: () => ref.read(themeModeProvider.notifier).toggle(),
-          ),
-          const SizedBox(width: 10),
-          _RoundButton(
-            tooltip: 'Cài đặt',
-            icon: Icons.settings_outlined,
-            onTap: () => context.go('/app/settings'),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.s16),
+            if (s != null) _WarehouseSelector(session: s),
+            const SizedBox(width: AppSpace.s8),
+            _IconBtn(
+              tooltip: 'Đổi giao diện sáng/tối',
+              filled: true,
+              icon: Theme.of(context).brightness == Brightness.dark
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
+              onTap: () => ref.read(themeModeProvider.notifier).toggle(),
+            ),
+          ],
+          SizedBox(width: compact ? 0 : AppSpace.s8),
           Badge(
             isLabelVisible: (s?.unreadAlerts ?? 0) > 0,
             label: Text('${s?.unreadAlerts ?? 0}'),
             backgroundColor: c.danger,
-            child: _RoundButton(
+            offset: const Offset(-AppSpace.s4, AppSpace.s4),
+            child: _IconBtn(
               tooltip: 'Cảnh báo và thông báo',
               icon: Icons.notifications_none,
-              onTap: () => context.go('/app/alerts'),
+              onTap: () => guardedGo(context, '/app/alerts'),
             ),
           ),
-          const SizedBox(width: 16),
-          if (s != null) _UserMenu(session: s, showName: wide),
+          SizedBox(width: compact ? 0 : AppSpace.s8),
+          if (s != null)
+            _UserMenu(session: s, showName: wide, showThemeToggle: compact),
         ],
       ),
     );
   }
 }
 
+String _warehouseLabel(Session session, int? selected) {
+  if (selected == null) {
+    return session.canViewAllWarehouses ? 'Tất cả kho' : 'Chưa phân kho';
+  }
+  final w = session.warehouses
+      .where((opt) => opt.id == selected)
+      .firstOrNull;
+  if (w == null) return 'Chưa phân kho';
+  return w.name.isNotEmpty ? w.name : w.code;
+}
+
 class _WarehouseSelector extends ConsumerWidget {
-  const _WarehouseSelector({required this.session});
+  const _WarehouseSelector({required this.session, this.expand = false});
 
   final Session session;
+
+  /// true = chiếm hết bề ngang (đặt trong drawer trên điện thoại).
+  final bool expand;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -469,12 +614,7 @@ class _WarehouseSelector extends ConsumerWidget {
       for (final w in session.warehouses)
         (w.id, w.name.isNotEmpty ? w.name : w.code),
     ];
-    final label = options
-        .firstWhere(
-          (o) => o.$1 == selected,
-          orElse: () => (null, 'Chưa phân kho'),
-        )
-        .$2;
+    final label = _warehouseLabel(session, selected);
     return PopupMenuButton<int?>(
       tooltip: 'Chọn kho làm việc',
       onSelected: (id) => ref.read(warehouseScopeProvider.notifier).select(id),
@@ -483,29 +623,29 @@ class _WarehouseSelector extends ConsumerWidget {
           PopupMenuItem<int?>(value: id, child: Text(name)),
       ],
       child: Container(
-        height: 44,
-        constraints: const BoxConstraints(minWidth: 140, maxWidth: 220),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: AppSpace.touch,
+        width: expand ? double.infinity : null,
+        constraints: expand
+            ? null
+            : const BoxConstraints(minWidth: 140, maxWidth: 220),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.s16),
         decoration: BoxDecoration(
           border: Border.all(color: c.border),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
           children: [
             Flexible(
+              fit: expand ? FlexFit.tight : FlexFit.loose,
               child: Text(
                 'Kho: $label',
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: c.text,
-                ),
+                style: context.text.label,
               ),
             ),
-            const SizedBox(width: 8),
-            Icon(Icons.keyboard_arrow_down, size: 18, color: c.text),
+            const SizedBox(width: AppSpace.s8),
+            Icon(Icons.keyboard_arrow_down, size: 20, color: c.text),
           ],
         ),
       ),
@@ -513,8 +653,9 @@ class _WarehouseSelector extends ConsumerWidget {
   }
 }
 
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({
+/// Nút icon tròn: hình 32px nhưng vùng bấm 44×44px.
+class _IconBtn extends StatelessWidget {
+  const _IconBtn({
     required this.icon,
     required this.onTap,
     required this.tooltip,
@@ -531,18 +672,28 @@ class _RoundButton extends StatelessWidget {
     final c = context.colors;
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: filled ? c.accent : c.surface,
-        shape: CircleBorder(
-          side: filled ? BorderSide.none : BorderSide(color: c.border),
-        ),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 32,
-            height: 32,
-            child: Icon(icon, size: 18, color: filled ? Colors.white : c.text),
+      child: SizedBox.square(
+        dimension: AppSpace.touch,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Center(
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: filled ? c.accent : Colors.transparent,
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: filled ? Colors.white : c.text,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -551,65 +702,80 @@ class _RoundButton extends StatelessWidget {
 }
 
 class _UserMenu extends ConsumerWidget {
-  const _UserMenu({required this.session, required this.showName});
+  const _UserMenu({
+    required this.session,
+    required this.showName,
+    required this.showThemeToggle,
+  });
 
   final Session session;
   final bool showName;
 
+  /// Trên điện thoại nút sáng/tối chuyển vào menu này để header gọn.
+  final bool showThemeToggle;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return PopupMenuButton<String>(
       tooltip: 'Tài khoản',
       onSelected: (value) async {
-        if (value == 'logout') {
-          await ref.read(sessionProvider.notifier).logout();
-        } else if (value == 'settings') {
-          if (context.mounted) context.go('/app/settings');
+        switch (value) {
+          case 'theme':
+            ref.read(themeModeProvider.notifier).toggle();
+          case 'settings':
+            guardedGo(context, '/app/settings');
+          case 'logout':
+            if (await UnsavedChanges.confirmLeave(context)) {
+              await ref.read(sessionProvider.notifier).logout();
+            }
         }
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'settings', child: Text('Cài đặt')),
-        PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
+      itemBuilder: (_) => [
+        if (showThemeToggle)
+          PopupMenuItem(
+            value: 'theme',
+            child: Text(dark ? 'Giao diện sáng' : 'Giao diện tối'),
+          ),
+        const PopupMenuItem(value: 'settings', child: Text('Cài đặt')),
+        const PopupMenuItem(value: 'logout', child: Text('Đăng xuất')),
       ],
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: const Color(0xFFD7193B),
-            child: Text(
-              session.initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: AppSpace.touch),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(width: AppSpace.s4),
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: c.brand,
+              child: Text(
+                session.initials,
+                style: context.text.caption.copyWith(
+                  color: c.onBrand,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
-          if (showName) ...[
-            const SizedBox(width: 8),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  session.displayName,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: c.text,
+            if (showName) ...[
+              const SizedBox(width: AppSpace.s8),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(session.displayName, style: context.text.label),
+                  Text(
+                    session.role.label,
+                    style: context.text.caption.copyWith(color: c.muted),
                   ),
-                ),
-                Text(
-                  session.role.label,
-                  style: TextStyle(fontSize: 11, color: c.muted),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
+            const SizedBox(width: AppSpace.s4),
+            Icon(Icons.keyboard_arrow_down, size: 20, color: c.text),
           ],
-          const SizedBox(width: 8),
-          Icon(Icons.keyboard_arrow_down, size: 20, color: c.text),
-        ],
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import '../../core/auth/session_controller.dart';
 import '../../core/network/page_data.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../feedback/state_views.dart';
 import '../widgets/page_header.dart';
 import 'app_data_table.dart';
@@ -52,6 +53,7 @@ class PagedListView extends ConsumerStatefulWidget {
     this.controller,
     this.emptyMessage,
     this.banner,
+    this.initialKeyword,
   });
 
   final String title;
@@ -71,12 +73,15 @@ class PagedListView extends ConsumerStatefulWidget {
   final String? emptyMessage;
   final Widget Function(PageData<RowData> data)? banner;
 
+  /// Từ khóa điền sẵn vào ô tìm kiếm khi mở trang.
+  final String? initialKeyword;
+
   @override
   ConsumerState<PagedListView> createState() => _PagedListViewState();
 }
 
 class _PagedListViewState extends ConsumerState<PagedListView> {
-  static const pageSizes = [6, 12, 20, 50];
+  static const pageSizes = [10, 20, 50, 100];
 
   final _search = TextEditingController();
   Timer? _debounce;
@@ -97,6 +102,9 @@ class _PagedListViewState extends ConsumerState<PagedListView> {
     if (sort != null) {
       _sortKey = sort.first;
       _sortAsc = sort.length < 2 || sort[1] != 'desc';
+    }
+    if (widget.initialKeyword?.isNotEmpty ?? false) {
+      _search.text = widget.initialKeyword!;
     }
     widget.controller?.addListener(_load);
     _warehouseId = ref.read(warehouseScopeProvider);
@@ -191,7 +199,7 @@ class _PagedListViewState extends ConsumerState<PagedListView> {
               children: [
                 if (widget.banner != null) ...[
                   widget.banner!(data),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.s16),
                 ],
                 if (data.items.isEmpty)
                   Container(
@@ -238,8 +246,8 @@ class _PagedListViewState extends ConsumerState<PagedListView> {
         .where((col) => col.sortKey != null)
         .toList();
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: AppSpace.s8,
+      runSpacing: AppSpace.s8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         SizedBox(
@@ -247,7 +255,7 @@ class _PagedListViewState extends ConsumerState<PagedListView> {
           child: TextField(
             controller: _search,
             onChanged: _onSearchChanged,
-            style: TextStyle(fontSize: 14, color: c.text),
+            style: context.text.body1,
             decoration: InputDecoration(
               hintText: widget.searchHint,
               prefixIcon: Icon(Icons.search, size: 20, color: c.muted),
@@ -316,20 +324,21 @@ class _PagedListViewState extends ConsumerState<PagedListView> {
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
-      runSpacing: 12,
-      spacing: 16,
+      runSpacing: AppSpace.s8,
+      spacing: AppSpace.s16,
       children: [
         Text(
           'Hiển thị $from–$to / ${data.totalItems} ${widget.itemLabel}',
-          style: TextStyle(fontSize: 14, color: c.muted),
+          style: context.text.body1.copyWith(color: c.muted),
         ),
         Wrap(
-          spacing: 8,
+          spacing: AppSpace.s8,
+          runSpacing: AppSpace.s8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
               'Trang ${data.page} / ${data.totalPages}',
-              style: TextStyle(fontSize: 14, color: c.text),
+              style: context.text.body1,
             ),
             PopupMenuButton<int>(
               onSelected: (size) {
@@ -350,15 +359,15 @@ class _PagedListViewState extends ConsumerState<PagedListView> {
                       _load();
                     }
                   : null,
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 36)),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
               child: const Text('Trước'),
             ),
             for (final p in pages)
               p == null
                   ? Text('…', style: TextStyle(color: c.muted))
                   : SizedBox(
-                      width: 36,
-                      height: 36,
+                      width: 40,
+                      height: 40,
                       child: p == data.page
                           ? ElevatedButton(
                               onPressed: () {},
@@ -387,7 +396,7 @@ class _PagedListViewState extends ConsumerState<PagedListView> {
                       _load();
                     }
                   : null,
-              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 36)),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(64, 40)),
               child: const Text('Sau'),
             ),
           ],
@@ -422,7 +431,7 @@ class _ToolbarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Container(
-      height: compact ? 36 : 44,
+      height: compact ? 40 : AppSpace.touch,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         border: Border.all(color: c.muted),
@@ -434,13 +443,9 @@ class _ToolbarButton extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: c.text,
-            ),
+            style: context.text.label,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: AppSpace.s4),
           Icon(Icons.arrow_drop_down, size: 18, color: c.text),
         ],
       ),

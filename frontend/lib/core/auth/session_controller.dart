@@ -30,7 +30,12 @@ class SessionController extends AsyncNotifier<Session?> {
     return Session.fromJson(Map<String, dynamic>.from(result as Map));
   }
 
-  Future<void> login(String username, String password) async {
+  /// [remember] = "Ghi nhớ đăng nhập": false thì token không được lưu lại sau khi đóng trang.
+  Future<void> login(
+    String username,
+    String password, {
+    bool remember = true,
+  }) async {
     final api = ref.read(apiClientProvider);
     final result = await api.post(
       '/bff/auth/login',
@@ -40,6 +45,7 @@ class SessionController extends AsyncNotifier<Session?> {
     await api.tokens.save(
       accessToken: tokens['token'] as String,
       refreshToken: tokens['refreshToken'] as String?,
+      persist: remember,
     );
     state = AsyncData(await _loadSession());
   }

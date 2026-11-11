@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 
 enum ChipTone { success, warning, danger, info, neutral, purple }
 
@@ -30,7 +31,10 @@ class StatusChip extends StatelessWidget {
     };
     return Container(
       constraints: const BoxConstraints(minWidth: 96),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.s8,
+        vertical: AppSpace.s4,
+      ),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(999),
@@ -40,16 +44,15 @@ class StatusChip extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 13, color: fg),
-            const SizedBox(width: 4),
+            Icon(icon, size: 12, color: fg),
+            const SizedBox(width: AppSpace.s4),
           ],
           Flexible(
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: context.text.caption.copyWith(
                 color: fg,
-                fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),

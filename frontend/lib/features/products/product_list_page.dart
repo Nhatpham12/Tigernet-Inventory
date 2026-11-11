@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/data_table/app_data_table.dart';
 import '../../shared/data_table/paged_list_view.dart';
@@ -10,14 +11,22 @@ import '../../shared/widgets/status_chip.dart';
 
 /// Figma 968:610 "Sản phẩm / Danh sách sản phẩm" — GET /bff/products (ghép tồn theo kho đang chọn).
 class ProductListPage extends StatelessWidget {
-  const ProductListPage({super.key, this.initialStockStatus});
+  const ProductListPage({
+    super.key,
+    this.initialStockStatus,
+    this.initialKeyword,
+  });
 
   final String? initialStockStatus;
+
+  /// Từ khóa từ ô tìm kiếm trên header (`/app/products?q=...`).
+  final String? initialKeyword;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     return PagedListView(
+      initialKeyword: initialKeyword,
       title: 'Danh sách sản phẩm',
       subtitle: 'Quản lý danh mục sản phẩm, giá bán và tồn kho theo từng kho',
       crumbs: const [
@@ -53,7 +62,7 @@ class ProductListPage extends StatelessWidget {
       ],
       banner: (data) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.all(AppSpace.s16),
         decoration: BoxDecoration(
           border: Border.all(color: c.divider),
           borderRadius: BorderRadius.circular(8),
@@ -61,20 +70,18 @@ class ProductListPage extends StatelessWidget {
         child: Row(
           children: [
             Icon(Icons.circle, size: 8, color: c.accent),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.s8),
             Expanded(
               child: Text(
                 '${data.totalItems} sản phẩm trong danh sách  •  Tra cứu SKU, tồn kho và giá bán',
-                style: TextStyle(
-                  fontSize: 13,
+                style: context.text.body2.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: c.text,
                 ),
               ),
             ),
             Text(
               'Nhấn vào dòng để xem chi tiết',
-              style: TextStyle(fontSize: 11, color: c.muted),
+              style: context.text.caption.copyWith(color: c.muted),
             ),
           ],
         ),

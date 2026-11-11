@@ -17,7 +17,6 @@ import '../../features/rentals/rental_pages.dart';
 import '../../features/reports/report_pages.dart';
 import '../../shared/feedback/state_views.dart';
 import '../../shared/layout/app_shell.dart';
-import '../auth/session.dart';
 import '../auth/session_controller.dart';
 import 'menu.dart';
 
@@ -26,24 +25,6 @@ class _SessionListenable extends ChangeNotifier {
   _SessionListenable(Ref ref) {
     ref.listen(sessionProvider, (_, _) => notifyListeners());
   }
-}
-
-/// Đường dẫn → nhóm vai trò được vào (lấy từ menu), để chặn cả khi gõ URL trực tiếp (PUB-01 AC2).
-bool _allowed(String location, Session session) {
-  for (final group in [...kMainMenu, ...kAdminMenu]) {
-    if (group.path != null &&
-        location.startsWith(group.path!) &&
-        !canSee(group.roles, session.role)) {
-      return false;
-    }
-    for (final link in group.children) {
-      if (location == link.path) {
-        return canSee(group.roles, session.role) &&
-            canSee(link.roles, session.role);
-      }
-    }
-  }
-  return true;
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -66,7 +47,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final atLogin = state.matchedLocation == '/login';
       if (!loggedIn) return atLogin ? null : '/login';
       if (atLogin || state.matchedLocation == '/') return '/app/dashboard';
-      if (!_allowed(state.matchedLocation, session.value!)) return '/app/403';
+      if (!canAccessPath(state.matchedLocation, session.value!.role)) {
+        return '/app/403';
+      }
       return null;
     },
     errorBuilder: (context, state) => const NotFoundPage(),
@@ -84,6 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             (s) => ProductListPage(
               key: ValueKey(s.uri.query),
               initialStockStatus: s.uri.queryParameters['stockStatus'],
+              initialKeyword: s.uri.queryParameters['q'],
             ),
           ),
           page('/app/products/new', (_) => const ProductFormPage()),
@@ -100,12 +84,24 @@ final routerProvider = Provider<GoRouter>((ref) {
             (_) => const PartnerForm(kind: PartnerKind.supplier),
           ),
           page('/app/customers', (_) => const CustomerListPage()),
-          page('/app/import-receipts', (_) => const ImportReceiptListPage()),
+          page(
+            '/app/import-receipts',
+            (s) => ImportReceiptListPage(
+              key: ValueKey(s.uri.query),
+              initialKeyword: s.uri.queryParameters['q'],
+            ),
+          ),
           page(
             '/app/import-receipts/new',
             (_) => const ImportReceiptFormPage(),
           ),
-          page('/app/export-receipts', (_) => const ExportReceiptListPage()),
+          page(
+            '/app/export-receipts',
+            (s) => ExportReceiptListPage(
+              key: ValueKey(s.uri.query),
+              initialKeyword: s.uri.queryParameters['q'],
+            ),
+          ),
           page(
             '/app/export-receipts/new',
             (_) => const ExportReceiptFormPage(),
