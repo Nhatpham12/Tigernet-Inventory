@@ -1,0 +1,19 @@
+@startuml
+skinparam dpi 150
+skinparam defaultFontName "Liberation Sans"
+skinparam shadowing false
+skinparam ActivityBackgroundColor #DAE8FC
+skinparam ActivityBorderColor #6C8EBF
+skinparam ActivityDiamondBackgroundColor #FFF2CC
+start
+:0. Lập kế hoạch\nai dùng, dùng ở đâu, đo bằng gì;
+repeat
+  :1. Tìm hiểu người dùng và bối cảnh\nphỏng vấn, đứng xem tại kho, chân dung người dùng;
+  :2. Viết ra yêu cầu từ phía người dùng\n“Thủ kho cần quét serial bằng một tay”;
+  :3. Thiết kế phương án\nphác thảo → Figma → bản bấm thử được;
+  :4. Cho người dùng thật thử và đánh giá\n5 người/vai trò, đo thời gian, lỗi, điểm hài lòng;
+repeat while (Đạt mục tiêu đo?) is (chưa) not (đạt)
+:5. Lập trình, phát hành;
+:6. Theo dõi sau phát hành\nticket báo lỗi, góp ý → quay lại bước 1;
+stop
+@enduml

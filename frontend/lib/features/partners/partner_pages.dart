@@ -4,12 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_tokens.dart';
 import '../../shared/data_table/app_data_table.dart';
 import '../../shared/data_table/paged_list_view.dart';
 import '../../shared/feedback/dialogs.dart';
 import '../../shared/feedback/state_views.dart';
 import '../../shared/feedback/toast.dart';
 import '../../shared/form/fields.dart';
+import '../../shared/form/form_footer.dart';
+import '../../shared/form/unsaved_changes.dart';
 import '../../shared/widgets/page_header.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/status_chip.dart';
@@ -359,6 +362,7 @@ class _PartnerFormState extends ConsumerState<PartnerForm> {
         _supplier ? suppliersLookupProvider : customersLookupProvider,
       );
       if (!mounted) return;
+      UnsavedChanges.clear();
       Toast.success(
         context,
         '${_isEdit ? 'Đã cập nhật' : 'Đã thêm'} ${widget.kind.noun}.',
@@ -390,97 +394,106 @@ class _PartnerFormState extends ConsumerState<PartnerForm> {
   Widget _body(BuildContext context) {
     final noun = widget.kind.noun;
     final title = _isEdit ? 'Sửa $noun' : 'Thêm $noun';
-    final body = Form(
-      key: _form,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!widget.inDialog)
-            PageHeader(
-              title: title,
-              crumbs: [
-                const Crumb('Trang chủ', '/app/dashboard'),
-                const Crumb('Nhập hàng'),
-                const Crumb('Danh sách nhà cung cấp', '/app/suppliers'),
-                Crumb(title),
+    final content = <Widget>[
+      if (!widget.inDialog)
+        PageHeader(
+          title: title,
+          crumbs: [
+            const Crumb('Trang chủ', '/app/dashboard'),
+            const Crumb('Nhập hàng'),
+            const Crumb('Danh sách nhà cung cấp', '/app/suppliers'),
+            Crumb(title),
+          ],
+        ),
+      SectionCard(
+        title: widget.inDialog ? title : 'Thông tin chung',
+        child: FormGrid(
+          children: [
+            AppDropdown<String>(
+              label: 'Loại đối tác',
+              required: true,
+              value: _partyType,
+              items: const [
+                ('ORGANIZATION', 'Tổ chức / doanh nghiệp'),
+                ('INDIVIDUAL', 'Cá nhân / hộ kinh doanh'),
               ],
+              onChanged: (v) =>
+                  setState(() => _partyType = v ?? 'ORGANIZATION'),
             ),
-          SectionCard(
-            title: widget.inDialog ? title : 'Thông tin chung',
-            child: FormGrid(
+            AppTextField(
+              label: 'Tên',
+              required: true,
+              controller: _c['fullName'],
+              hint: 'Công ty Bosch Việt Nam',
+            ),
+            AppTextField(label: 'Mã số thuế', controller: _c['taxCode']),
+            AppTextField(
+              label: 'Số điện thoại',
+              controller: _c['phone'],
+              keyboardType: TextInputType.phone,
+            ),
+            AppTextField(
+              label: 'Email',
+              controller: _c['email'],
+              keyboardType: TextInputType.emailAddress,
+              validator: (v) =>
+                  v == null ||
+                      v.isEmpty ||
+                      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v)
+                  ? null
+                  : 'Email không hợp lệ',
+            ),
+            AppTextField(label: 'CCCD (cá nhân)', controller: _c['nationalId']),
+            AppTextField(label: 'Địa chỉ', controller: _c['address']),
+            if (_supplier)
+              AppTextField(label: 'Số hợp đồng', controller: _c['contractNo']),
+            if (_supplier)
+              AppTextField(
+                label: 'Mã theo dõi',
+                controller: _c['trackingCode'],
+              ),
+          ],
+        ),
+      ),
+    ];
+    if (!widget.inDialog) {
+      return FormPageLayout(
+        formKey: _form,
+        children: content,
+        footer: FormFooter(
+          saving: _saving,
+          onCancel: () => guardedGo(context, widget.kind.listPath),
+          onSave: _save,
+          saveLabel: 'Lưu',
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.all(AppSpace.s16),
+      child: Form(
+        key: _form,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...content,
+            const SizedBox(height: AppSpace.s16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                AppDropdown<String>(
-                  label: 'Loại đối tác',
-                  required: true,
-                  value: _partyType,
-                  items: const [
-                    ('ORGANIZATION', 'Tổ chức / doanh nghiệp'),
-                    ('INDIVIDUAL', 'Cá nhân / hộ kinh doanh'),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _partyType = v ?? 'ORGANIZATION'),
+                TextButton(
+                  onPressed: () => _close(false),
+                  child: const Text('Hủy'),
                 ),
-                AppTextField(
-                  label: 'Tên',
-                  required: true,
-                  controller: _c['fullName'],
-                  hint: 'Công ty Bosch Việt Nam',
+                const SizedBox(width: AppSpace.s8),
+                ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
                 ),
-                AppTextField(label: 'Mã số thuế', controller: _c['taxCode']),
-                AppTextField(
-                  label: 'Số điện thoại',
-                  controller: _c['phone'],
-                  keyboardType: TextInputType.phone,
-                ),
-                AppTextField(
-                  label: 'Email',
-                  controller: _c['email'],
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (v) =>
-                      v == null ||
-                          v.isEmpty ||
-                          RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v)
-                      ? null
-                      : 'Email không hợp lệ',
-                ),
-                AppTextField(
-                  label: 'CCCD (cá nhân)',
-                  controller: _c['nationalId'],
-                ),
-                AppTextField(label: 'Địa chỉ', controller: _c['address']),
-                if (_supplier)
-                  AppTextField(
-                    label: 'Số hợp đồng',
-                    controller: _c['contractNo'],
-                  ),
-                if (_supplier)
-                  AppTextField(
-                    label: 'Mã theo dõi',
-                    controller: _c['trackingCode'],
-                  ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => _close(false),
-                child: const Text('Hủy'),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: _saving ? null : _save,
-                child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
-    return widget.inDialog
-        ? Padding(padding: const EdgeInsets.all(16), child: body)
-        : body;
   }
 }

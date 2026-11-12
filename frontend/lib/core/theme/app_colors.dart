@@ -28,6 +28,8 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.purple,
     required this.purpleBg,
     required this.rowSelected,
+    required this.brandInk,
+    required this.accentText,
   });
 
   final Color page;
@@ -54,6 +56,8 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color purple;
   final Color purpleBg;
   final Color rowSelected;
+  final Color brandInk; // chữ logo TIGERNET INVENTORY
+  final Color accentText; // chữ/link màu cam đủ tương phản (≥ 4,5:1)
 
   static const light = AppColors(
     page: Color(0xFFFFFFFF),
@@ -80,6 +84,8 @@ class AppColors extends ThemeExtension<AppColors> {
     purple: Color(0xFF7C3AED),
     purpleBg: Color(0xFFF1EAFE),
     rowSelected: Color(0xFFFFE9A8),
+    brandInk: Color(0xFF1F2E45),
+    accentText: Color(0xFFC2410C),
   );
 
   static const dark = AppColors(
@@ -107,6 +113,8 @@ class AppColors extends ThemeExtension<AppColors> {
     purple: Color(0xFFC4A5FF),
     purpleBg: Color(0xFF2E2347),
     rowSelected: Color(0xFF3B3216),
+    brandInk: Color(0xFFFFE08A),
+    accentText: Color(0xFFFF8A65),
   );
 
   @override

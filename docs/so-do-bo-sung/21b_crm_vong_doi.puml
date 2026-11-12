@@ -1,0 +1,28 @@
+@startuml
+skinparam dpi 150
+skinparam defaultFontName "Liberation Sans"
+skinparam shadowing false
+skinparam ActivityBackgroundColor #DAE8FC
+skinparam ActivityBorderColor #6C8EBF
+skinparam ActivityDiamondBackgroundColor #FFF2CC
+start
+:1. Thu hút\n(quảng cáo, giới thiệu, khách tự tìm đến);
+:2. Khách tiềm năng (Lead)\nghi tên, số điện thoại, nhu cầu, nguồn;
+:3. Sàng lọc và liên hệ\nngười phụ trách gọi trong 24 giờ;
+if (Có nhu cầu thật?) then (không)
+  :Lưu lại, nuôi dưỡng sau\n(nhắc liên hệ lại);
+  stop
+endif
+:4. Cơ hội bán hàng\nghi giá trị dự kiến, ngày dự kiến chốt;
+:5. Báo giá và thương lượng;
+if (Khách đồng ý?) then (không)
+  :Ghi lý do mất đơn\n(giá, hàng, đối thủ);
+  stop
+endif
+:6. Chốt đơn → duyệt → xuất kho / cho thuê;
+:7. Giao hàng, thu tiền, theo dõi công nợ;
+:8. Chăm sóc sau bán\nbảo hành, đổi trả, khiếu nại;
+:9. Giữ chân và bán thêm\nnhắc gia hạn thuê, ưu đãi khách cũ;
+:10. Đo lường\ntỉ lệ chuyển đổi, khách quay lại;
+stop
+@enduml

@@ -1,0 +1,29 @@
+@startuml
+!pragma layout smetana
+!include _style.iuml
+actor "Quản trị\nhệ thống" as QT
+actor "Nhà quản lý" as QL
+actor "Hệ thống\n(tác vụ tự động)" as SYS
+rectangle "Xem với vai trò khác (Act-as)" {
+  usecase "Chọn vai trò hoặc\nnhân viên muốn xem thay" as A1
+  usecase "Nhập lý do\n(bắt buộc)" <<in>> as A1a
+  usecase "Xem màn hình, menu, dữ liệu\nđúng như người đó thấy" as A2
+  usecase "Chặn mọi thao tác ghi\n(chỉ xem)" <<auto>> as A2a
+  usecase "Ẩn dữ liệu riêng tư\n(bảng lương, mã PIN)" <<auto>> as A2b
+  usecase "Thoát chế độ xem thay" as A3
+  usecase "Tự thoát sau 30 phút" <<auto>> as A3a
+  usecase "Ghi nhật ký: ai xem thay ai,\nlúc nào, xem những gì" <<auto>> as A4
+  usecase "Tra cứu nhật ký\nxem thay" as A5
+}
+QT -- A1
+QL -- A1
+A1 .> A1a : <<include>>
+A1 --> A2
+A2 .> A2a : <<include>>
+A2 .> A2b : <<include>>
+QT -- A3
+QT -- A5
+A3a .> A3 : <<extend>>
+A4 -- SYS
+A2a -- SYS
+@enduml

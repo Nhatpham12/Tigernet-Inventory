@@ -1,0 +1,28 @@
+@startuml
+!pragma layout smetana
+!include _style.iuml
+actor "Nhân viên\nbán hàng" as BH
+actor "Người trên quyền\n(trưởng nhóm / quản lý)" as QL
+actor "Nhân viên\nnhận việc" as NV2
+actor "Hệ thống\n(tác vụ tự động)" as SYS
+rectangle "Chốt đơn, chuyển cấp trên và giao lại việc" {
+  usecase "Chốt đơn với khách\n(hàng, giá, ngày giao)" as C1
+  usecase "Gửi đơn đã chốt\nlên người trên quyền" <<in>> as C1a
+  usecase "Xem toàn bộ đơn của nhóm\n(khách, hàng, lịch sử trao đổi)" as C2
+  usecase "Duyệt / trả lại đơn" as C3
+  usecase "Giao đơn cho\nnhân viên khác (thủ công)" as C4
+  usecase "Tự giao lại khi nhân viên\nnghỉ, nghỉ việc, quá hạn" <<auto>> as C5
+  usecase "Chọn người nhận theo\nluật: ít việc nhất / xoay vòng" <<in>> as C5a
+  usecase "Nhận đơn được giao,\nxử lý tiếp" as C6
+  usecase "Lưu lịch sử chuyển giao\n(ai → ai, lý do)" <<auto>> as C7
+}
+BH -- C1
+C1 .> C1a : <<include>>
+QL -- C2
+QL -- C3
+QL -- C4
+C5 .> C5a : <<include>>
+C5 -- SYS
+C7 -- SYS
+NV2 -- C6
+@enduml

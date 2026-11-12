@@ -1,0 +1,25 @@
+@startuml
+!pragma layout smetana
+!include _style.iuml
+actor "Admin Microsoft\ncủa tổ chức\n(vd: theenest.edu.vn)" as MS
+actor "Nhân viên\n(aaa@theenest.edu.vn)" as NV
+actor "Quản trị\nTIGERNET" as QT
+actor "Microsoft\nEntra ID" as ENTRA
+rectangle "Đăng nhập bằng tài khoản Microsoft của tổ chức" {
+  usecase "Đồng ý cho TIGERNET dùng\ntài khoản tổ chức (1 lần)" as M1
+  usecase "Tạo / khóa / xóa tài khoản,\nđặt lại mật khẩu, bật MFA" as M2
+  usecase "Bấm “Đăng nhập bằng Microsoft”" as M3
+  usecase "Xác minh tài khoản\nvà tên miền tổ chức" <<in>> as M3a
+  usecase "Lần đầu: tạo người dùng\nở trạng thái chờ cấp quyền" <<auto>> as M3b
+  usecase "Gán vai trò và kho\ntrong TIGERNET" as M4
+  usecase "Tài khoản bị khóa bên Microsoft\n→ mất quyền vào TIGERNET" <<auto>> as M5
+}
+MS -- M1
+MS -- M2
+NV -- M3
+M3 .> M3a : <<include>>
+M3b .> M3 : <<extend>>
+QT -- M4
+M3a -- ENTRA
+M5 -- ENTRA
+@enduml
