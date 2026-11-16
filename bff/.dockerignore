@@ -1,0 +1,7 @@
+target/
+.env
+.env.*
+*.log
+.idea/
+company.yaml
+src/test/

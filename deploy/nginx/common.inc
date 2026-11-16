@@ -1,0 +1,17 @@
+# Dùng chung cho server HTTP (chưa có chứng chỉ) và HTTPS
+client_max_body_size 25m;
+
+location /bff/ {
+    proxy_pass http://bff:8081;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 120s;
+}
+
+location / {
+    proxy_pass http://web:80;
+    proxy_set_header Host $host;
+}

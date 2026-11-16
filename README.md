@@ -93,6 +93,16 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/users -ContentType "ap
 
 Sau đó đăng nhập trên Flutter Web bằng `username` và mật khẩu vừa tạo. Vai trò có sẵn: `WAREHOUSE`, `ACCOUNTANT`, `SALES`, `MANAGER`, `ADMIN` (id lần lượt 1 → 5 khi database tạo mới).
 
+## Chạy bằng Docker (bản dev / demo)
+
+```bash
+cp deploy/.env.example .env      # điền mật khẩu DB, JWT_SIGNER_KEY, DEMO_PASSWORD
+docker compose up -d --build     # mở http://localhost
+./deploy/scripts/seed-demo-users.sh   # 5 tài khoản demo, xem docs/NGUOI_DUNG_MAU.md
+```
+
+CI/CD nhánh `dev` (GitHub Actions → GHCR → EC2, HTTPS Let's Encrypt): xem [docs/DEPLOY_EC2.md](docs/DEPLOY_EC2.md).
+
 ## Chạy demo không cần backend
 
 Flutter có chế độ dùng dữ liệu mẫu (`frontend/assets/demo/fixtures.json`), không gọi mạng:

@@ -1,0 +1,9 @@
+# Chưa có chứng chỉ (lần chạy đầu hoặc chạy local): phục vụ HTTP và trả lời thử thách ACME.
+server {
+    listen 80 default_server;
+    server_name ${DOMAIN} _;
+
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+
+    include /etc/nginx/tigernet/common.inc;
+}
