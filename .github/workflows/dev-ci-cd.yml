@@ -101,6 +101,7 @@ jobs:
       contents: read
       packages: write
     strategy:
+      fail-fast: false   # một image lỗi không hủy build các image còn lại
       matrix:
         include:
           - { name: backend, context: backend }

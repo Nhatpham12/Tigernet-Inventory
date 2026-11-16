@@ -1,12 +1,11 @@
 # syntax=docker/dockerfile:1.7
-# ---- Build: đóng gói Spring Boot bằng Maven Wrapper ----
-FROM eclipse-temurin:21-jdk AS build
+# ---- Build: đóng gói Spring Boot bằng Maven (image có sẵn Maven, không tải qua mvnw) ----
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
-RUN chmod +x mvnw && ./mvnw -B -q dependency:go-offline
+COPY pom.xml ./
+RUN mvn -B -q -ntp dependency:go-offline
 COPY src/ src/
-RUN ./mvnw -B -q -DskipTests package \
+RUN mvn -B -q -ntp -DskipTests package \
  && find target -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' -exec cp {} /app.jar \;
 
 # ---- Runtime: chỉ JRE ----
