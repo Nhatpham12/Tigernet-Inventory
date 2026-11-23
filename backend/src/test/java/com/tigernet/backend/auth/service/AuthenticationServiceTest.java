@@ -93,7 +93,8 @@ class AuthenticationServiceTest {
         when(userRepository.findByUsername("kho1")).thenReturn(Optional.of(user));
         AppException e = assertThrows(AppException.class, () -> service.authenticate(req("good"), "ip"));
         assertEquals(ErrorCode.UNAUTHENTICATED, e.getErrorCode());
-        verify(passwordEncoder, never()).matches("good", "hash");
+        verify(passwordEncoder, never()).matches("good", "hash"); // không thử mật khẩu thật khi đang khoá
+        verify(passwordEncoder).matches(eq("good"), anyString()); // nhưng vẫn so hash giả để thời gian như nhau
     }
 
     @Test

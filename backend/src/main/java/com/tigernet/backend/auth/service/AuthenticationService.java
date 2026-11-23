@@ -87,6 +87,8 @@ public class AuthenticationService {
         LocalDateTime now = LocalDateTime.now();
 
         if(user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)){
+            // không kiểm tra mật khẩu thật khi đang khoá, nhưng vẫn tốn thời gian như nhau để không lộ trạng thái
+            passwordEncoder.matches(request.getPassword(), DUMMY_HASH);
             logFailure(user.getUsername(), clientIp, "locked");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
