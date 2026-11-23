@@ -1,5 +1,6 @@
 package com.tigernet.backend.printing.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.MoneyUtils;
@@ -36,6 +37,7 @@ public class ExportReceiptPrintService {
 
     private final ExportReceiptRepository repository;
     private final PdfRenderService renderer;
+    private final WarehouseAccessService warehouseAccess;
 
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> print(Integer id, String template, Integer parcels, String format, boolean download) {
@@ -45,6 +47,7 @@ public class ExportReceiptPrintService {
         }
         ExportReceiptEntity r = repository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.EXPORT_RECEIPT_NOT_FOUND));
+        warehouseAccess.assertAccess(r.getWarehouse());
         PrintParty customer = PrintParty.of(r.getCustomer() == null ? null : r.getCustomer().getParty());
         PrintParty receiver = receiver(r, customer);
 

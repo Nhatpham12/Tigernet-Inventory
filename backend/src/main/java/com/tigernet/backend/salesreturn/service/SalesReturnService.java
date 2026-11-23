@@ -1,5 +1,6 @@
 package com.tigernet.backend.salesreturn.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.audit.service.AuditLogService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
@@ -59,8 +60,10 @@ public class SalesReturnService {
     InventoryService inventoryService;
     CurrentUserService currentUserService;
     AuditLogService auditLogService;
+    WarehouseAccessService warehouseAccess;
 
     public SalesReturnResponse createSalesReturn(SalesReturnCreationRequest request) {
+        warehouseAccess.assertAccess(request.getWarehouseId()); // phiếu xuất gốc: ExportReceiptService.findReceipt kiểm tra
         ExportReceiptEntity exportReceipt = exportReceiptService.findReceipt(request.getExportReceiptId());
         WarehouseEntity warehouse = warehouseService.findActiveWarehouse(request.getWarehouseId());
 
@@ -79,8 +82,9 @@ public class SalesReturnService {
     @Transactional(readOnly = true)
     public List<SalesReturnResponse> getSalesReturns(Integer warehouseId, Integer exportReceiptId,
                                                      ReturnType returnType, SalesReturnStatus status) {
-        return salesReturnMapper.toResponses(
-                salesReturnRepository.search(warehouseId, exportReceiptId, returnType, status));
+        return salesReturnMapper.toResponses(warehouseAccess.filter(
+                salesReturnRepository.search(warehouseId, exportReceiptId, returnType, status),
+                warehouseId, SalesReturnEntity::getWarehouse));
     }
 
     @Transactional(readOnly = true)
@@ -103,8 +107,10 @@ public class SalesReturnService {
     }
 
     private SalesReturnEntity findSalesReturn(Integer salesReturnId) {
-        return salesReturnRepository.findById(salesReturnId)
+        SalesReturnEntity salesReturn = salesReturnRepository.findById(salesReturnId)
                 .orElseThrow(() -> new AppException(ErrorCode.SALES_RETURN_NOT_FOUND));
+        warehouseAccess.assertAccess(salesReturn.getWarehouse());
+        return salesReturn;
     }
 
     private SalesReturnEntity findEditableSalesReturn(Integer salesReturnId) {

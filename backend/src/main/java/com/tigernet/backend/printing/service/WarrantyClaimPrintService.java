@@ -1,5 +1,6 @@
 package com.tigernet.backend.printing.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.outbound.entity.ExportReceiptDetailEntity;
@@ -34,6 +35,7 @@ public class WarrantyClaimPrintService {
 
     private final WarrantyClaimRepository repository;
     private final PdfRenderService renderer;
+    private final WarehouseAccessService warehouseAccess;
 
     public record ClaimLine(int stt, String name, int quantity, String serial, String condition) {
     }
@@ -48,6 +50,7 @@ public class WarrantyClaimPrintService {
         if (claims.size() != unique.size()) {
             throw new AppException(ErrorCode.WARRANTY_CLAIM_NOT_FOUND);
         }
+        claims.forEach(c -> warehouseAccess.assertAccess(c.getReceivedWarehouse()));
         claims.sort(Comparator.comparing(WarrantyClaimEntity::getReceivedAt).thenComparing(WarrantyClaimEntity::getId));
 
         // in chung chỉ khi mọi phiếu cùng một khách hàng

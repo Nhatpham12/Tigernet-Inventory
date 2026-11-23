@@ -1,5 +1,6 @@
 package com.tigernet.backend.rental.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.catalog.entity.PaymentStatusEntity;
 import com.tigernet.backend.catalog.service.LookupService;
 import com.tigernet.backend.common.exception.AppException;
@@ -34,6 +35,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 // phiếu trả hàng thuê/mượn: đánh dấu dòng đã trả, tính phạt quá hạn, chốt phiếu thuê khi trả đủ.
 // Đưa hàng về IN_STOCK / DAMAGED tại kho nhận sẽ đi qua StockService
@@ -51,12 +53,15 @@ public class ReturnReceiptService {
     InventoryService inventoryService;
     LookupService lookupService;
     CurrentUserService currentUserService;
+    WarehouseAccessService warehouseAccess;
 
     @NonFinal
     @Value("${tigernet.rental.penalty-after-days}")
     int penaltyAfterDays;
 
+    // nhân viên kho nhận lại lập phiếu: kiểm tra kho nhận (có thể khác kho đã cho thuê)
     public ReturnReceiptResponse createReceipt(ReturnReceiptCreationRequest request) {
+        warehouseAccess.assertAccess(request.getWarehouseId());
         RentalReceiptEntity rental = rentalReceiptService.findRentingReceipt(request.getRentalReceiptId());
         WarehouseEntity warehouse = warehouseService.findActiveWarehouse(request.getWarehouseId());
         LocalDateTime returnDate = request.getReturnDate() != null ? request.getReturnDate() : LocalDateTime.now();
@@ -95,13 +100,22 @@ public class ReturnReceiptService {
 
     @Transactional(readOnly = true)
     public List<ReturnReceiptResponse> getReceipts(Integer warehouseId, Integer rentalReceiptId) {
-        return rentalMapper.toReturnResponses(returnReceiptRepository.search(warehouseId, rentalReceiptId));
+        List<ReturnReceiptEntity> rows = returnReceiptRepository.search(warehouseId, rentalReceiptId);
+        Set<Integer> allowed = warehouseAccess.allowedWarehouseIds();
+        if (allowed != null) {
+            // thấy phiếu trả nếu được giao kho nhận lại hoặc kho đã cho thuê
+            rows = rows.stream().filter(r -> allowed.contains(r.getWarehouse().getId())
+                    || allowed.contains(r.getRentalReceipt().getWarehouse().getId())).toList();
+        }
+        return rentalMapper.toReturnResponses(rows);
     }
 
     @Transactional(readOnly = true)
     public ReturnReceiptResponse getReceipt(Integer receiptId) {
-        return rentalMapper.toReturnResponse(returnReceiptRepository.findById(receiptId)
-                .orElseThrow(() -> new AppException(ErrorCode.RETURN_RECEIPT_NOT_FOUND)));
+        ReturnReceiptEntity receipt = returnReceiptRepository.findById(receiptId)
+                .orElseThrow(() -> new AppException(ErrorCode.RETURN_RECEIPT_NOT_FOUND));
+        warehouseAccess.assertAnyAccess(receipt.getWarehouse(), receipt.getRentalReceipt().getWarehouse());
+        return rentalMapper.toReturnResponse(receipt);
     }
 
     private void addDetails(ReturnReceiptEntity receipt, RentalReceiptEntity rental,

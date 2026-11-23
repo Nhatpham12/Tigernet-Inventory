@@ -1,5 +1,6 @@
 package com.tigernet.backend.printing.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.MoneyUtils;
@@ -28,11 +29,13 @@ import java.util.Map;
 public class SalesReturnPrintService {
     private final SalesReturnRepository repository;
     private final PdfRenderService renderer;
+    private final WarehouseAccessService warehouseAccess;
 
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> print(Integer id, String format, boolean download) {
         SalesReturnEntity r = repository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.SALES_RETURN_NOT_FOUND));
+        warehouseAccess.assertAccess(r.getWarehouse());
         ExportReceiptEntity original = r.getExportReceipt();
 
         List<PrintLine> lines = new ArrayList<>();

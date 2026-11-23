@@ -21,6 +21,7 @@ import com.tigernet.backend.inbound.repository.ImportReceiptRepository;
 import com.tigernet.backend.inventory.service.InventoryService;
 import com.tigernet.backend.partner.service.PartyService;
 import com.tigernet.backend.user.service.CurrentUserService;
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.warehouse.entity.WarehouseEntity;
 import com.tigernet.backend.warehouse.service.WarehouseService;
 import lombok.AccessLevel;
@@ -54,8 +55,10 @@ public class ImportReceiptService {
     LookupService lookupService;
     CurrentUserService currentUserService;
     AuditLogService auditLogService;
+    WarehouseAccessService warehouseAccess;
 
     public ImportReceiptResponse createReceipt(ImportReceiptCreationRequest request) {
+        warehouseAccess.assertAccess(request.getWarehouseId());
         WarehouseEntity warehouse = warehouseService.findActiveWarehouse(request.getWarehouseId());
 
         ImportReceiptEntity receipt = new ImportReceiptEntity();
@@ -77,9 +80,10 @@ public class ImportReceiptService {
     @Transactional(readOnly = true)
     public List<ImportReceiptResponse> getReceipts(Integer warehouseId, ImportStatus status, Integer sourcePartyId,
                                                    LocalDate from, LocalDate to) {
-        return importReceiptMapper.toResponses(importReceiptRepository.search(warehouseId, status, sourcePartyId,
+        return importReceiptMapper.toResponses(warehouseAccess.filter(importReceiptRepository.search(warehouseId,
+                status, sourcePartyId,
                 from != null ? from.atStartOfDay() : null,
-                to != null ? to.plusDays(1).atStartOfDay() : null));
+                to != null ? to.plusDays(1).atStartOfDay() : null), warehouseId, ImportReceiptEntity::getWarehouse));
     }
 
     @Transactional(readOnly = true)
@@ -126,9 +130,12 @@ public class ImportReceiptService {
         return importReceiptRepository.save(receipt);
     }
 
+    // mọi đường đọc/sửa/hủy/thanh toán theo id đều qua đây: chỉ phiếu thuộc kho được giao
     public ImportReceiptEntity findReceipt(Integer receiptId) {
-        return importReceiptRepository.findById(receiptId)
+        ImportReceiptEntity receipt = importReceiptRepository.findById(receiptId)
                 .orElseThrow(() -> new AppException(ErrorCode.IMPORT_RECEIPT_NOT_FOUND));
+        warehouseAccess.assertAccess(receipt.getWarehouse());
+        return receipt;
     }
 
     private ImportReceiptEntity findEditableReceipt(Integer receiptId) {

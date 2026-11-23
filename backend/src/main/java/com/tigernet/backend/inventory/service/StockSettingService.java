@@ -1,5 +1,6 @@
 package com.tigernet.backend.inventory.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.catalog.service.ProductService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
@@ -27,14 +28,17 @@ public class StockSettingService {
     ProductService productService;
     WarehouseService warehouseService;
     InventoryMapper inventoryMapper;
+    WarehouseAccessService warehouseAccess;
 
     @Transactional(readOnly = true)
     public List<StockSettingResponse> getSettings(Integer warehouseId, Integer productId) {
-        return inventoryMapper.toStockSettingResponses(settingRepository.search(warehouseId, productId));
+        return inventoryMapper.toStockSettingResponses(warehouseAccess.filter(
+                settingRepository.search(warehouseId, productId), warehouseId, s -> s.getWarehouse()));
     }
 
     // chưa có thì tạo, có rồi thì ghi đè
     public StockSettingResponse saveSetting(StockSettingRequest request) {
+        warehouseAccess.assertAccess(request.getWarehouseId());
         if (request.getMinStock() != null && request.getMaxStock() != null
                 && request.getMaxStock() < request.getMinStock()) {
             throw new AppException(ErrorCode.STOCK_SETTING_INVALID);

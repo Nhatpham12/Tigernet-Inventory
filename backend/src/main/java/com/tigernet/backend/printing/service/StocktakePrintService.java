@@ -1,5 +1,6 @@
 package com.tigernet.backend.printing.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.MoneyUtils;
@@ -31,6 +32,7 @@ public class StocktakePrintService {
     private final StocktakeRepository repository;
     private final StockAdjustmentRepository adjustmentRepository;
     private final PdfRenderService renderer;
+    private final WarehouseAccessService warehouseAccess;
 
     /** Một dòng bảng 05-VT. Các số lượng thừa/thiếu/hư hỏng để null khi bằng 0 để ô trống như mẫu giấy. */
     public record StocktakeRow(int stt, String name, String code, String unit, BigDecimal unitPrice,
@@ -51,6 +53,7 @@ public class StocktakePrintService {
         }
         StocktakeEntity s = repository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.STOCKTAKE_NOT_FOUND));
+        warehouseAccess.assertAccess(s.getWarehouse());
         List<StockAdjustmentEntity> adjustments = adjustmentRepository.search(id, null, null);
 
         Map<String, Object> m = new HashMap<>();
