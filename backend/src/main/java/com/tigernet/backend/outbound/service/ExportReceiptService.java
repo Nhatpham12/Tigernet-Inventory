@@ -29,6 +29,7 @@ import com.tigernet.backend.payment.enums.PaymentMethod;
 import com.tigernet.backend.payment.enums.PaymentReferenceType;
 import com.tigernet.backend.payment.service.PaymentService;
 import com.tigernet.backend.user.service.CurrentUserService;
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.warehouse.entity.WarehouseEntity;
 import com.tigernet.backend.warehouse.service.WarehouseService;
 import lombok.AccessLevel;
@@ -67,8 +68,10 @@ public class ExportReceiptService {
     CurrentUserService currentUserService;
     AuditLogService auditLogService;
     PaymentService paymentService;
+    WarehouseAccessService warehouseAccess;
 
     public ExportReceiptResponse createReceipt(ExportReceiptCreationRequest request) {
+        warehouseAccess.assertAccess(request.getWarehouseId());
         WarehouseEntity warehouse = warehouseService.findActiveWarehouse(request.getWarehouseId());
 
         ExportReceiptEntity receipt = new ExportReceiptEntity();
@@ -99,9 +102,10 @@ public class ExportReceiptService {
     @Transactional(readOnly = true)
     public List<ExportReceiptResponse> getReceipts(Integer warehouseId, Integer customerId, ExportStatus status,
                                                    LocalDate from, LocalDate to) {
-        return exportReceiptMapper.toResponses(exportReceiptRepository.search(warehouseId, customerId, status,
+        return exportReceiptMapper.toResponses(warehouseAccess.filter(exportReceiptRepository.search(warehouseId,
+                customerId, status,
                 from != null ? from.atStartOfDay() : null,
-                to != null ? to.plusDays(1).atStartOfDay() : null));
+                to != null ? to.plusDays(1).atStartOfDay() : null), warehouseId, ExportReceiptEntity::getWarehouse));
     }
 
     @Transactional(readOnly = true)
@@ -182,9 +186,12 @@ public class ExportReceiptService {
                 receipt.getWarehouse().getWarehouseCode());
     }
 
+    // mọi đường đọc/sửa/hủy/thu tiền theo id (kể cả từ phiếu thu, đổi trả) đều qua đây: chỉ phiếu thuộc kho được giao
     public ExportReceiptEntity findReceipt(Integer receiptId) {
-        return exportReceiptRepository.findById(receiptId)
+        ExportReceiptEntity receipt = exportReceiptRepository.findById(receiptId)
                 .orElseThrow(() -> new AppException(ErrorCode.EXPORT_RECEIPT_NOT_FOUND));
+        warehouseAccess.assertAccess(receipt.getWarehouse());
+        return receipt;
     }
 
     private ExportReceiptEntity findPendingReceipt(Integer receiptId) {

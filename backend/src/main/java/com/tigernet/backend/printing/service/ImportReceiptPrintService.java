@@ -1,5 +1,6 @@
 package com.tigernet.backend.printing.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.MoneyUtils;
@@ -31,11 +32,13 @@ public class ImportReceiptPrintService {
 
     private final ImportReceiptRepository repository;
     private final PdfRenderService renderer;
+    private final WarehouseAccessService warehouseAccess;
 
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> print(Integer id, String format, boolean download) {
         ImportReceiptEntity r = repository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.IMPORT_RECEIPT_NOT_FOUND));
+        warehouseAccess.assertAccess(r.getWarehouse());
 
         List<PrintLine> lines = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;

@@ -1,5 +1,6 @@
 package com.tigernet.backend.printing.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.MoneyUtils;
@@ -32,11 +33,13 @@ public class RentalPrintService {
     private final RentalReceiptRepository rentalRepository;
     private final ReturnReceiptRepository returnRepository;
     private final PdfRenderService renderer;
+    private final WarehouseAccessService warehouseAccess;
 
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> printRental(Integer id, String format, boolean download) {
         RentalReceiptEntity r = rentalRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.RENTAL_RECEIPT_NOT_FOUND));
+        warehouseAccess.assertAccess(r.getWarehouse());
         boolean lend = r.getRentalType() == RentalType.LEND;
 
         List<PrintLine> lines = new ArrayList<>();
@@ -71,6 +74,7 @@ public class RentalPrintService {
     public ResponseEntity<byte[]> printReturn(Integer id, String format, boolean download) {
         ReturnReceiptEntity t = returnRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.RETURN_RECEIPT_NOT_FOUND));
+        warehouseAccess.assertAnyAccess(t.getWarehouse(), t.getRentalReceipt().getWarehouse());
         RentalReceiptEntity r = t.getRentalReceipt();
         boolean lend = r.getRentalType() == RentalType.LEND;
 
