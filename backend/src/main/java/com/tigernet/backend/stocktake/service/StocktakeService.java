@@ -1,5 +1,6 @@
 package com.tigernet.backend.stocktake.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.catalog.service.ProductService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
@@ -50,8 +51,10 @@ public class StocktakeService {
     ProductService productService;
     InventoryService inventoryService;
     CurrentUserService currentUserService;
+    WarehouseAccessService warehouseAccess;
 
     public StocktakeResponse createStocktake(StocktakeCreationRequest request) {
+        warehouseAccess.assertAccess(request.getWarehouseId());
         WarehouseEntity warehouse = warehouseService.findActiveWarehouse(request.getWarehouseId());
 
         StocktakeEntity stocktake = new StocktakeEntity();
@@ -68,9 +71,9 @@ public class StocktakeService {
     @Transactional(readOnly = true)
     public List<StocktakeResponse> getStocktakes(Integer warehouseId, StocktakeStatus status,
                                                  LocalDate from, LocalDate to) {
-        return stocktakeMapper.toResponses(stocktakeRepository.search(warehouseId, status,
+        return stocktakeMapper.toResponses(warehouseAccess.filter(stocktakeRepository.search(warehouseId, status,
                 from != null ? from.atStartOfDay() : null,
-                to != null ? to.plusDays(1).atStartOfDay() : null));
+                to != null ? to.plusDays(1).atStartOfDay() : null), warehouseId, StocktakeEntity::getWarehouse));
     }
 
     @Transactional(readOnly = true)
@@ -113,18 +116,24 @@ public class StocktakeService {
 
     @Transactional(readOnly = true)
     public List<StockAdjustmentResponse> getAdjustments(Integer stocktakeId, Integer warehouseId, Integer productId) {
-        return stocktakeMapper.toAdjustmentResponses(stockAdjustmentRepository.search(stocktakeId, warehouseId, productId));
+        return stocktakeMapper.toAdjustmentResponses(warehouseAccess.filter(
+                stockAdjustmentRepository.search(stocktakeId, warehouseId, productId),
+                warehouseId, a -> a.getStocktake().getWarehouse()));
     }
 
     @Transactional(readOnly = true)
     public StockAdjustmentResponse getAdjustment(Integer adjustmentId) {
-        return stocktakeMapper.toAdjustmentResponse(stockAdjustmentRepository.findById(adjustmentId)
-                .orElseThrow(() -> new AppException(ErrorCode.STOCK_ADJUSTMENT_NOT_FOUND)));
+        StockAdjustmentEntity adjustment = stockAdjustmentRepository.findById(adjustmentId)
+                .orElseThrow(() -> new AppException(ErrorCode.STOCK_ADJUSTMENT_NOT_FOUND));
+        warehouseAccess.assertAccess(adjustment.getStocktake().getWarehouse());
+        return stocktakeMapper.toAdjustmentResponse(adjustment);
     }
 
     private StocktakeEntity findStocktake(Integer stocktakeId) {
-        return stocktakeRepository.findById(stocktakeId)
+        StocktakeEntity stocktake = stocktakeRepository.findById(stocktakeId)
                 .orElseThrow(() -> new AppException(ErrorCode.STOCKTAKE_NOT_FOUND));
+        warehouseAccess.assertAccess(stocktake.getWarehouse());
+        return stocktake;
     }
 
     private StocktakeEntity findDraftStocktake(Integer stocktakeId) {

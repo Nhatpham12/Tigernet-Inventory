@@ -18,6 +18,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .exposedHeaders("Content-Disposition")
+                // gửi kèm cookie token HttpOnly khi FE chạy khác cổng (dev); chỉ với origin trong danh sách trên
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 }

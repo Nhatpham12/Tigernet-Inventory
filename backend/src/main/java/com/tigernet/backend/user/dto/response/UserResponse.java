@@ -20,5 +20,6 @@ public class UserResponse {
     private LocalDateTime createdAt;
     private Integer roleId;
     private String roleName;
+    private boolean mfaEnabled; // đã bật xác thực 2 bước (không bao giờ trả khoá TOTP)
     // không có password: không bao giờ trả mật khẩu ra API
 }

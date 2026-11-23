@@ -35,6 +35,10 @@ jwt:
   refresh-duration: 604800      # giây (7 ngày), refresh token
 
 tigernet:
+  mfa:
+    # khoá mã hoá khoá TOTP của Quản trị trong DB. Để trống = TẮT xác thực 2 bước (chỉ dùng trên máy dev).
+    # Prod bắt buộc đặt; sinh bằng: openssl rand -base64 32. Đổi khoá thì mọi Quản trị phải cài lại MFA.
+    encryption-key: ${MFA_ENC_KEY:}
   rental:
     due-warning-days: 7     # cảnh báo/lọc phiếu thuê sắp đến hạn trong N ngày
     penalty-after-days: 10  # quá hạn từ N ngày trở lên mới tính phạt

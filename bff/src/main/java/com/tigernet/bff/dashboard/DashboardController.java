@@ -1,12 +1,14 @@
 package com.tigernet.bff.dashboard;
 
 import com.tigernet.bff.client.BackendClient;
+import com.tigernet.bff.client.BackendException;
 import com.tigernet.bff.common.ApiResponse;
 import com.tigernet.bff.common.Json;
 import com.tigernet.bff.view.ProductStockService;
 import com.tigernet.bff.view.StockStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,6 +40,17 @@ public class DashboardController {
     private final BackendClient backend;
     private final ProductStockService productStockService;
 
+    private List<JsonNode> listIfAllowed(String path, Map<String, ?> query, String auth) {
+        try {
+            return backend.getList(path, query, auth);
+        } catch (BackendException e) {
+            if (e.getStatus() == HttpStatus.FORBIDDEN.value()) {
+                return List.of();
+            }
+            throw e;
+        }
+    }
+
     public record Kpis(int totalProducts, BigDecimal stockValue, BigDecimal receivables, int lowStockCount) {
     }
 
@@ -61,9 +74,10 @@ public class DashboardController {
         }
         CompletableFuture<List<ProductStockService.ProductRow>> products =
                 async(() -> productStockService.load(warehouseId, null, auth));
-        CompletableFuture<List<JsonNode>> imports = async(() -> backend.getList("/import-receipts", byWarehouse, auth));
-        CompletableFuture<List<JsonNode>> exports = async(() -> backend.getList("/export-receipts", byWarehouse, auth));
-        CompletableFuture<List<JsonNode>> rentals = async(() -> backend.getList("/rental-receipts", byWarehouse, auth));
+        // nhân viên không có quyền xem loại phiếu nào (backend trả 403) thì dashboard bỏ qua loại đó
+        CompletableFuture<List<JsonNode>> imports = async(() -> listIfAllowed("/import-receipts", byWarehouse, auth));
+        CompletableFuture<List<JsonNode>> exports = async(() -> listIfAllowed("/export-receipts", byWarehouse, auth));
+        CompletableFuture<List<JsonNode>> rentals = async(() -> listIfAllowed("/rental-receipts", byWarehouse, auth));
 
         List<ProductStockService.ProductRow> productRows = await(products);
         List<JsonNode> importRows = await(imports);

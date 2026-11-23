@@ -2,6 +2,8 @@ package com.tigernet.backend.warehouse.service;
 
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
+import com.tigernet.backend.common.security.SecurityConfig;
+import com.tigernet.backend.common.security.SecurityUtils;
 import com.tigernet.backend.user.entity.UserEntity;
 import com.tigernet.backend.user.service.UserService;
 import com.tigernet.backend.warehouse.dto.request.UserWarehouseAssignRequest;
@@ -34,6 +36,12 @@ public class UserWarehouseService {
 
     @Transactional(readOnly = true)
     public List<UserWarehouseResponse> getUserWarehouses(Integer userId) {
+        // chỉ xem kho của chính mình; Quản trị/Quản lý xem được của người khác.
+        // Kiểm tra trước khi tìm user để không lộ userId nào tồn tại.
+        if (!userId.equals(SecurityUtils.currentUserId())
+                && !SecurityUtils.hasAnyAuthority(SecurityConfig.ADMIN, SecurityConfig.MANAGER)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
         userService.findUserById(userId);
         return warehouseMapper.toUserWarehouseResponses(userWarehouseRepository.findByUserUserId(userId));
     }

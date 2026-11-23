@@ -4,12 +4,19 @@ import '../auth/role.dart';
 import '../auth/session.dart';
 
 class MenuLink {
-  const MenuLink(this.label, this.path, {this.roles});
+  const MenuLink(this.label, this.path, {this.roles, this.key});
   final String label;
+
+  /// Đường dẫn để mở (có thể kèm query, vd tạo phiếu chi).
   final String path;
 
   /// null = mọi vai trò
   final Set<AppRole>? roles;
+
+  /// Page key phân quyền khi [path] có query (khớp Pages.java ở backend); null = dùng [path].
+  final String? key;
+
+  String get pageKey => key ?? path;
 }
 
 class MenuGroup {
@@ -183,11 +190,13 @@ const kMainMenu = <MenuGroup>[
         'Tạo phiếu thu',
         '/app/payments/new?direction=IN',
         roles: {_kt, _ql, _qt},
+        key: kPaymentsNewIn,
       ),
       MenuLink(
         'Tạo phiếu chi',
         '/app/payments/new?direction=OUT',
         roles: {_kt, _ql, _qt},
+        key: kPaymentsNewOut,
       ),
     ],
   ),
@@ -240,23 +249,29 @@ class PageOption {
 }
 
 const kDashboardPage = '/app/dashboard';
+const kPaymentsNewIn = '/app/payments/new-in';
+const kPaymentsNewOut = '/app/payments/new-out';
 
 /// Các trang trong menu chính, trừ Tổng quan (ai cũng xem được).
 /// Trang quản trị (menu dưới) không phân quyền riêng được, chỉ theo vai trò.
+/// [PageOption.path] là page key (khớp Pages.java ở backend).
 final List<PageOption> kAssignablePages = [
   for (final g in kMainMenu) ...[
     if (g.path != null && g.path != kDashboardPage)
       PageOption(g.label, g.label, g.path!),
-    for (final l in g.children) PageOption(g.label, l.label, l.path),
+    for (final l in g.children) PageOption(g.label, l.label, l.pageKey),
   ],
 ];
 
-/// Quyền mặc định theo vai trò của trang [key] (ma trận Frontend_Structure.md §3).
+/// Quyền mặc định theo vai trò của trang [key] (ma trận Frontend_Structure.md §3,
+/// trùng PageAccessPolicy ở backend). Chỉ dùng để hiển thị trên màn Phân quyền trang.
 bool roleDefaultAllows(String key, AppRole role) {
   for (final g in [...kMainMenu, ...kAdminMenu]) {
     if (g.path == key) return canSee(g.roles, role);
     for (final l in g.children) {
-      if (l.path == key) return canSee(g.roles, role) && canSee(l.roles, role);
+      if (l.pageKey == key) {
+        return canSee(g.roles, role) && canSee(l.roles, role);
+      }
     }
   }
   return true;
@@ -265,23 +280,31 @@ bool roleDefaultAllows(String key, AppRole role) {
 final Set<String> _allPageKeys = {
   for (final g in [...kMainMenu, ...kAdminMenu]) ...[
     if (g.path != null) g.path!,
-    for (final l in g.children) l.path,
+    for (final l in g.children) l.pageKey,
   ],
 };
 
 final Set<String> _adminMenuKeys = {
   for (final g in kAdminMenu) ...[
     if (g.path != null) g.path!,
-    for (final l in g.children) l.path,
+    for (final l in g.children) l.pageKey,
   ],
 };
 
 final _editPath = RegExp(r'^(.*)/\d+/edit$');
 
-/// Đường dẫn đang mở → trang trong menu quyết định quyền vào (khớp tiền tố dài nhất).
-/// VD "/app/products/5/edit" → "/app/products/new" (cùng quyền với Thêm sản phẩm).
+/// Đường dẫn đang mở (có thể kèm query) → trang trong menu quyết định quyền vào (khớp tiền tố dài nhất).
+/// VD "/app/products/5/edit" → "/app/products/new" (cùng quyền với Thêm sản phẩm);
+/// "/app/payments/new?direction=OUT" → "/app/payments/new-out".
 /// null = trang chung không cần phân quyền (cảnh báo, 403...).
 String? pageKeyFor(String location) {
+  final uri = Uri.parse(location);
+  if (uri.path == '/app/payments/new') {
+    return uri.queryParameters['direction'] == 'OUT'
+        ? kPaymentsNewOut
+        : kPaymentsNewIn;
+  }
+  location = uri.path;
   final edit = _editPath.firstMatch(location);
   if (edit != null && _allPageKeys.contains('${edit.group(1)}/new')) {
     return '${edit.group(1)}/new';
@@ -296,11 +319,14 @@ String? pageKeyFor(String location) {
   return best;
 }
 
-/// Nhân viên có được vào trang [key] không: Quản trị vào mọi trang; nhân viên có phân quyền riêng
-/// thì theo danh sách đó, chưa có thì theo vai trò. Chỉ để ẩn/hiện, backend vẫn chặn quyền API.
+/// Nhân viên có được vào trang [key] không. Dùng danh sách trang thực tế do backend tính
+/// (effectivePages, cũng là danh sách backend dùng để chặn API). BFF cũ chưa trả danh sách này thì
+/// tính như trước: Quản trị vào mọi trang; có phân quyền riêng thì theo đó, chưa có thì theo vai trò.
 bool canOpenPage(String key, Session session) {
   if (session.role == AppRole.admin) return true;
   if (key == kDashboardPage) return true;
+  final effective = session.effectivePages;
+  if (effective != null) return effective.contains(key);
   final pages = session.pages;
   if (pages == null || _adminMenuKeys.contains(key)) {
     return roleDefaultAllows(key, session.role);
@@ -312,6 +338,6 @@ bool canOpenPage(String key, Session session) {
 /// Dùng để ẩn lối tắt trên Dashboard; router chặn URL trực tiếp bằng cùng quy tắc.
 bool canAccessPath(String location, Session? session) {
   if (session == null) return true;
-  final key = pageKeyFor(Uri.parse(location).path);
+  final key = pageKeyFor(location);
   return key == null || canOpenPage(key, session);
 }

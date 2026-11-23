@@ -1,5 +1,9 @@
 package com.tigernet.backend.catalog.controller;
 
+import com.tigernet.backend.common.security.NoPageCheck;
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
+
 import com.tigernet.backend.catalog.dto.request.VatOptionRequest;
 import com.tigernet.backend.catalog.dto.response.PaymentStatusResponse;
 import com.tigernet.backend.catalog.dto.response.VatOptionResponse;
@@ -20,22 +24,26 @@ import java.util.List;
 public class LookupController {
     LookupService lookupService;
 
+    @NoPageCheck("Danh mục tra cứu dùng chung cho form, dropdown và dashboard")
     @GetMapping("/vat-options")
     ApiResponse<List<VatOptionResponse>> getVatOptions() {
         return ApiResponse.success(lookupService.getVatOptions());
     }
 
+    @RequiresRole({PageAccessPolicy.MANAGER})
     @PostMapping("/vat-options")
     ApiResponse<VatOptionResponse> createVatOption(@RequestBody @Valid VatOptionRequest request) {
         return ApiResponse.success(lookupService.createVatOption(request));
     }
 
+    @RequiresRole({PageAccessPolicy.MANAGER})
     @PutMapping("/vat-options/{vatId}")
     ApiResponse<VatOptionResponse> updateVatOption(@PathVariable Integer vatId,
                                                    @RequestBody @Valid VatOptionRequest request) {
         return ApiResponse.success(lookupService.updateVatOption(vatId, request));
     }
 
+    @NoPageCheck("Danh mục tra cứu dùng chung cho form, dropdown và dashboard")
     @GetMapping("/payment-statuses")
     ApiResponse<List<PaymentStatusResponse>> getPaymentStatuses() {
         return ApiResponse.success(lookupService.getPaymentStatuses());

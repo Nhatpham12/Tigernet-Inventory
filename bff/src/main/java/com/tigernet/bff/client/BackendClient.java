@@ -49,12 +49,19 @@ public class BackendClient {
 
     public RawResponse exchange(HttpMethod method, String path, MultiValueMap<String, String> query,
                                 String authorization, MediaType contentType, byte[] body) {
+        return exchange(method, path, query, authorization, contentType, body, Map.of());
+    }
+
+    private RawResponse exchange(HttpMethod method, String path, MultiValueMap<String, String> query,
+                                 String authorization, MediaType contentType, byte[] body,
+                                 Map<String, String> extraHeaders) {
         String uri = UriComponentsBuilder.fromPath(path).queryParams(query).build().encode().toUriString();
         try {
             RestClient.RequestBodySpec spec = restClient.method(method).uri(uri);
             if (authorization != null) {
                 spec.header(HttpHeaders.AUTHORIZATION, authorization);
             }
+            extraHeaders.forEach(spec::header);
             if (body != null && body.length > 0) {
                 spec.contentType(contentType != null ? contentType : MediaType.APPLICATION_JSON).body(body);
             }
@@ -70,11 +77,16 @@ public class BackendClient {
 
     /** GET và trả về trường "result" của ApiResponse; lỗi từ backend ném BackendException. */
     public JsonNode get(String path, Map<String, ?> query, String authorization) {
-        return call(HttpMethod.GET, path, query, authorization, null);
+        return call(HttpMethod.GET, path, query, authorization, null, Map.of());
     }
 
     public JsonNode post(String path, Object body, String authorization) {
-        return call(HttpMethod.POST, path, Map.of(), authorization, body);
+        return call(HttpMethod.POST, path, Map.of(), authorization, body, Map.of());
+    }
+
+    /** POST kèm header riêng (vd X-Client-IP khi đăng nhập). */
+    public JsonNode post(String path, Object body, String authorization, Map<String, String> headers) {
+        return call(HttpMethod.POST, path, Map.of(), authorization, body, headers);
     }
 
     /** GET một danh sách; null/không phải mảng thì trả mảng rỗng. */
@@ -86,7 +98,8 @@ public class BackendClient {
         return List.of();
     }
 
-    private JsonNode call(HttpMethod method, String path, Map<String, ?> query, String authorization, Object body) {
+    private JsonNode call(HttpMethod method, String path, Map<String, ?> query, String authorization, Object body,
+                          Map<String, String> headers) {
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
         query.forEach((key, value) -> {
             if (value != null && !value.toString().isBlank()) {
@@ -94,7 +107,7 @@ public class BackendClient {
             }
         });
         byte[] bytes = body == null ? null : objectMapper.writeValueAsBytes(body);
-        RawResponse response = exchange(method, path, params, authorization, MediaType.APPLICATION_JSON, bytes);
+        RawResponse response = exchange(method, path, params, authorization, MediaType.APPLICATION_JSON, bytes, headers);
         if (response.status() >= 400) {
             throw new BackendException(response.status(), response.body(),
                     "Backend " + method + " " + path + " -> " + response.status());

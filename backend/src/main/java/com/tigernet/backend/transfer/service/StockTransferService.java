@@ -1,5 +1,6 @@
 package com.tigernet.backend.transfer.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.audit.service.AuditLogService;
 import com.tigernet.backend.catalog.service.ProductService;
 import com.tigernet.backend.common.exception.AppException;
@@ -47,8 +48,10 @@ public class StockTransferService {
     InventoryService inventoryService;
     CurrentUserService currentUserService;
     AuditLogService auditLogService;
+    WarehouseAccessService warehouseAccess;
 
     public StockTransferResponse createTransfer(StockTransferCreationRequest request) {
+        warehouseAccess.assertAccess(request.getFromWarehouseId()); // kho chuyển đi lập phiếu
         WarehouseEntity fromWarehouse = warehouseService.findActiveWarehouse(request.getFromWarehouseId());
 
         StockTransferEntity transfer = new StockTransferEntity();
@@ -67,7 +70,14 @@ public class StockTransferService {
     @Transactional(readOnly = true)
     public List<StockTransferResponse> getTransfers(Integer fromWarehouseId, Integer toWarehouseId,
                                                     TransferStatus status) {
-        return stockTransferMapper.toResponses(stockTransferRepository.search(fromWarehouseId, toWarehouseId, status));
+        List<StockTransferEntity> rows = stockTransferRepository.search(fromWarehouseId, toWarehouseId, status);
+        Set<Integer> allowed = warehouseAccess.allowedWarehouseIds();
+        if (allowed != null) {
+            // thấy phiếu chuyển đi hoặc chuyển đến kho được giao
+            rows = rows.stream().filter(t -> allowed.contains(t.getFromWarehouse().getId())
+                    || allowed.contains(t.getToWarehouse().getId())).toList();
+        }
+        return stockTransferMapper.toResponses(rows);
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +87,7 @@ public class StockTransferService {
 
     public StockTransferResponse updateTransfer(Integer transferId, StockTransferUpdateRequest request) {
         StockTransferEntity transfer = findTransferInStatus(transferId, TransferStatus.DRAFT);
+        warehouseAccess.assertAccess(transfer.getFromWarehouse()); // chỉ kho chuyển đi sửa phiếu nháp
         if (request.getToWarehouseId() != null) {
             transfer.setToWarehouse(findDestination(transfer.getFromWarehouse(), request.getToWarehouseId()));
         }
@@ -108,13 +119,16 @@ public class StockTransferService {
 
     public void deleteTransfer(Integer transferId) {
         StockTransferEntity transfer = findTransferInStatus(transferId, TransferStatus.DRAFT);
+        warehouseAccess.assertAccess(transfer.getFromWarehouse()); // chỉ kho chuyển đi xoá phiếu nháp
         auditLogService.log("DELETE", "Stock_Transfers", transfer.getId(), stockTransferMapper.toResponse(transfer));
         stockTransferRepository.delete(transfer);
     }
 
     private StockTransferEntity findTransfer(Integer transferId) {
-        return stockTransferRepository.findById(transferId)
+        StockTransferEntity transfer = stockTransferRepository.findById(transferId)
                 .orElseThrow(() -> new AppException(ErrorCode.STOCK_TRANSFER_NOT_FOUND));
+        warehouseAccess.assertAnyAccess(transfer.getFromWarehouse(), transfer.getToWarehouse());
+        return transfer;
     }
 
     private StockTransferEntity findTransferInStatus(Integer transferId, TransferStatus status) {

@@ -16,3 +16,8 @@ tigernet:
   cors:
     # Flutter Web khi chạy `flutter run -d chrome` dùng cổng ngẫu nhiên trên localhost
     allowed-origin-patterns: ${BFF_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
+  auth-cookie:
+    # token nằm trong cookie HttpOnly (JavaScript không đọc được). false CHỈ khi máy chủ chạy HTTP thuần;
+    # chạy localhost hoặc HTTPS để true.
+    secure: ${BFF_COOKIE_SECURE:true}
+    refresh-max-age: 7d

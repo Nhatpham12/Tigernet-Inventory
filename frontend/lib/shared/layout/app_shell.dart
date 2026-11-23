@@ -165,12 +165,14 @@ class _SidebarState extends State<_Sidebar> {
 
   List<MenuLink> _links(MenuGroup g) {
     final role = widget.session?.role;
+    // có danh sách trang từ backend (effectivePages) thì chỉ theo danh sách đó
     if (role != null &&
         !canSee(g.roles, role) &&
-        widget.session?.pages == null) {
+        widget.session?.pages == null &&
+        widget.session?.effectivePages == null) {
       return const [];
     }
-    return g.children.where((l) => _canOpen(l.path)).toList();
+    return g.children.where((l) => _canOpen(l.pageKey)).toList();
   }
 
   bool _visible(MenuGroup g) =>

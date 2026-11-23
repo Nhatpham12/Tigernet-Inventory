@@ -1,0 +1,180 @@
+# CI/CD nhánh dev:
+#   PR vào dev      -> kiểm tra (build + test backend, BFF, frontend)
+#   push vào dev    -> kiểm tra -> build 3 image, đẩy GHCR -> deploy SSH lên EC2 (khi bật DEPLOY_ENABLED)
+#   chạy tay        -> có thể nhập image_tag để deploy lại / rollback một bản cũ, bỏ qua build
+# Secrets (Settings > Secrets and variables > Actions, nên đặt trong environment "dev"):
+#   EC2_HOST, EC2_USER, EC2_SSH_KEY (private key), EC2_SSH_KNOWN_HOSTS (kết quả ssh-keyscan)
+# Variables: DEPLOY_ENABLED=true để bật bước deploy. Mật khẩu ứng dụng nằm trong /opt/tigernet/.env trên EC2.
+name: dev CI/CD
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag image có sẵn để deploy lại (vd sha-1a2b3c4). Để trống = build từ commit hiện tại"
+        required: false
+        default: ""
+
+concurrency:
+  group: dev-cicd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.47.9"
+
+jobs:
+  backend:
+    name: Backend (Spring Boot)
+    if: ${{ !github.event.inputs.image_tag }}
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    # test contextLoads cần MySQL thật có schema v7
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root
+          MYSQL_DATABASE: tigernet_dev
+          MYSQL_USER: tigernet
+          MYSQL_PASSWORD: ci-pass
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci-root --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    env:
+      DB_HOST: 127.0.0.1
+      DB_NAME: tigernet_dev
+      DB_USERNAME: tigernet
+      DB_PASSWORD: ci-pass
+      JWT_SIGNER_KEY: ci-only-signer-key-not-a-secret-0123456789abcdef0123456789abcdef0123456789
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21", cache: maven }
+      - name: Dựng schema tigernet_dev (giống deploy/mysql-init)
+        working-directory: .
+        run: |
+          sed -E "s/^([[:space:]]*(-- )?(DROP DATABASE IF EXISTS|CREATE DATABASE IF NOT EXISTS|USE))[[:space:]]+tigernet\b/\1 tigernet_dev/" \
+            docs/Database_Script_v7.sql | mysql -h 127.0.0.1 -uroot -pci-root
+          mysql -h 127.0.0.1 -uroot -pci-root tigernet_dev < database/tenant/V6__user_page_permissions.sql
+      - run: chmod +x mvnw && ./mvnw -B -ntp verify
+
+  bff:
+    name: BFF (Spring Boot)
+    if: ${{ !github.event.inputs.image_tag }}
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: bff } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21", cache: maven }
+      - run: chmod +x mvnw && ./mvnw -B -ntp verify
+
+  frontend:
+    name: Frontend (Flutter Web)
+    if: ${{ !github.event.inputs.image_tag }}
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: "${{ env.FLUTTER_VERSION }}", channel: stable, cache: true }
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - run: flutter test
+
+  images:
+    name: Build & push image (GHCR)
+    needs: [backend, bff, frontend]
+    if: ${{ github.event_name != 'pull_request' && !github.event.inputs.image_tag }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false   # một image lỗi không hủy build các image còn lại
+      matrix:
+        include:
+          - { name: backend, context: backend }
+          - { name: bff, context: bff }
+          - { name: web, context: frontend }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tên registry (GHCR cần chữ thường)
+        run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          build-args: |
+            FLUTTER_VERSION=${{ env.FLUTTER_VERSION }}
+          tags: |
+            ${{ env.REGISTRY }}/tigernet-${{ matrix.name }}:dev
+            ${{ env.REGISTRY }}/tigernet-${{ matrix.name }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    name: Deploy EC2 (dev)
+    needs: [images]
+    # chạy cả khi images bị bỏ qua (deploy lại tag có sẵn), miễn không có job nào lỗi
+    if: >-
+      always() && !failure() && !cancelled()
+      && github.event_name != 'pull_request'
+      && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+      url: ${{ vars.DEV_URL }}
+    permissions:
+      contents: read
+      packages: read
+    concurrency: { group: deploy-dev, cancel-in-progress: false }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Chọn tag
+        run: |
+          tag="${{ github.event.inputs.image_tag }}"
+          [ -n "$tag" ] || tag="sha-${GITHUB_SHA}"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+      - name: Cấu hình SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/ec2 && chmod 600 ~/.ssh/ec2
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Chép file cấu hình lên EC2
+        env:
+          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
+        run: |
+          rsync -az -e "ssh -i ~/.ssh/ec2" --relative \
+            docker-compose.yml deploy/ docs/Database_Script_v7.sql database/tenant/V6__user_page_permissions.sql \
+            --exclude 'deploy/config/*.yaml' \
+            "$TARGET:/opt/tigernet/"
+      - name: Kéo image và khởi động lại
+        env:
+          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | ssh -i ~/.ssh/ec2 "$TARGET" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+          ssh -i ~/.ssh/ec2 "$TARGET" "cd /opt/tigernet && ./deploy/scripts/deploy.sh '$TAG'"

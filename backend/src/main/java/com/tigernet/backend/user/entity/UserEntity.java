@@ -36,4 +36,19 @@ public class UserEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "Role_ID")
     private RoleEntity role;
+
+    // ghi vào claim "ver" của token; tăng lên là mọi token cũ của user mất hiệu lực (đăng xuất, đổi mật khẩu...)
+    @Column(name = "Token_Version", nullable = false, columnDefinition = "INT NOT NULL DEFAULT 0")
+    private int tokenVersion;
+
+    // khoá TOTP (Base32) đã mã hoá AES-GCM bằng MFA_ENC_KEY; có giá trị mà chưa bật = đang cài đặt dở
+    @Column(name = "Mfa_Secret")
+    private String mfaSecret;
+
+    @Column(name = "Mfa_Enabled", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private boolean mfaEnabled;
+
+    public void revokeTokens() {
+        tokenVersion++;
+    }
 }

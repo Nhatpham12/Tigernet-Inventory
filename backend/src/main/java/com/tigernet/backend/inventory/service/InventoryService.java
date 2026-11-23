@@ -1,5 +1,6 @@
 package com.tigernet.backend.inventory.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.inventory.dto.request.InventoryLocationRequest;
@@ -37,23 +38,28 @@ public class InventoryService {
     StockMovementRepository stockMovementRepository;
     WarehouseService warehouseService;
     InventoryMapper inventoryMapper;
+    WarehouseAccessService warehouseAccess;
 
     @Transactional(readOnly = true)
     public List<InventoryResponse> getInventories(Integer warehouseId, Integer productId,
                                                   InventoryStatus status, String serial) {
         String normalizedSerial = StringUtils.hasText(serial) ? serial.trim() : null;
-        return inventoryMapper.toInventoryResponses(
-                inventoryRepository.search(warehouseId, productId, status, normalizedSerial));
+        return inventoryMapper.toInventoryResponses(warehouseAccess.filter(
+                inventoryRepository.search(warehouseId, productId, status, normalizedSerial),
+                warehouseId, InventoryEntity::getWarehouse));
     }
 
     @Transactional(readOnly = true)
     public InventoryResponse getInventory(Integer inventoryId) {
-        return inventoryMapper.toInventoryResponse(findInventory(inventoryId));
+        InventoryEntity inventory = findInventory(inventoryId);
+        warehouseAccess.assertAccess(inventory.getWarehouse());
+        return inventoryMapper.toInventoryResponse(inventory);
     }
 
     // chỉ đổi vị trí kệ/ô, không đổi số lượng hay trạng thái
     public InventoryResponse updateLocation(Integer inventoryId, InventoryLocationRequest request) {
         InventoryEntity inventory = findInventory(inventoryId);
+        warehouseAccess.assertAccess(inventory.getWarehouse());
         if (request.getLocationId() == null) {
             inventory.setLocation(null);
         } else {
@@ -69,21 +75,24 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public List<StockSummaryResponse> getStockSummaries(Integer warehouseId, Integer productId) {
-        return inventoryMapper.toStockSummaryResponses(stockSummaryRepository.search(warehouseId, productId));
+        // Thủ kho/Bán hàng: tồn của kho được giao (danh sách sản phẩm, dashboard cũng chỉ thấy phần này)
+        return inventoryMapper.toStockSummaryResponses(warehouseAccess.filter(
+                stockSummaryRepository.search(warehouseId, productId), warehouseId, s -> s.getWarehouse()));
     }
 
     // to là ngày cuối (tính cả ngày đó)
     @Transactional(readOnly = true)
     public List<StockMovementResponse> getStockMovements(Integer warehouseId, Integer productId,
                                                          LocalDate from, LocalDate to) {
-        return inventoryMapper.toStockMovementResponses(stockMovementRepository.search(
+        return inventoryMapper.toStockMovementResponses(warehouseAccess.filter(stockMovementRepository.search(
                 warehouseId, productId,
                 from != null ? from.atStartOfDay() : null,
-                to != null ? to.plusDays(1).atStartOfDay() : null));
+                to != null ? to.plusDays(1).atStartOfDay() : null), warehouseId, m -> m.getWarehouse()));
     }
 
     // ---------- dùng cho module khác ----------
 
+    // không kiểm tra kho ở đây: module khác (bảo hành, trả hàng) cần tra hàng ở kho khác
     public InventoryEntity findInventory(Integer inventoryId) {
         return inventoryRepository.findById(inventoryId)
                 .orElseThrow(() -> new AppException(ErrorCode.INVENTORY_NOT_FOUND));

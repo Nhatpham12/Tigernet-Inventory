@@ -62,3 +62,9 @@ docs/API_Test_Cases.md
 docs/FORM/
 # thông tin doanh nghiệp thật cho biểu mẫu in (mẫu: backend/company.example.yaml)
 backend/company.yaml
+
+# ===== Docker / deploy =====
+# cấu hình in biểu mẫu trên máy chủ (mẫu: backend/company.example.yaml)
+deploy/config/*.yaml
+backups/
+.previous_image_tag

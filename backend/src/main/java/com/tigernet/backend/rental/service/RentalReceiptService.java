@@ -1,5 +1,6 @@
 package com.tigernet.backend.rental.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.catalog.entity.PaymentStatusEntity;
 import com.tigernet.backend.catalog.service.LookupService;
 import com.tigernet.backend.catalog.service.ProductService;
@@ -59,12 +60,14 @@ public class RentalReceiptService {
     InventoryService inventoryService;
     LookupService lookupService;
     CurrentUserService currentUserService;
+    WarehouseAccessService warehouseAccess;
 
     @NonFinal
     @Value("${tigernet.rental.due-warning-days}")
     int dueWarningDays;
 
     public RentalReceiptResponse createReceipt(RentalReceiptCreationRequest request) {
+        warehouseAccess.assertAccess(request.getWarehouseId());
         WarehouseEntity warehouse = warehouseService.findActiveWarehouse(request.getWarehouseId());
 
         RentalReceiptEntity receipt = new RentalReceiptEntity();
@@ -94,23 +97,26 @@ public class RentalReceiptService {
     @Transactional(readOnly = true)
     public List<RentalReceiptResponse> getReceipts(Integer warehouseId, Integer customerId, RentalType rentalType,
                                                    String paymentStatus, LocalDate from, LocalDate to) {
-        return rentalMapper.toRentalResponses(rentalReceiptRepository.search(
+        return rentalMapper.toRentalResponses(warehouseAccess.filter(rentalReceiptRepository.search(
                 warehouseId, customerId, rentalType, paymentStatus,
                 from != null ? from.atStartOfDay() : null,
-                to != null ? to.plusDays(1).atStartOfDay() : null));
+                to != null ? to.plusDays(1).atStartOfDay() : null), warehouseId, RentalReceiptEntity::getWarehouse));
     }
 
     // phiếu sắp đến hạn trong N ngày tới (mặc định theo cấu hình) và phiếu đã quá hạn
     @Transactional(readOnly = true)
     public List<RentalReceiptResponse> getExpiringReceipts(Integer days, Integer warehouseId) {
         int window = days != null ? days : dueWarningDays;
-        return rentalMapper.toRentalResponses(rentalReceiptRepository.findDueBefore(
-                PaymentStatusEntity.RENTING, LocalDateTime.now().plusDays(window), warehouseId));
+        return rentalMapper.toRentalResponses(warehouseAccess.filter(rentalReceiptRepository.findDueBefore(
+                PaymentStatusEntity.RENTING, LocalDateTime.now().plusDays(window), warehouseId),
+                warehouseId, RentalReceiptEntity::getWarehouse));
     }
 
     @Transactional(readOnly = true)
     public RentalReceiptResponse getReceipt(Integer receiptId) {
-        return rentalMapper.toRentalResponse(findReceipt(receiptId));
+        RentalReceiptEntity receipt = findReceipt(receiptId);
+        warehouseAccess.assertAccess(receipt.getWarehouse());
+        return rentalMapper.toRentalResponse(receipt);
     }
 
     // chỉ sửa khi đang thuê và chưa trả dòng nào
@@ -146,6 +152,7 @@ public class RentalReceiptService {
         return rentalMapper.toRentalResponse(rentalReceiptRepository.save(receipt));
     }
 
+    // không kiểm tra kho ở đây: phiếu trả hàng được nhận ở kho khác kho cho thuê (ReturnReceiptService)
     public RentalReceiptEntity findReceipt(Integer receiptId) {
         return rentalReceiptRepository.findById(receiptId)
                 .orElseThrow(() -> new AppException(ErrorCode.RENTAL_RECEIPT_NOT_FOUND));
@@ -162,6 +169,7 @@ public class RentalReceiptService {
 
     private RentalReceiptEntity findUntouchedReceipt(Integer receiptId) {
         RentalReceiptEntity receipt = findRentingReceipt(receiptId);
+        warehouseAccess.assertAccess(receipt.getWarehouse()); // sửa/hủy: chỉ phiếu của kho được giao
         boolean anyReturned = receipt.getDetails().stream().anyMatch(d -> Boolean.TRUE.equals(d.getIsReturned()));
         if (anyReturned) {
             throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);

@@ -4,21 +4,23 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../config/env.dart';
-import '../storage/token_storage.dart';
 import 'api_exception.dart';
 import 'demo_adapter.dart';
 import 'page_data.dart';
 
 /// Điểm gọi API duy nhất của FE. Mọi request đi tới BFF (`/bff/**`), không gọi thẳng backend.
 class ApiClient {
-  ApiClient({required TokenStorage tokenStorage, String? baseUrl})
-    : _tokens = tokenStorage,
-      _dio = Dio(
+  ApiClient({String? baseUrl})
+    : _dio = Dio(
         BaseOptions(
           baseUrl: baseUrl ?? Env.bffBaseUrl,
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 30),
           contentType: Headers.jsonContentType,
+          // BFF chặn request ghi không có header này (chống CSRF; trang web khác không tự thêm được)
+          headers: {'X-TigerNet-Request': '1'},
+          // Web: gửi kèm cookie token HttpOnly khi BFF khác cổng (dev). Nền tảng khác bỏ qua.
+          extra: {'withCredentials': true},
         ),
       ) {
     if (Env.demoMode) _dio.httpClientAdapter = DemoAdapter();
@@ -26,12 +28,9 @@ class ApiClient {
   }
 
   final Dio _dio;
-  final TokenStorage _tokens;
 
   /// Gọi khi refresh token cũng hết hạn → SessionController chuyển về màn đăng nhập.
   void Function()? onSessionExpired;
-
-  TokenStorage get tokens => _tokens;
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>
       _send(() => _dio.get(path, queryParameters: _clean(query)));
@@ -114,23 +113,20 @@ class ApiClient {
         .toList();
   }
 
-  Future<Map<String, dynamic>?> refreshTokens() async {
-    final refresh = await _tokens.readRefreshToken();
-    if (refresh == null) return null;
+  /// Làm mới token (refresh token nằm trong cookie HttpOnly, BFF đặt lại cookie mới).
+  /// Trả false khi server từ chối (hết hạn, bị thu hồi) → phải đăng nhập lại.
+  /// Lỗi tạm thời (429 quá nhiều request, 5xx, mất mạng) thì ném DioException để giữ phiên đăng nhập.
+  Future<bool> refreshTokens() async {
     try {
-      final res = await _dio.post(
+      await _dio.post(
         '/bff/auth/refresh',
-        data: {'refreshToken': refresh},
         options: Options(extra: {_AuthInterceptor.skipAuth: true}),
       );
-      final result = Map<String, dynamic>.from(res.data['result'] as Map);
-      await _tokens.save(
-        accessToken: result['token'] as String,
-        refreshToken: result['refreshToken'] as String?,
-      );
-      return result;
-    } on DioException {
-      return null;
+      return true;
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 400 || status == 401 || status == 403) return false;
+      rethrow;
     }
   }
 
@@ -195,25 +191,22 @@ class ApiClient {
   }
 }
 
-/// Gắn access token; gặp 401 thì làm mới token một lần rồi gửi lại request.
+/// Gặp 401 thì làm mới token (cookie) một lần rồi gửi lại request. Token nằm trong cookie HttpOnly
+/// do BFF đặt, trình duyệt tự gửi kèm; FE không đọc, không lưu token.
 class _AuthInterceptor extends QueuedInterceptor {
   _AuthInterceptor(this._client);
 
   static const skipAuth = 'skipAuth';
   static const _retried = 'retried';
+  static const _sentAt = 'sentAt';
   final ApiClient _client;
 
+  /// Thời điểm làm mới token thành công gần nhất.
+  DateTime? _lastRefresh;
+
   @override
-  Future<void> onRequest(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) async {
-    if (options.extra[skipAuth] != true) {
-      final token = await _client._tokens.readAccessToken();
-      if (token != null) {
-        options.headers['Authorization'] = 'Bearer $token';
-      }
-    }
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    options.extra[_sentAt] = DateTime.now();
     handler.next(options);
   }
 
@@ -230,14 +223,25 @@ class _AuthInterceptor extends QueuedInterceptor {
         options.extra[_retried] == true) {
       return handler.next(err);
     }
-    final refreshed = await _client.refreshTokens();
-    if (refreshed == null) {
-      await _client._tokens.clear();
-      _client.onSessionExpired?.call();
-      return handler.next(err);
+    // Nhiều request cùng gặp 401 được xếp hàng (QueuedInterceptor): request gửi trước lần làm mới
+    // vừa thành công thì chỉ cần gửi lại (cookie đã mới), không gọi /bff/auth/refresh thêm.
+    final sentAt = options.extra[_sentAt] as DateTime?;
+    final alreadyRefreshed =
+        _lastRefresh != null && sentAt != null && sentAt.isBefore(_lastRefresh!);
+    if (!alreadyRefreshed) {
+      final bool ok;
+      try {
+        ok = await _client.refreshTokens();
+      } on DioException {
+        return handler.next(err); // lỗi tạm thời: giữ phiên, báo lỗi request này
+      }
+      if (!ok) {
+        _client.onSessionExpired?.call();
+        return handler.next(err);
+      }
+      _lastRefresh = DateTime.now();
     }
     options.extra[_retried] = true;
-    options.headers['Authorization'] = 'Bearer ${refreshed['token']}';
     try {
       handler.resolve(await _client._dio.fetch(options));
     } on DioException catch (e) {

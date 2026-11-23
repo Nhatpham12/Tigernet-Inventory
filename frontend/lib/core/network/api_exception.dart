@@ -25,7 +25,9 @@ class ApiException implements Exception {
 const Map<int, String> kErrorMessages = {
   1001: 'Không tìm thấy người dùng.',
   1002: 'Tên đăng nhập đã tồn tại.',
-  1003: 'Sai tên đăng nhập hoặc mật khẩu.',
+  1003:
+      'Sai tên đăng nhập hoặc mật khẩu. Nhập sai 5 lần liên tiếp thì '
+      'tài khoản tạm bị khoá 15 phút trên mạng đang dùng.',
   1004: 'Tài khoản đã bị khóa.',
   1005: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
   1006: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
@@ -33,6 +35,10 @@ const Map<int, String> kErrorMessages = {
   1008:
       'Không thể xóa, khóa hoặc bỏ quyền Quản trị của chính tài khoản đang đăng nhập.',
   1009: 'Trang được chọn không hợp lệ.',
+  1010: 'Bước đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
+  1011: 'Mã xác thực không đúng hoặc đã hết hạn.',
+  1012: 'Tài khoản đã cài xác thực 2 bước.',
+  1013: 'Tài khoản chưa cài xác thực 2 bước.',
   1101: 'Không tìm thấy vai trò.',
   1201: 'Không tìm thấy kho.',
   1202: 'Mã kho đã tồn tại.',

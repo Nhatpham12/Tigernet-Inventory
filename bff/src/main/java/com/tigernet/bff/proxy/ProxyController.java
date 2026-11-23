@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -26,6 +27,8 @@ public class ProxyController {
     static final String PREFIX = "/bff/api";
     // header của backend được trả lại cho FE (phục vụ tải file in Excel/PDF)
     private static final Set<String> FORWARDED_RESPONSE_HEADERS = Set.of(HttpHeaders.CONTENT_DISPOSITION);
+    // đăng nhập chỉ đi qua /bff/auth/** (Nginx giới hạn tốc độ ở đó); actuator chỉ dùng nội bộ
+    private static final Set<String> BLOCKED_PREFIXES = Set.of("/auth", "/actuator");
 
     private final BackendClient backendClient;
 
@@ -34,7 +37,7 @@ public class ProxyController {
                                  @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
                                  @RequestBody(required = false) byte[] body) {
         String path = request.getRequestURI().substring(request.getContextPath().length() + PREFIX.length());
-        if (path.isEmpty() || path.contains("..")) {
+        if (isBlocked(path)) {
             return ResponseEntity.notFound().build();
         }
         MultiValueMap<String, String> query = new LinkedMultiValueMap<>();
@@ -55,5 +58,18 @@ public class ProxyController {
             }
         });
         return builder.body(response.body());
+    }
+
+    /**
+     * Path ở đây là URI thô (chưa decode). Chặn mọi ký tự '%', '\', ';' (backend không có path variable
+     * dạng chuỗi nên request hợp lệ không cần) để không vòng qua được bằng /%61uth, /auth%2f, /auth;x...
+     * rồi so prefix sau khi gộp '//' và đưa về chữ thường.
+     */
+    static boolean isBlocked(String path) {
+        if (path.isEmpty() || path.contains("..") || path.contains("%") || path.contains("\\") || path.contains(";")) {
+            return true;
+        }
+        String normalized = path.replaceAll("/{2,}", "/").toLowerCase(Locale.ROOT);
+        return BLOCKED_PREFIXES.stream().anyMatch(p -> normalized.equals(p) || normalized.startsWith(p + "/"));
     }
 }

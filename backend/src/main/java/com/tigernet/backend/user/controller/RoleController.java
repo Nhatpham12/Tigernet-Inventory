@@ -1,5 +1,7 @@
 package com.tigernet.backend.user.controller;
 
+import com.tigernet.backend.common.security.NoPageCheck;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.user.dto.response.RoleResponse;
 import com.tigernet.backend.user.service.RoleService;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@NoPageCheck("Danh mục tra cứu dùng chung cho form, dropdown và dashboard")
 @RestController
 @RequestMapping("/roles")
 @RequiredArgsConstructor

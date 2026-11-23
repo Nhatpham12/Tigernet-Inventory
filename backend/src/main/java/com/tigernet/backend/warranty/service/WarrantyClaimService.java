@@ -1,5 +1,6 @@
 package com.tigernet.backend.warranty.service;
 
+import com.tigernet.backend.warehouse.service.WarehouseAccessService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.DocumentCodeGenerator;
@@ -46,8 +47,10 @@ public class WarrantyClaimService {
     WarrantyMapper warrantyMapper;
     WarehouseService warehouseService;
     CurrentUserService currentUserService;
+    WarehouseAccessService warehouseAccess;
 
     @Transactional(readOnly = true)
+    // tra cứu theo serial/phiếu xuất không giới hạn kho: khách có thể mang hàng bảo hành tới kho khác kho đã bán
     public List<WarrantyLookupResponse> lookup(String serial, Integer exportReceiptId) {
         List<ExportReceiptDetailEntity> lines;
         if (StringUtils.hasText(serial)) {
@@ -62,6 +65,7 @@ public class WarrantyClaimService {
     }
 
     public WarrantyClaimResponse createClaim(WarrantyClaimCreationRequest request) {
+        warehouseAccess.assertAccess(request.getReceivedWarehouseId()); // kho tiếp nhận
         ExportReceiptDetailEntity detail = exportLineLookupRepository.findById(request.getExportDetailId())
                 .orElseThrow(() -> new AppException(ErrorCode.WARRANTY_CLAIM_NOT_FOUND));
         WarehouseEntity warehouse = warehouseService.findActiveWarehouse(request.getReceivedWarehouseId());
@@ -84,9 +88,10 @@ public class WarrantyClaimService {
     @Transactional(readOnly = true)
     public List<WarrantyClaimResponse> getClaims(WarrantyClaimStatus status, Integer warehouseId,
                                                  Integer customerId, LocalDate from, LocalDate to) {
-        return warrantyMapper.toResponses(warrantyClaimRepository.search(status, warehouseId, customerId,
+        return warrantyMapper.toResponses(warehouseAccess.filter(warrantyClaimRepository.search(status, warehouseId,
+                customerId,
                 from != null ? from.atStartOfDay() : null,
-                to != null ? to.plusDays(1).atStartOfDay() : null));
+                to != null ? to.plusDays(1).atStartOfDay() : null), warehouseId, WarrantyClaimEntity::getReceivedWarehouse));
     }
 
     @Transactional(readOnly = true)
@@ -96,6 +101,9 @@ public class WarrantyClaimService {
 
     public WarrantyClaimResponse changeStatus(Integer claimId, WarrantyStatusRequest request) {
         WarrantyClaimEntity claim = findClaim(claimId);
+        if (request.getRestockedWarehouseId() != null) {
+            warehouseAccess.assertAccess(request.getRestockedWarehouseId()); // nhập lại vào kho được giao
+        }
         WarehouseEntity restocked = request.getRestockedWarehouseId() != null
                 ? warehouseService.findActiveWarehouse(request.getRestockedWarehouseId())
                 : null;
@@ -128,8 +136,10 @@ public class WarrantyClaimService {
     }
 
     private WarrantyClaimEntity findClaim(Integer claimId) {
-        return warrantyClaimRepository.findById(claimId)
+        WarrantyClaimEntity claim = warrantyClaimRepository.findById(claimId)
                 .orElseThrow(() -> new AppException(ErrorCode.WARRANTY_CLAIM_NOT_FOUND));
+        warehouseAccess.assertAccess(claim.getReceivedWarehouse());
+        return claim;
     }
 
     private InventoryEntity findInventory(ExportReceiptDetailEntity detail) {

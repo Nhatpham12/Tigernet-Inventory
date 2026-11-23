@@ -1,5 +1,8 @@
 package com.tigernet.backend.printing.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.printing.service.RentalPrintService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +17,7 @@ public class RentalPrintController {
     private final RentalPrintService service;
 
     // Biên bản bàn giao cho thuê (RENT) / cho mượn (LEND). ?format=html để xem HTML, ?download=true để tải file
+    @RequiresPage({Pages.RENTALS, Pages.LENDS})
     @GetMapping("/rental-receipts/{id}/print")
     ResponseEntity<byte[]> printRental(@PathVariable Integer id,
                                        @RequestParam(required = false) String format,
@@ -22,6 +26,7 @@ public class RentalPrintController {
     }
 
     // Biên bản trả hàng thuê / mượn
+    @RequiresPage({Pages.RETURN_RECEIPTS})
     @GetMapping("/return-receipts/{id}/print")
     ResponseEntity<byte[]> printReturn(@PathVariable Integer id,
                                        @RequestParam(required = false) String format,

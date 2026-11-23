@@ -1,5 +1,8 @@
 package com.tigernet.backend.rental.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.rental.dto.request.RentalReceiptCreationRequest;
 import com.tigernet.backend.rental.dto.request.RentalReceiptUpdateRequest;
@@ -23,11 +26,13 @@ import java.util.List;
 public class RentalReceiptController {
     RentalReceiptService rentalReceiptService;
 
+    @RequiresPage({Pages.RENTALS_NEW, Pages.LENDS_NEW})
     @PostMapping
     ApiResponse<RentalReceiptResponse> createReceipt(@RequestBody @Valid RentalReceiptCreationRequest request) {
         return ApiResponse.success(rentalReceiptService.createReceipt(request));
     }
 
+    @RequiresPage({Pages.RENTALS, Pages.LENDS, Pages.RETURN_RECEIPTS, Pages.PAYMENTS, Pages.REPORT_RENTALS})
     @GetMapping // ?warehouseId=&customerId=&type=RENT|LEND&paymentStatus=RENTING&from=&to=
     ApiResponse<List<RentalReceiptResponse>> getReceipts(
             @RequestParam(required = false) Integer warehouseId,
@@ -40,17 +45,20 @@ public class RentalReceiptController {
                 warehouseId, customerId, rentalType, paymentStatus, from, to));
     }
 
+    @RequiresPage({Pages.RENTALS, Pages.LENDS, Pages.RETURN_RECEIPTS, Pages.PAYMENTS, Pages.REPORT_RENTALS})
     @GetMapping("/expiring") // ?days=7&warehouseId=
     ApiResponse<List<RentalReceiptResponse>> getExpiringReceipts(@RequestParam(required = false) Integer days,
                                                                  @RequestParam(required = false) Integer warehouseId) {
         return ApiResponse.success(rentalReceiptService.getExpiringReceipts(days, warehouseId));
     }
 
+    @RequiresPage({Pages.RENTALS, Pages.LENDS, Pages.RETURN_RECEIPTS, Pages.PAYMENTS, Pages.REPORT_RENTALS})
     @GetMapping("/{receiptId}")
     ApiResponse<RentalReceiptResponse> getReceipt(@PathVariable Integer receiptId) {
         return ApiResponse.success(rentalReceiptService.getReceipt(receiptId));
     }
 
+    @RequiresPage({Pages.RENTALS_NEW, Pages.LENDS_NEW})
     @PutMapping("/{receiptId}")
     ApiResponse<RentalReceiptResponse> updateReceipt(@PathVariable Integer receiptId,
                                                      @RequestBody @Valid RentalReceiptUpdateRequest request) {
@@ -58,6 +66,7 @@ public class RentalReceiptController {
     }
 
     // hủy phiếu (Payment_Status = CANCELLED), không xóa bản ghi
+    @RequiresPage({Pages.RENTALS_NEW, Pages.LENDS_NEW})
     @DeleteMapping("/{receiptId}")
     ApiResponse<RentalReceiptResponse> cancelReceipt(@PathVariable Integer receiptId) {
         return ApiResponse.success("Rental receipt has been cancelled", rentalReceiptService.cancelReceipt(receiptId));
