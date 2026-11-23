@@ -9,6 +9,7 @@ import '../../core/theme/app_tokens.dart';
 import '../../shared/feedback/toast.dart';
 import '../../shared/form/fields.dart';
 import '../../shared/widgets/brand_logo.dart';
+import 'mfa_step.dart';
 
 /// Figma 962:1454 "Xác thực / Đăng nhập": khối thương hiệu vàng bên trái, form bên phải.
 class LoginPage extends ConsumerStatefulWidget {
@@ -29,6 +30,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _remember = true;
   bool _loading = false;
   String? _error;
+  MfaChallenge? _challenge;
 
   @override
   void dispose() {
@@ -44,9 +46,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _error = null;
     });
     try {
-      await ref
+      final challenge = await ref
           .read(sessionProvider.notifier)
           .login(_username.text, _password.text, remember: _remember);
+      if (challenge != null && mounted) {
+        setState(() => _challenge = challenge); // Quản trị: sang bước mã 6 số
+      }
     } catch (e) {
       setState(() => _error = userMessage(e));
     } finally {
@@ -76,131 +81,142 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     border: Border.all(color: c.border),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Form(
-                    key: _form,
-                    child: AutofillGroup(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (!wide) ...[
-                            // Màu theo token brandInk nên đọc được cả ở giao diện tối.
-                            const BrandLogo(),
-                            const SizedBox(height: AppSpace.s24),
-                          ],
-                          Text('Đăng nhập', style: context.text.display),
-                          const SizedBox(height: AppSpace.s4),
-                          Text(
-                            'Nhập tài khoản để tiếp tục quản lý kho.',
-                            style: context.text.body1.copyWith(color: c.muted),
-                          ),
-                          const SizedBox(height: AppSpace.s24),
-                          AppTextField(
-                            label: 'Tên đăng nhập',
-                            required: true,
-                            controller: _username,
-                            hint: 'tendangnhap',
-                            autofillHints: const [AutofillHints.username],
-                          ),
-                          const SizedBox(height: AppSpace.s16),
-                          AppTextField(
-                            label: 'Mật khẩu',
-                            required: true,
-                            controller: _password,
-                            hint: 'Nhập mật khẩu',
-                            obscure: _obscure,
-                            autofillHints: const [AutofillHints.password],
-                            onSubmitted: (_) => _submit(),
-                            suffix: IconButton(
-                              tooltip: _obscure
-                                  ? 'Hiện mật khẩu'
-                                  : 'Ẩn mật khẩu',
-                              icon: Icon(
-                                _obscure
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                color: c.muted,
-                              ),
-                              onPressed: () =>
-                                  setState(() => _obscure = !_obscure),
-                            ),
-                          ),
-                          const SizedBox(height: AppSpace.s8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: CheckboxListTile(
-                                  value: _remember,
-                                  onChanged: (v) =>
-                                      setState(() => _remember = v ?? false),
-                                  controlAffinity:
-                                      ListTileControlAffinity.leading,
-                                  contentPadding: EdgeInsets.zero,
-                                  dense: true,
-                                  title: Text(
-                                    'Ghi nhớ đăng nhập',
-                                    style: context.text.label,
+                  child: _challenge != null
+                      ? MfaStep(
+                          challenge: _challenge!,
+                          onBack: () => setState(() {
+                            _challenge = null;
+                            _password.clear();
+                          }),
+                        )
+                      : Form(
+                          key: _form,
+                          child: AutofillGroup(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (!wide) ...[
+                                  // Màu theo token brandInk nên đọc được cả ở giao diện tối.
+                                  const BrandLogo(),
+                                  const SizedBox(height: AppSpace.s24),
+                                ],
+                                Text('Đăng nhập', style: context.text.display),
+                                const SizedBox(height: AppSpace.s4),
+                                Text(
+                                  'Nhập tài khoản để tiếp tục quản lý kho.',
+                                  style: context.text.body1.copyWith(
+                                    color: c.muted,
                                   ),
                                 ),
-                              ),
-                              TextButton(
-                                onPressed: () => Toast.info(
-                                  context,
-                                  'Quên mật khẩu: liên hệ quản trị viên hoặc hotro@tigernet.vn để đặt lại.',
+                                const SizedBox(height: AppSpace.s24),
+                                AppTextField(
+                                  label: 'Tên đăng nhập',
+                                  required: true,
+                                  controller: _username,
+                                  hint: 'tendangnhap',
+                                  autofillHints: const [AutofillHints.username],
                                 ),
-                                child: const Text('Quên mật khẩu?'),
-                              ),
-                            ],
-                          ),
-                          if (Env.demoMode) ...[
-                            const SizedBox(height: AppSpace.s8),
-                            _Notice(
-                              color: c.text,
-                              background: c.warningBg,
-                              text:
-                                  'Bản demo dùng dữ liệu mẫu. Bấm Đăng nhập để vào; thêm/sửa/xóa sẽ không được lưu.',
-                            ),
-                          ],
-                          if (_error != null) ...[
-                            const SizedBox(height: AppSpace.s8),
-                            _Notice(
-                              color: c.danger,
-                              background: c.dangerBg,
-                              text: _error!,
-                              icon: Icons.error_outline,
-                            ),
-                          ],
-                          const SizedBox(height: AppSpace.s16),
-                          SizedBox(
-                            width: double.infinity,
-                            height: AppSpace.touch,
-                            child: ElevatedButton(
-                              onPressed: _loading ? null : _submit,
-                              child: _loading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                                const SizedBox(height: AppSpace.s16),
+                                AppTextField(
+                                  label: 'Mật khẩu',
+                                  required: true,
+                                  controller: _password,
+                                  hint: 'Nhập mật khẩu',
+                                  obscure: _obscure,
+                                  autofillHints: const [AutofillHints.password],
+                                  onSubmitted: (_) => _submit(),
+                                  suffix: IconButton(
+                                    tooltip: _obscure
+                                        ? 'Hiện mật khẩu'
+                                        : 'Ẩn mật khẩu',
+                                    icon: Icon(
+                                      _obscure
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                      color: c.muted,
+                                    ),
+                                    onPressed: () =>
+                                        setState(() => _obscure = !_obscure),
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpace.s8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: CheckboxListTile(
+                                        value: _remember,
+                                        onChanged: (v) => setState(
+                                          () => _remember = v ?? false,
+                                        ),
+                                        controlAffinity:
+                                            ListTileControlAffinity.leading,
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
+                                        title: Text(
+                                          'Ghi nhớ đăng nhập',
+                                          style: context.text.label,
+                                        ),
                                       ),
-                                    )
-                                  : const Text('Đăng nhập'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Toast.info(
+                                        context,
+                                        'Quên mật khẩu: liên hệ quản trị viên hoặc hotro@tigernet.vn để đặt lại.',
+                                      ),
+                                      child: const Text('Quên mật khẩu?'),
+                                    ),
+                                  ],
+                                ),
+                                if (Env.demoMode) ...[
+                                  const SizedBox(height: AppSpace.s8),
+                                  _Notice(
+                                    color: c.text,
+                                    background: c.warningBg,
+                                    text:
+                                        'Bản demo dùng dữ liệu mẫu. Bấm Đăng nhập để vào; thêm/sửa/xóa sẽ không được lưu.',
+                                  ),
+                                ],
+                                if (_error != null) ...[
+                                  const SizedBox(height: AppSpace.s8),
+                                  _Notice(
+                                    color: c.danger,
+                                    background: c.dangerBg,
+                                    text: _error!,
+                                    icon: Icons.error_outline,
+                                  ),
+                                ],
+                                const SizedBox(height: AppSpace.s16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: AppSpace.touch,
+                                  child: ElevatedButton(
+                                    onPressed: _loading ? null : _submit,
+                                    child: _loading
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Text('Đăng nhập'),
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpace.s16),
+                                // Chỉ là ghi chú, không phải link: dùng màu phụ.
+                                Center(
+                                  child: Text(
+                                    'Chưa có tài khoản? Liên hệ quản trị viên để được cấp.',
+                                    textAlign: TextAlign.center,
+                                    style: context.text.body2.copyWith(
+                                      color: c.muted,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: AppSpace.s16),
-                          // Chỉ là ghi chú, không phải link: dùng màu phụ.
-                          Center(
-                            child: Text(
-                              'Chưa có tài khoản? Liên hệ quản trị viên để được cấp.',
-                              textAlign: TextAlign.center,
-                              style: context.text.body2.copyWith(
-                                color: c.muted,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                        ),
                 ),
               ),
             ),

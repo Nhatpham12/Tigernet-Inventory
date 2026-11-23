@@ -49,6 +49,8 @@ services:
       DB_USERNAME: ${DB_USERNAME:-tigernet}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SIGNER_KEY: ${JWT_SIGNER_KEY:?Đặt JWT_SIGNER_KEY (>= 64 ký tự) trong .env}
+      # mã hoá khoá xác thực 2 bước của Quản trị; để trống = tắt MFA (chỉ chấp nhận khi chạy thử)
+      MFA_ENC_KEY: ${MFA_ENC_KEY:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       SPRING_JPA_SHOW_SQL: "false"

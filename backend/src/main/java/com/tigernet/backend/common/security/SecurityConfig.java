@@ -86,13 +86,12 @@ public class SecurityConfig {
     JwtDecoder jwtDecoder(UserRepository userRepository) {
         SecretKeySpec key = new SecretKeySpec(signerKey.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS512).build();
-        // refresh token chỉ dùng cho /auth/refresh, không được dùng làm access token
-        OAuth2TokenValidator<Jwt> notRefreshToken = jwt -> AuthenticationService.REFRESH_TOKEN_TYPE
-                .equals(jwt.getClaimAsString(AuthenticationService.TOKEN_TYPE_CLAIM))
-                ? invalid("Refresh token cannot access APIs")
+        // token có claim "typ" (refresh, mfa) chỉ dùng cho /auth/**, không được dùng làm access token
+        OAuth2TokenValidator<Jwt> accessTokenOnly = jwt -> jwt.hasClaim(AuthenticationService.TOKEN_TYPE_CLAIM)
+                ? invalid("Only access tokens can call APIs")
                 : OAuth2TokenValidatorResult.success();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(AuthenticationService.ISSUER), notRefreshToken,
+                JwtValidators.createDefaultWithIssuer(AuthenticationService.ISSUER), accessTokenOnly,
                 tokenVersionValidator(userRepository)));
         return decoder;
     }

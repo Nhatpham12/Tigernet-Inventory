@@ -15,6 +15,11 @@ public enum ErrorCode {
     ACCESS_DENIED(1007, "You do not have permission to perform this action", HttpStatus.FORBIDDEN),
     CANNOT_MODIFY_SELF(1008, "You cannot delete, lock or remove the admin role from your own account", HttpStatus.BAD_REQUEST),
     INVALID_PAGE_KEY(1009, "Invalid page key", HttpStatus.BAD_REQUEST),
+    // MFA (mã xác thực 6 số cho Quản trị)
+    MFA_TOKEN_INVALID(1010, "Login step expired, please sign in again", HttpStatus.UNAUTHORIZED),
+    MFA_CODE_INVALID(1011, "Invalid authentication code", HttpStatus.UNAUTHORIZED),
+    MFA_ALREADY_ENABLED(1012, "Two-factor authentication is already set up", HttpStatus.CONFLICT),
+    MFA_NOT_SET_UP(1013, "Two-factor authentication has not been set up", HttpStatus.BAD_REQUEST),
 
     // 11xx: role
     ROLE_NOT_FOUND(1101, "Role not found", HttpStatus.NOT_FOUND),

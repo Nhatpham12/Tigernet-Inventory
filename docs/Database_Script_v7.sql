@@ -88,6 +88,8 @@ CREATE TABLE Users (
     Is_Active     BOOLEAN      NOT NULL DEFAULT TRUE,
     Created_At    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     Token_Version INT          NOT NULL DEFAULT 0,  -- [V7] tăng lên là token cũ mất hiệu lực
+    Mfa_Secret    VARCHAR(255) NULL,                -- [V8] khoá TOTP đã mã hoá (MFA_ENC_KEY)
+    Mfa_Enabled   BOOLEAN      NOT NULL DEFAULT FALSE, -- [V8] đã bật xác thực 2 bước
     CONSTRAINT PK_Users PRIMARY KEY (ID),
     CONSTRAINT UQ_Users_Username UNIQUE (Username),
     CONSTRAINT UQ_Users_Email    UNIQUE (Email),
@@ -105,6 +107,15 @@ CREATE TABLE Login_Failures (
     CONSTRAINT PK_Login_Failures PRIMARY KEY (User_ID, Ip),
     CONSTRAINT FK_Login_Failures_User FOREIGN KEY (User_ID) REFERENCES Users(ID) ON DELETE CASCADE,
     INDEX IX_Login_Failures_Updated (Updated_At)
+) ENGINE=InnoDB;
+
+-- 4.2c User_Recovery_Codes [V8]: mã khôi phục MFA dùng một lần (hash BCrypt)
+CREATE TABLE User_Recovery_Codes (
+    ID        INT          NOT NULL AUTO_INCREMENT,
+    User_ID   INT          NOT NULL,
+    Code_Hash VARCHAR(100) NOT NULL,
+    CONSTRAINT PK_User_Recovery_Codes PRIMARY KEY (ID),
+    CONSTRAINT FK_User_Recovery_Codes_User FOREIGN KEY (User_ID) REFERENCES Users(ID) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- 4.2a Warehouses [v6] ------------------------------------------------
