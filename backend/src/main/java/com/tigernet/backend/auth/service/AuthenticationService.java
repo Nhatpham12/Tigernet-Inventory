@@ -10,6 +10,8 @@ import com.nimbusds.jwt.SignedJWT;
 import com.tigernet.backend.audit.service.AuditLogService;
 import com.tigernet.backend.auth.dto.request.AuthenticationRequest;
 import com.tigernet.backend.auth.dto.response.AuthenticationResponse;
+import com.tigernet.backend.auth.entity.LoginFailureEntity;
+import com.tigernet.backend.auth.repository.LoginFailureRepository;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.user.entity.UserEntity;
@@ -54,6 +56,7 @@ public class AuthenticationService {
     private static final String DUMMY_HASH = new BCryptPasswordEncoder(10).encode(UUID.randomUUID().toString());
 
     UserRepository userRepository;
+    LoginFailureRepository loginFailureRepository;
     PasswordEncoder passwordEncoder;
     AuditLogService auditLogService;
 
@@ -71,30 +74,34 @@ public class AuthenticationService {
 
     /**
      * Đăng nhập thành công thì trả token, thất bại thì ném AppException.
-     * Sai mật khẩu {@value #MAX_FAILED_LOGINS} lần liên tiếp thì khoá {@value #LOCK_MINUTES} phút.
+     * Sai mật khẩu {@value #MAX_FAILED_LOGINS} lần liên tiếp từ cùng một IP thì khoá cặp (tài khoản, IP)
+     * {@value #LOCK_MINUTES} phút; người dùng thật ở IP khác vẫn đăng nhập được.
      * Sai username, sai mật khẩu, đang bị khoá đều trả cùng 1 lỗi để không lộ username nào tồn tại.
      * noRollbackFor: bộ đếm sai và nhật ký vẫn được lưu dù hàm ném lỗi.
      */
     @Transactional(noRollbackFor = AppException.class)
     public AuthenticationResponse authenticate(AuthenticationRequest request, String clientIp){
+        String ip = normalizeIp(clientIp);
         var found = userRepository.findByUsername(request.getUsername());
         if(found.isEmpty()){
             passwordEncoder.matches(request.getPassword(), DUMMY_HASH); // tốn thời gian như user có thật
-            logFailure(request.getUsername(), clientIp, "unknown-user");
+            logFailure(request.getUsername(), ip, "unknown-user");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
         UserEntity user = found.get();
         LocalDateTime now = LocalDateTime.now();
+        LoginFailureEntity.Key key = new LoginFailureEntity.Key(user.getUserId(), ip);
+        LoginFailureEntity failure = loginFailureRepository.findById(key).orElse(null);
 
-        if(user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)){
+        if(failure != null && failure.getLockedUntil() != null && failure.getLockedUntil().isAfter(now)){
             // không kiểm tra mật khẩu thật khi đang khoá, nhưng vẫn tốn thời gian như nhau để không lộ trạng thái
             passwordEncoder.matches(request.getPassword(), DUMMY_HASH);
-            logFailure(user.getUsername(), clientIp, "locked");
+            logFailure(user.getUsername(), ip, "locked");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         if(!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())){
-            recordFailedPassword(user, now, clientIp);
+            recordFailedPassword(user, key, failure, now);
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
@@ -102,8 +109,9 @@ public class AuthenticationService {
             throw new AppException(ErrorCode.USER_INACTIVE);
         }
 
-        user.setFailedLoginCount(0);
-        user.setLockedUntil(null);
+        if(failure != null){
+            loginFailureRepository.delete(failure);
+        }
         AuthenticationResponse response = issueTokens(user);
         auditLogService.log(user, "LOGIN", "Users", user.getUserId(), null);
         return response;
@@ -118,20 +126,38 @@ public class AuthenticationService {
         auditLogService.log(user, "LOGOUT", "Users", userId, null);
     }
 
-    private void recordFailedPassword(UserEntity user, LocalDateTime now, String clientIp){
-        int failed = user.getFailedLoginCount() + 1;
+    private void recordFailedPassword(UserEntity user, LoginFailureEntity.Key key, LoginFailureEntity failure,
+                                      LocalDateTime now){
+        if(failure == null){
+            // dòng mới: dọn luôn các dòng không đổi trong 1 ngày để bảng không phình
+            loginFailureRepository.deleteOlderThan(now.minusDays(1));
+            failure = new LoginFailureEntity();
+            failure.setId(key);
+        }
+        int failed = failure.getFailedCount() + 1;
         Map<String, Object> detail = new LinkedHashMap<>();
-        detail.put("ip", clientIp);
+        detail.put("ip", key.getIp());
         if(failed >= MAX_FAILED_LOGINS){
-            user.setFailedLoginCount(0);
-            user.setLockedUntil(now.plusMinutes(LOCK_MINUTES));
+            failure.setFailedCount(0);
+            failure.setLockedUntil(now.plusMinutes(LOCK_MINUTES));
             detail.put("lockedMinutes", LOCK_MINUTES);
         } else {
-            user.setFailedLoginCount(failed);
+            failure.setFailedCount(failed);
             detail.put("failedCount", failed);
         }
+        failure.setUpdatedAt(now);
+        loginFailureRepository.save(failure);
         auditLogService.log(user, "LOGIN_FAILED", "Users", user.getUserId(), detail);
-        logFailure(user.getUsername(), clientIp, failed >= MAX_FAILED_LOGINS ? "locked-now" : "bad-password");
+        logFailure(user.getUsername(), key.getIp(), failed >= MAX_FAILED_LOGINS ? "locked-now" : "bad-password");
+    }
+
+    // chỉ nhận chuỗi giống IPv4/IPv6 (header do BFF gửi); khác thì gom chung vào "unknown"
+    static String normalizeIp(String ip){
+        if(ip == null){
+            return "unknown";
+        }
+        String trimmed = ip.trim();
+        return trimmed.matches("[0-9A-Fa-f:.]{2,45}") ? trimmed : "unknown";
     }
 
     // dòng log cố định định dạng để fail2ban đọc được; username do client gửi nên lọc ký tự lạ (chống log injection)

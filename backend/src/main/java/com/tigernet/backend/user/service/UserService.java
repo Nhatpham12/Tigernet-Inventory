@@ -2,6 +2,7 @@ package com.tigernet.backend.user.service;
 
 import com.tigernet.backend.audit.repository.AuditLogRepository;
 import com.tigernet.backend.audit.service.AuditLogService;
+import com.tigernet.backend.auth.repository.LoginFailureRepository;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.security.SecurityUtils;
@@ -48,6 +49,9 @@ public class UserService {
 
     @Autowired
     private UserPagePermissionRepository pagePermissionRepository;
+
+    @Autowired
+    private LoginFailureRepository loginFailureRepository;
 
     @Autowired
     private AuditLogRepository auditLogRepository;
@@ -113,9 +117,8 @@ public class UserService {
         boolean passwordChanged = request.getPassword() != null && !request.getPassword().isEmpty();
         if(passwordChanged){
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-            // Quản trị đặt lại mật khẩu thì mở luôn khoá do nhập sai nhiều lần
-            user.setFailedLoginCount(0);
-            user.setLockedUntil(null);
+            // Quản trị đặt lại mật khẩu thì mở luôn khoá do nhập sai nhiều lần (mọi IP)
+            loginFailureRepository.deleteByUserId(userId);
         }
         // đổi mật khẩu / đổi vai trò / khoá tài khoản: token cũ mang quyền cũ nên phải mất hiệu lực ngay
         boolean roleChanged = !Objects.equals(roleId(oldRole), roleId(newRole));
@@ -158,6 +161,7 @@ public class UserService {
                     Map<String, Object> detail = snapshot(user);
                     userWarehouseRepository.deleteByUserId(userId);
                     pagePermissionRepository.deleteByUserId(userId);
+                    loginFailureRepository.deleteByUserId(userId);
                     userRepository.delete(user);
                     userRepository.flush(); // lộ lỗi khóa ngoại ngay tại đây nếu user đã tạo phiếu
                     auditLogService.log("DELETE_USER", "Users", userId, detail);

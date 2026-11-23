@@ -1,6 +1,7 @@
 package com.tigernet.backend.user.service;
 
 import com.tigernet.backend.audit.service.AuditLogService;
+import com.tigernet.backend.auth.repository.LoginFailureRepository;
 import com.tigernet.backend.user.dto.request.UserUpdateRequest;
 import com.tigernet.backend.user.entity.RoleEntity;
 import com.tigernet.backend.user.entity.UserEntity;
@@ -22,13 +23,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** Đổi mật khẩu / vai trò / khoá tài khoản phải làm mọi token cũ mất hiệu lực (tăng Token_Version). */
@@ -40,6 +40,7 @@ class UserServiceTokenRevokeTest {
     @Mock AuditLogService auditLogService;
     @Mock UserMapper userMapper;
     @Mock PasswordEncoder passwordEncoder;
+    @Mock LoginFailureRepository loginFailureRepository;
     @InjectMocks UserService service;
 
     UserEntity user;
@@ -92,12 +93,9 @@ class UserServiceTokenRevokeTest {
 
     @Test
     void passwordResetRevokesTokensAndUnlocks() {
-        user.setFailedLoginCount(3);
-        user.setLockedUntil(LocalDateTime.now().plusMinutes(5));
         service.updateUser(7, UserUpdateRequest.builder().password("new-password").build());
         assertEquals(1, user.getTokenVersion());
-        assertEquals(0, user.getFailedLoginCount());
-        assertNull(user.getLockedUntil());
+        verify(loginFailureRepository).deleteByUserId(7); // mở khoá đăng nhập ở mọi IP
     }
 
     @Test

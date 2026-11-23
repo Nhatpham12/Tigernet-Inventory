@@ -37,13 +37,6 @@ public class UserEntity {
     @JoinColumn(name = "Role_ID")
     private RoleEntity role;
 
-    // số lần nhập sai mật khẩu liên tiếp; đủ ngưỡng thì khoá tạm đến Locked_Until
-    @Column(name = "Failed_Login_Count", nullable = false, columnDefinition = "INT NOT NULL DEFAULT 0")
-    private int failedLoginCount;
-
-    @Column(name = "Locked_Until")
-    private LocalDateTime lockedUntil;
-
     // ghi vào claim "ver" của token; tăng lên là mọi token cũ của user mất hiệu lực (đăng xuất, đổi mật khẩu...)
     @Column(name = "Token_Version", nullable = false, columnDefinition = "INT NOT NULL DEFAULT 0")
     private int tokenVersion;

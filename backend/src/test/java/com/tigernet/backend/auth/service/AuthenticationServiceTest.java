@@ -4,6 +4,8 @@ import com.nimbusds.jwt.SignedJWT;
 import com.tigernet.backend.audit.service.AuditLogService;
 import com.tigernet.backend.auth.dto.request.AuthenticationRequest;
 import com.tigernet.backend.auth.dto.response.AuthenticationResponse;
+import com.tigernet.backend.auth.entity.LoginFailureEntity;
+import com.tigernet.backend.auth.repository.LoginFailureRepository;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.security.SecurityConfig;
@@ -21,6 +23,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,7 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,14 +47,26 @@ class AuthenticationServiceTest {
     private static final String KEY = "test-only-signer-key-test-only-signer-key-test-only-signer-key-0123";
 
     @Mock UserRepository userRepository;
+    @Mock LoginFailureRepository loginFailureRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock AuditLogService auditLogService;
     @InjectMocks AuthenticationService service;
 
     UserEntity user;
+    // bảng Login_Failures giả trong bộ nhớ
+    final Map<LoginFailureEntity.Key, LoginFailureEntity> failures = new HashMap<>();
 
     @BeforeEach
     void setUp() {
+        lenient().when(loginFailureRepository.findById(any()))
+                .thenAnswer(inv -> Optional.ofNullable(failures.get(inv.<LoginFailureEntity.Key>getArgument(0))));
+        lenient().when(loginFailureRepository.save(any())).thenAnswer(inv -> {
+            LoginFailureEntity f = inv.getArgument(0);
+            failures.put(f.getId(), f);
+            return f;
+        });
+        lenient().doAnswer(inv -> failures.remove(inv.<LoginFailureEntity>getArgument(0).getId()))
+                .when(loginFailureRepository).delete(any());
         ReflectionTestUtils.setField(service, "signerKey", KEY);
         ReflectionTestUtils.setField(service, "validDuration", 3600L);
         ReflectionTestUtils.setField(service, "refreshDuration", 604800L);
@@ -72,41 +90,66 @@ class AuthenticationServiceTest {
         when(passwordEncoder.matches("bad", "hash")).thenReturn(false);
     }
 
-    @Test
-    void wrongPasswordCountsAndLocksAfterFiveAttempts() {
-        wrongPassword();
-        for (int i = 1; i <= 4; i++) {
-            assertThrows(AppException.class, () -> service.authenticate(req("bad"), "1.2.3.4"));
-            assertEquals(i, user.getFailedLoginCount());
-            assertNull(user.getLockedUntil());
-        }
-        assertThrows(AppException.class, () -> service.authenticate(req("bad"), "1.2.3.4"));
-        assertNotNull(user.getLockedUntil());
-        assertTrue(user.getLockedUntil().isAfter(LocalDateTime.now().plusMinutes(14)));
-        assertEquals(0, user.getFailedLoginCount());
-        verify(auditLogService, org.mockito.Mockito.times(5)).log(eq(user), eq("LOGIN_FAILED"), any(), any(), any());
+    private LoginFailureEntity failure(String ip) {
+        return failures.get(new LoginFailureEntity.Key(7, ip));
+    }
+
+    private void lock(String ip, LocalDateTime until) {
+        LoginFailureEntity f = new LoginFailureEntity();
+        f.setId(new LoginFailureEntity.Key(7, ip));
+        f.setLockedUntil(until);
+        f.setUpdatedAt(LocalDateTime.now());
+        failures.put(f.getId(), f);
     }
 
     @Test
-    void lockedAccountRejectsEvenCorrectPasswordWithSameError() {
-        user.setLockedUntil(LocalDateTime.now().plusMinutes(10));
+    void wrongPasswordCountsAndLocksAfterFiveAttemptsFromSameIp() {
+        wrongPassword();
+        for (int i = 1; i <= 4; i++) {
+            assertThrows(AppException.class, () -> service.authenticate(req("bad"), "1.2.3.4"));
+            assertEquals(i, failure("1.2.3.4").getFailedCount());
+            assertNull(failure("1.2.3.4").getLockedUntil());
+        }
+        assertThrows(AppException.class, () -> service.authenticate(req("bad"), "1.2.3.4"));
+        assertTrue(failure("1.2.3.4").getLockedUntil().isAfter(LocalDateTime.now().plusMinutes(14)));
+        assertEquals(0, failure("1.2.3.4").getFailedCount());
+        verify(auditLogService, times(5)).log(eq(user), eq("LOGIN_FAILED"), any(), any(), any());
+    }
+
+    @Test
+    void lockedIpRejectsEvenCorrectPasswordWithSameError() {
+        lock("1.2.3.4", LocalDateTime.now().plusMinutes(10));
         when(userRepository.findByUsername("kho1")).thenReturn(Optional.of(user));
-        AppException e = assertThrows(AppException.class, () -> service.authenticate(req("good"), "ip"));
+        AppException e = assertThrows(AppException.class, () -> service.authenticate(req("good"), "1.2.3.4"));
         assertEquals(ErrorCode.UNAUTHENTICATED, e.getErrorCode());
         verify(passwordEncoder, never()).matches("good", "hash"); // không thử mật khẩu thật khi đang khoá
         verify(passwordEncoder).matches(eq("good"), anyString()); // nhưng vẫn so hash giả để thời gian như nhau
     }
 
     @Test
-    void expiredLockAndCorrectPasswordLogsInAndResetsCounter() {
-        user.setLockedUntil(LocalDateTime.now().minusMinutes(1));
-        user.setFailedLoginCount(3);
+    void lockOnOneIpDoesNotBlockRealUserOnAnotherIp() {
+        lock("6.6.6.6", LocalDateTime.now().plusMinutes(10)); // kẻ xấu cố tình khoá tài khoản
         when(userRepository.findByUsername("kho1")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("good", "hash")).thenReturn(true);
-        AuthenticationResponse response = service.authenticate(req("good"), "ip");
+        assertNotNull(service.authenticate(req("good"), "10.0.0.5").getToken());
+        assertNotNull(failure("6.6.6.6")); // khoá của IP kia vẫn còn
+    }
+
+    @Test
+    void expiredLockAndCorrectPasswordLogsInAndClearsRow() {
+        lock("1.2.3.4", LocalDateTime.now().minusMinutes(1));
+        when(userRepository.findByUsername("kho1")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("good", "hash")).thenReturn(true);
+        AuthenticationResponse response = service.authenticate(req("good"), "1.2.3.4");
         assertNotNull(response.getToken());
-        assertEquals(0, user.getFailedLoginCount());
-        assertNull(user.getLockedUntil());
+        assertNull(failure("1.2.3.4"));
+    }
+
+    @Test
+    void invalidIpHeaderIsGroupedAsUnknown() {
+        assertEquals("unknown", AuthenticationService.normalizeIp("1.2.3.4, 5.6.7.8"));
+        assertEquals("unknown", AuthenticationService.normalizeIp(null));
+        assertEquals("::1", AuthenticationService.normalizeIp(" ::1 "));
     }
 
     @Test
