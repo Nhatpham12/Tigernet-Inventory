@@ -114,6 +114,8 @@ class ApiClient {
         .toList();
   }
 
+  /// Làm mới token. Trả null khi server từ chối refresh token (hết hạn, bị thu hồi) → phải đăng nhập lại.
+  /// Lỗi tạm thời (429 quá nhiều request, 5xx, mất mạng) thì ném DioException để giữ phiên đăng nhập.
   Future<Map<String, dynamic>?> refreshTokens() async {
     final refresh = await _tokens.readRefreshToken();
     if (refresh == null) return null;
@@ -129,8 +131,10 @@ class ApiClient {
         refreshToken: result['refreshToken'] as String?,
       );
       return result;
-    } on DioException {
-      return null;
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 400 || status == 401 || status == 403) return null;
+      rethrow;
     }
   }
 
@@ -230,14 +234,29 @@ class _AuthInterceptor extends QueuedInterceptor {
         options.extra[_retried] == true) {
       return handler.next(err);
     }
-    final refreshed = await _client.refreshTokens();
-    if (refreshed == null) {
-      await _client._tokens.clear();
-      _client.onSessionExpired?.call();
-      return handler.next(err);
+    // Nhiều request cùng gặp 401 được xếp hàng (QueuedInterceptor): request đầu đã làm mới token
+    // thì các request sau dùng luôn token mới, không gọi /bff/auth/refresh thêm lần nữa.
+    final current = await _client._tokens.readAccessToken();
+    String? token;
+    if (current != null &&
+        options.headers['Authorization'] != 'Bearer $current') {
+      token = current;
+    } else {
+      final Map<String, dynamic>? refreshed;
+      try {
+        refreshed = await _client.refreshTokens();
+      } on DioException {
+        return handler.next(err); // lỗi tạm thời: giữ phiên, báo lỗi request này
+      }
+      if (refreshed == null) {
+        await _client._tokens.clear();
+        _client.onSessionExpired?.call();
+        return handler.next(err);
+      }
+      token = refreshed['token'] as String;
     }
     options.extra[_retried] = true;
-    options.headers['Authorization'] = 'Bearer ${refreshed['token']}';
+    options.headers['Authorization'] = 'Bearer $token';
     try {
       handler.resolve(await _client._dio.fetch(options));
     } on DioException catch (e) {
