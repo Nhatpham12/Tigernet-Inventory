@@ -87,6 +87,9 @@ CREATE TABLE Users (
     Role_ID       INT          NOT NULL,
     Is_Active     BOOLEAN      NOT NULL DEFAULT TRUE,
     Created_At    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    Failed_Login_Count INT     NOT NULL DEFAULT 0,  -- [V7] sai mật khẩu liên tiếp
+    Locked_Until  DATETIME     NULL,                -- [V7] khoá tạm đến thời điểm này
+    Token_Version INT          NOT NULL DEFAULT 0,  -- [V7] tăng lên là token cũ mất hiệu lực
     CONSTRAINT PK_Users PRIMARY KEY (ID),
     CONSTRAINT UQ_Users_Username UNIQUE (Username),
     CONSTRAINT UQ_Users_Email    UNIQUE (Email),

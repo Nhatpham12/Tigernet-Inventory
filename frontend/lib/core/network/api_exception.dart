@@ -25,7 +25,9 @@ class ApiException implements Exception {
 const Map<int, String> kErrorMessages = {
   1001: 'Không tìm thấy người dùng.',
   1002: 'Tên đăng nhập đã tồn tại.',
-  1003: 'Sai tên đăng nhập hoặc mật khẩu.',
+  1003:
+      'Sai tên đăng nhập hoặc mật khẩu. Nhập sai 5 lần liên tiếp, '
+      'tài khoản bị khoá 15 phút.',
   1004: 'Tài khoản đã bị khóa.',
   1005: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
   1006: 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.',
