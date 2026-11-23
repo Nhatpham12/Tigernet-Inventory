@@ -71,7 +71,7 @@ Cần hỏi người cấp máy (sếp/IT) những thông tin sau:
 | Cấu hình | Tối thiểu 2 vCPU, 4 GB RAM (MySQL + 2 JVM). 2 GB chạy được nhờ swap nhưng chậm khi khởi động |
 | Ổ đĩa | Từ 30 GB |
 | IP public | Cố định (không đổi khi khởi động lại máy) |
-| Tài khoản | Một user có quyền `sudo`, đăng nhập SSH bằng khoá. Nên tạo user riêng `deploy` (xem `docs/Ke_Hoach_Deploy_Prod.md` mục 4.2–4.3) |
+| Tài khoản | Một user có quyền `sudo`, đăng nhập SSH bằng khoá. Nên tạo user riêng: `sudo adduser deploy && sudo usermod -aG sudo deploy` (tạo user `deploy` và cho dùng sudo) |
 | Cổng SSH | Cổng đang dùng (nếu khác 22 thì đặt biến `VM_SSH_PORT` trên GitHub) |
 | Tường lửa của nhà cung cấp | Nếu có (security group, firewall panel): mở 80, 443 cho mọi nơi; mở cổng SSH cho IP quản trị và GitHub Actions (xem 3.2) |
 
@@ -85,7 +85,14 @@ Cần hỏi người cấp máy (sếp/IT) những thông tin sau:
 
 Không mở 3306, 8080, 8081. `bootstrap-server.sh` bật `ufw` với đúng các cổng trên (tự nhận cổng SSH đang chạy).
 (*) Dải IP runner GitHub thay đổi thường xuyên; cách đơn giản là mở SSH cho mọi nơi nhưng tắt đăng nhập mật khẩu
-(`PasswordAuthentication no`) và dùng fail2ban (xem `docs/Ke_Hoach_Deploy_Prod.md` mục 4.3, 4.6).
+và root, chỉ dùng khoá. Làm **sau khi** đã SSH được bằng khoá, giữ phiên SSH hiện tại mở để sửa nếu lỗi:
+
+```bash
+# file cấu hình riêng, ghi đè mặc định: cấm đăng nhập bằng mật khẩu và cấm SSH bằng root
+printf 'PasswordAuthentication no\nPermitRootLogin no\n' | sudo tee /etc/ssh/sshd_config.d/10-tigernet.conf
+sudo sshd -t && sudo systemctl restart ssh   # kiểm tra cú pháp trước, hợp lệ mới khởi động lại SSH
+sudo apt-get install -y fail2ban             # tự chặn IP dò mật khẩu SSH (jail sshd bật sẵn trên Ubuntu/Debian)
+```
 
 ### 3.3. Tên miền / DNS
 
@@ -146,7 +153,8 @@ Thông tin doanh nghiệp in trên biểu mẫu: chép `backend/company.example.
    CI chép `docker-compose.yml`, `deploy/`, script SQL lên `/opt/tigernet` rồi chạy `deploy.sh`.
    Database trống được dựng tự động từ `docs/Database_Script_v7.sql` (đã gồm V7, V8), không cần áp SQL tay.
    Lúc này proxy chạy **HTTP** (chưa có chứng chỉ): mở `http://<tên-miền>` để kiểm tra
-   (muốn đăng nhập được qua HTTP thì tạm đặt `BFF_COOKIE_SECURE=false`, xong bước 2 đặt lại `true`).
+   (muốn đăng nhập được qua HTTP thì tạm đặt `BFF_COOKIE_SECURE=false`, xong bước 2 đặt lại `true`;
+   mỗi lần đổi chạy `docker compose up -d bff` để BFF nhận giá trị mới).
 2. Cấp chứng chỉ:
    ```bash
    cd /opt/tigernet
