@@ -1,5 +1,9 @@
 package com.tigernet.backend.inventory.controller;
 
+import com.tigernet.backend.common.security.NoPageCheck;
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.inventory.dto.request.InventoryLocationRequest;
 import com.tigernet.backend.inventory.dto.request.StockSettingRequest;
@@ -27,6 +31,7 @@ public class InventoryController {
     InventoryService inventoryService;
     StockSettingService stockSettingService;
 
+    @RequiresPage({Pages.PRODUCTS, Pages.REPORT_STOCK, Pages.STOCKTAKES, Pages.WARRANTY_NEW})
     @GetMapping("/inventory") // ?warehouseId=&productId=&status=&serial=
     ApiResponse<List<InventoryResponse>> getInventories(@RequestParam(required = false) Integer warehouseId,
                                                         @RequestParam(required = false) Integer productId,
@@ -35,23 +40,27 @@ public class InventoryController {
         return ApiResponse.success(inventoryService.getInventories(warehouseId, productId, status, serial));
     }
 
+    @RequiresPage({Pages.PRODUCTS, Pages.REPORT_STOCK, Pages.STOCKTAKES, Pages.WARRANTY_NEW})
     @GetMapping("/inventory/{inventoryId}")
     ApiResponse<InventoryResponse> getInventory(@PathVariable Integer inventoryId) {
         return ApiResponse.success(inventoryService.getInventory(inventoryId));
     }
 
+    @RequiresPage({Pages.PRODUCTS_NEW, Pages.STOCKTAKES})
     @PutMapping("/inventory/{inventoryId}/location")
     ApiResponse<InventoryResponse> updateLocation(@PathVariable Integer inventoryId,
                                                   @RequestBody InventoryLocationRequest request) {
         return ApiResponse.success(inventoryService.updateLocation(inventoryId, request));
     }
 
+    @NoPageCheck("Tồn kho tổng hợp hiển thị ở danh sách sản phẩm và dashboard")
     @GetMapping("/stock-summary") // ?warehouseId=&productId=
     ApiResponse<List<StockSummaryResponse>> getStockSummaries(@RequestParam(required = false) Integer warehouseId,
                                                               @RequestParam(required = false) Integer productId) {
         return ApiResponse.success(inventoryService.getStockSummaries(warehouseId, productId));
     }
 
+    @RequiresPage({Pages.REPORT_MOVEMENTS, Pages.REPORT_STOCK})
     @GetMapping("/stock-movements") // ?warehouseId=&productId=&from=2026-10-01&to=2026-10-31
     ApiResponse<List<StockMovementResponse>> getStockMovements(
             @RequestParam(required = false) Integer warehouseId,
@@ -61,12 +70,14 @@ public class InventoryController {
         return ApiResponse.success(inventoryService.getStockMovements(warehouseId, productId, from, to));
     }
 
+    @RequiresPage({Pages.PRODUCTS})
     @GetMapping("/stock-settings") // ?warehouseId=&productId=
     ApiResponse<List<StockSettingResponse>> getStockSettings(@RequestParam(required = false) Integer warehouseId,
                                                              @RequestParam(required = false) Integer productId) {
         return ApiResponse.success(stockSettingService.getSettings(warehouseId, productId));
     }
 
+    @RequiresPage({Pages.PRODUCTS_NEW})
     @PutMapping("/stock-settings")
     ApiResponse<StockSettingResponse> saveStockSetting(@RequestBody @Valid StockSettingRequest request) {
         return ApiResponse.success(stockSettingService.saveSetting(request));

@@ -35,6 +35,7 @@ class Session {
     required this.defaultWarehouseId,
     required this.unreadAlerts,
     this.pages,
+    this.effectivePages,
   });
 
   final int userId;
@@ -49,6 +50,9 @@ class Session {
 
   /// Trang được xem do Quản trị phân quyền riêng; null = quyền mặc định theo vai trò.
   final Set<String>? pages;
+
+  /// Trang được vào thực tế do backend tính (cũng là danh sách backend dùng để chặn API).
+  final Set<String>? effectivePages;
 
   String get displayName => fullName.isNotEmpty ? fullName : username;
 
@@ -77,6 +81,9 @@ class Session {
     pages: json['pages'] is List
         ? {for (final p in json['pages'] as List) '$p'}
         : null,
+    effectivePages: json['effectivePages'] is List
+        ? {for (final p in json['effectivePages'] as List) '$p'}
+        : null,
   );
 
   Session copyWith({int? unreadAlerts}) => Session(
@@ -90,5 +97,6 @@ class Session {
     defaultWarehouseId: defaultWarehouseId,
     unreadAlerts: unreadAlerts ?? this.unreadAlerts,
     pages: pages,
+    effectivePages: effectivePages,
   );
 }

@@ -1,5 +1,8 @@
 package com.tigernet.backend.outbound.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.outbound.dto.request.ExportReceiptCreationRequest;
 import com.tigernet.backend.outbound.dto.request.ExportReceiptUpdateRequest;
@@ -24,11 +27,13 @@ import java.util.List;
 public class ExportReceiptController {
     ExportReceiptService exportReceiptService;
 
+    @RequiresPage({Pages.EXPORTS_NEW})
     @PostMapping
     ApiResponse<ExportReceiptResponse> createReceipt(@RequestBody @Valid ExportReceiptCreationRequest request) {
         return ApiResponse.success(exportReceiptService.createReceipt(request));
     }
 
+    @RequiresPage({Pages.EXPORTS, Pages.EXPORTS_NEW, Pages.PAYMENTS, Pages.PAYMENTS_NEW_IN, Pages.SALES_RETURNS, Pages.WARRANTY, Pages.WARRANTY_NEW, Pages.REPORT_RECEIVABLES, Pages.REPORT_RECONCILIATION})
     @GetMapping // ?warehouseId=&customerId=&status=&from=&to=
     ApiResponse<List<ExportReceiptResponse>> getReceipts(
             @RequestParam(required = false) Integer warehouseId,
@@ -39,11 +44,13 @@ public class ExportReceiptController {
         return ApiResponse.success(exportReceiptService.getReceipts(warehouseId, customerId, status, from, to));
     }
 
+    @RequiresPage({Pages.EXPORTS, Pages.EXPORTS_NEW, Pages.PAYMENTS, Pages.PAYMENTS_NEW_IN, Pages.SALES_RETURNS, Pages.WARRANTY, Pages.WARRANTY_NEW, Pages.REPORT_RECEIVABLES, Pages.REPORT_RECONCILIATION})
     @GetMapping("/{receiptId}")
     ApiResponse<ExportReceiptResponse> getReceipt(@PathVariable Integer receiptId) {
         return ApiResponse.success(exportReceiptService.getReceipt(receiptId));
     }
 
+    @RequiresPage({Pages.EXPORTS_NEW})
     @PutMapping("/{receiptId}")
     ApiResponse<ExportReceiptResponse> updateReceipt(@PathVariable Integer receiptId,
                                                      @RequestBody @Valid ExportReceiptUpdateRequest request) {
@@ -51,12 +58,14 @@ public class ExportReceiptController {
     }
 
     // hủy phiếu PENDING: phiếu chuyển sang CANCELLED, không xóa
+    @RequiresPage({Pages.EXPORTS_NEW})
     @DeleteMapping("/{receiptId}")
     ApiResponse<ExportReceiptResponse> cancelReceipt(@PathVariable Integer receiptId,
                                                      @RequestParam(required = false) String reason) {
         return ApiResponse.success(exportReceiptService.cancelReceipt(receiptId, reason));
     }
 
+    @RequiresPage({Pages.EXPORTS_NEW, Pages.PAYMENTS_NEW_IN})
     @PostMapping("/{receiptId}/payments")
     ApiResponse<ExportReceiptResponse> recordPayment(@PathVariable Integer receiptId,
                                                      @RequestBody @Valid PaymentRequest request) {

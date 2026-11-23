@@ -1,5 +1,8 @@
 package com.tigernet.backend.printing.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.printing.service.ReconciliationPrintService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -10,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 
+@RequiresPage({Pages.REPORT_RECONCILIATION})
 @RestController
 @RequiredArgsConstructor
 public class ReconciliationPrintController {

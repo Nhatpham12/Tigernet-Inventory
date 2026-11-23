@@ -37,7 +37,6 @@ public class SecurityConfig {
     // claim "scope" của access token = Role_Name, Spring Security đổi thành quyền "SCOPE_<role>"
     public static final String ADMIN = "SCOPE_ADMIN";
     public static final String MANAGER = "SCOPE_MANAGER";
-    public static final String WAREHOUSE = "SCOPE_WAREHOUSE";
 
     // các endpoint không cần token
     private static final String[] PUBLIC_ENDPOINTS = {
@@ -69,13 +68,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/users").hasAnyAuthority(ADMIN, MANAGER)
                         .requestMatchers("/users", "/users/**").hasAuthority(ADMIN)
                         .requestMatchers("/audit-logs", "/audit-logs/**").hasAuthority(ADMIN)
-                        // thêm/sửa/xóa kho: Quản lý, Quản trị (vị trí trong kho không thuộc luật này)
-                        .requestMatchers(HttpMethod.POST, "/warehouses").hasAnyAuthority(ADMIN, MANAGER)
-                        .requestMatchers(HttpMethod.PUT, "/warehouses/*").hasAnyAuthority(ADMIN, MANAGER)
-                        .requestMatchers(HttpMethod.DELETE, "/warehouses/*").hasAnyAuthority(ADMIN, MANAGER)
-                        // sửa/xóa nhà cung cấp: Thủ kho, Quản lý, Quản trị (như quyền thêm trên menu)
-                        .requestMatchers(HttpMethod.PUT, "/suppliers/*").hasAnyAuthority(ADMIN, MANAGER, WAREHOUSE)
-                        .requestMatchers(HttpMethod.DELETE, "/suppliers/*").hasAnyAuthority(ADMIN, MANAGER, WAREHOUSE)
+                        // còn lại: cần đăng nhập; quyền theo trang/vai trò của từng API do AccessInterceptor kiểm tra
+                        // (@RequiresPage, @RequiresRole, @NoPageCheck trên controller; mặc định từ chối)
                         .anyRequest().authenticated())
                 // đọc header "Authorization: Bearer <token>" do /auth/login cấp
                 .oauth2ResourceServer(oauth2 -> oauth2

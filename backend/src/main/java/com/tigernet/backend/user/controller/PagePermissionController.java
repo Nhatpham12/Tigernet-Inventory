@@ -1,5 +1,9 @@
 package com.tigernet.backend.user.controller;
 
+import com.tigernet.backend.common.security.NoPageCheck;
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.common.security.SecurityUtils;
 import com.tigernet.backend.user.dto.request.PagePermissionRequest;
@@ -12,6 +16,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.web.bind.annotation.*;
 
 // /users/me/** cho mọi user đã đăng nhập; /users/{id}/** chỉ ADMIN (SecurityConfig)
+@RequiresRole({PageAccessPolicy.ADMIN})
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
@@ -19,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 public class PagePermissionController {
     PagePermissionService pagePermissionService;
 
+    @NoPageCheck("Quyền trang của chính mình (BFF dựng menu)")
     @GetMapping("/me/page-permissions")
     ApiResponse<PagePermissionResponse> getMine() {
         return ApiResponse.success(pagePermissionService.get(SecurityUtils.currentUserId()));

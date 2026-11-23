@@ -1,5 +1,8 @@
 package com.tigernet.backend.printing.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.printing.service.SalesReturnPrintService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@RequiresPage({Pages.SALES_RETURNS})
 @RestController
 @RequiredArgsConstructor
 public class SalesReturnPrintController {

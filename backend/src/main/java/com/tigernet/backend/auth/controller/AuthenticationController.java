@@ -1,5 +1,7 @@
 package com.tigernet.backend.auth.controller;
 
+import com.tigernet.backend.common.security.NoPageCheck;
+
 import com.tigernet.backend.auth.dto.request.AuthenticationRequest;
 import com.tigernet.backend.auth.dto.request.RefreshTokenRequest;
 import com.tigernet.backend.auth.dto.response.AuthenticationResponse;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@NoPageCheck("Đăng nhập, làm mới token, đăng xuất; SecurityConfig quy định cần token hay không")
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor

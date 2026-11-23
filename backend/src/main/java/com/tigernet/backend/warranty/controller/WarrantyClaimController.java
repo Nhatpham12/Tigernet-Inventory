@@ -1,5 +1,8 @@
 package com.tigernet.backend.warranty.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.warranty.dto.request.WarrantyClaimCreationRequest;
 import com.tigernet.backend.warranty.dto.request.WarrantyStatusRequest;
@@ -24,17 +27,20 @@ public class WarrantyClaimController {
     WarrantyClaimService warrantyClaimService;
 
     // ?serial= (dòng bán gần nhất của serial) hoặc ?exportReceiptId= (mọi dòng của phiếu xuất)
+    @RequiresPage({Pages.WARRANTY_NEW})
     @GetMapping("/warranty-claims/lookup")
     ApiResponse<List<WarrantyLookupResponse>> lookup(@RequestParam(required = false) String serial,
                                                      @RequestParam(required = false) Integer exportReceiptId) {
         return ApiResponse.success(warrantyClaimService.lookup(serial, exportReceiptId));
     }
 
+    @RequiresPage({Pages.WARRANTY_NEW})
     @PostMapping("/warranty-claims")
     ApiResponse<WarrantyClaimResponse> createClaim(@RequestBody @Valid WarrantyClaimCreationRequest request) {
         return ApiResponse.success(warrantyClaimService.createClaim(request));
     }
 
+    @RequiresPage({Pages.WARRANTY})
     @GetMapping("/warranty-claims") // ?status=&warehouseId=&customerId=&from=&to=
     ApiResponse<List<WarrantyClaimResponse>> getClaims(
             @RequestParam(required = false) WarrantyClaimStatus status,
@@ -45,11 +51,13 @@ public class WarrantyClaimController {
         return ApiResponse.success(warrantyClaimService.getClaims(status, warehouseId, customerId, from, to));
     }
 
+    @RequiresPage({Pages.WARRANTY})
     @GetMapping("/warranty-claims/{claimId}")
     ApiResponse<WarrantyClaimResponse> getClaim(@PathVariable Integer claimId) {
         return ApiResponse.success(warrantyClaimService.getClaim(claimId));
     }
 
+    @RequiresPage({Pages.WARRANTY})
     @PutMapping("/warranty-claims/{claimId}/status")
     ApiResponse<WarrantyClaimResponse> changeStatus(@PathVariable Integer claimId,
                                                     @RequestBody @Valid WarrantyStatusRequest request) {

@@ -1,5 +1,10 @@
 package com.tigernet.backend.stocktake.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.stocktake.dto.request.StocktakeCompleteRequest;
 import com.tigernet.backend.stocktake.dto.request.StocktakeCreationRequest;
@@ -18,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 
+@RequiresPage({Pages.STOCKTAKES})
 @RestController
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -49,6 +55,7 @@ public class StocktakeController {
         return ApiResponse.success(stocktakeService.updateItems(stocktakeId, request));
     }
 
+    @RequiresRole({PageAccessPolicy.MANAGER})
     @PutMapping("/stocktakes/{stocktakeId}/complete")
     ApiResponse<StocktakeResponse> completeStocktake(@PathVariable Integer stocktakeId,
                                                      @RequestBody(required = false) StocktakeCompleteRequest request) {
