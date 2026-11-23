@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sao lưu database bằng mysqldump vào /opt/tigernet/backups (giữ BACKUP_KEEP_DAYS ngày).
-# Nếu .env có BACKUP_S3_BUCKET thì đẩy thêm lên S3 (cần AWS CLI + IAM role của EC2).
+# Nếu .env có BACKUP_S3_BUCKET thì đẩy thêm lên S3 (cần AWS CLI và quyền ghi bucket trên máy chủ).
 # Cron gợi ý (2 giờ sáng hằng ngày):  0 2 * * * /opt/tigernet/deploy/scripts/backup-db.sh >> /opt/tigernet/backups/backup.log 2>&1
 set -euo pipefail
 cd "$(dirname "$0")/../.."
