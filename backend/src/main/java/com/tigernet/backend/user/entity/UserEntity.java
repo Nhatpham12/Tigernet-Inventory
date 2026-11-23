@@ -36,4 +36,12 @@ public class UserEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "Role_ID")
     private RoleEntity role;
+
+    // ghi vào claim "ver" của token; tăng lên là mọi token cũ của user mất hiệu lực (đăng xuất, đổi mật khẩu...)
+    @Column(name = "Token_Version", nullable = false, columnDefinition = "INT NOT NULL DEFAULT 0")
+    private int tokenVersion;
+
+    public void revokeTokens() {
+        tokenVersion++;
+    }
 }

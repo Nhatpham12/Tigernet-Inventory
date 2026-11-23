@@ -2,6 +2,7 @@ package com.tigernet.backend.user.service;
 
 import com.tigernet.backend.audit.repository.AuditLogRepository;
 import com.tigernet.backend.audit.service.AuditLogService;
+import com.tigernet.backend.auth.repository.LoginFailureRepository;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.security.SecurityUtils;
@@ -50,6 +51,9 @@ public class UserService {
     private UserPagePermissionRepository pagePermissionRepository;
 
     @Autowired
+    private LoginFailureRepository loginFailureRepository;
+
+    @Autowired
     private AuditLogRepository auditLogRepository;
 
     @Autowired
@@ -95,6 +99,8 @@ public class UserService {
     public UserResponse updateUser(Integer userId, UserUpdateRequest request){
         UserEntity user = findUserById(userId);
         Map<String, Object> before = snapshot(user);
+        RoleEntity oldRole = user.getRole();
+        boolean wasActive = Boolean.TRUE.equals(user.getIsActive());
         RoleEntity newRole = request.getRoleId() != null ? findRoleById(request.getRoleId()) : user.getRole();
 
         // Quản trị không tự khóa hoặc tự bỏ quyền ADMIN của chính mình (tránh mất quyền quản trị)
@@ -111,6 +117,14 @@ public class UserService {
         boolean passwordChanged = request.getPassword() != null && !request.getPassword().isEmpty();
         if(passwordChanged){
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            // Quản trị đặt lại mật khẩu thì mở luôn khoá do nhập sai nhiều lần (mọi IP)
+            loginFailureRepository.deleteByUserId(userId);
+        }
+        // đổi mật khẩu / đổi vai trò / khoá tài khoản: token cũ mang quyền cũ nên phải mất hiệu lực ngay
+        boolean roleChanged = !Objects.equals(roleId(oldRole), roleId(newRole));
+        boolean deactivated = wasActive && !Boolean.TRUE.equals(user.getIsActive());
+        if(passwordChanged || roleChanged || deactivated){
+            user.revokeTokens();
         }
 
         UserEntity saved = userRepository.save(user);
@@ -147,6 +161,7 @@ public class UserService {
                     Map<String, Object> detail = snapshot(user);
                     userWarehouseRepository.deleteByUserId(userId);
                     pagePermissionRepository.deleteByUserId(userId);
+                    loginFailureRepository.deleteByUserId(userId);
                     userRepository.delete(user);
                     userRepository.flush(); // lộ lỗi khóa ngoại ngay tại đây nếu user đã tạo phiếu
                     auditLogService.log("DELETE_USER", "Users", userId, detail);
@@ -159,6 +174,7 @@ public class UserService {
         tx.executeWithoutResult(status -> {
             UserEntity user = findUserById(userId);
             user.setIsActive(false);
+            user.revokeTokens();
             userRepository.save(user);
             auditLogService.log("LOCK_USER", "Users", userId, snapshot(user));
         });
@@ -178,6 +194,10 @@ public class UserService {
 
     private static boolean isCurrentUser(Integer userId){
         return Objects.equals(SecurityUtils.currentUserId(), userId);
+    }
+
+    private static Integer roleId(RoleEntity role){
+        return role == null ? null : role.getId();
     }
 
     private static String blankToNull(String value){

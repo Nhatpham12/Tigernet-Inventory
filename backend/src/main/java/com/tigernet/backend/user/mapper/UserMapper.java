@@ -20,6 +20,7 @@ public interface UserMapper {
     @Mapping(target = "role", ignore = true)
     @Mapping(target = "passwordHash", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "tokenVersion", ignore = true)
     UserEntity toUser(UserCreationRequest request);
 
     @Mapping(target = "roleId", source = "role.id")
@@ -35,5 +36,6 @@ public interface UserMapper {
     @Mapping(target = "passwordHash", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "username", ignore = true)
+    @Mapping(target = "tokenVersion", ignore = true)
     void updateUser(@MappingTarget UserEntity user, UserUpdateRequest request);
 }

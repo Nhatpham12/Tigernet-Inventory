@@ -50,8 +50,16 @@ class SessionController extends AsyncNotifier<Session?> {
     state = AsyncData(await _loadSession());
   }
 
+  /// Báo server thu hồi mọi token của user (đăng xuất mọi thiết bị) rồi xoá token trên máy.
+  /// Server lỗi hoặc mất mạng thì vẫn đăng xuất trên máy này.
   Future<void> logout() async {
-    await ref.read(apiClientProvider).tokens.clear();
+    final api = ref.read(apiClientProvider);
+    try {
+      await api.post('/bff/auth/logout');
+    } on ApiException catch (e) {
+      debugPrint('logout: $e');
+    }
+    await api.tokens.clear();
     state = const AsyncData(null);
   }
 
