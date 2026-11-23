@@ -1,7 +1,20 @@
 # Dùng chung cho server HTTP (chưa có chứng chỉ) và HTTPS
 client_max_body_size 25m;
 
+# Đăng nhập, làm mới token: giới hạn chặt chống dò mật khẩu (zone trong ratelimit.conf).
+# BFF không proxy /bff/api/auth/** nên đây là đường duy nhất tới /auth của backend.
+location /bff/auth/ {
+    limit_req zone=tn_login burst=5 nodelay;
+    proxy_pass http://bff:8081;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
 location /bff/ {
+    limit_req zone=tn_general burst=40 nodelay;
     proxy_pass http://bff:8081;
     proxy_http_version 1.1;
     proxy_set_header Host $host;

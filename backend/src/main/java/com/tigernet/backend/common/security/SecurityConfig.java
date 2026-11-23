@@ -59,7 +59,8 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         // thông tin + quyền xem trang của chính mình
                         .requestMatchers("/users/me", "/users/me/**").authenticated()
-                        // BFF đọc kho được phân công của user đang đăng nhập khi mở app
+                        // BFF đọc kho được phân công của user đang đăng nhập khi mở app;
+                        // UserWarehouseService chỉ cho xem của chính mình (Quản trị/Quản lý xem được mọi người)
                         .requestMatchers(HttpMethod.GET, "/users/*/warehouses").authenticated()
                         // Quản lý xem được danh sách nhân viên, chỉ Quản trị được tạo/sửa/xóa/phân quyền
                         .requestMatchers(HttpMethod.GET, "/users").hasAnyAuthority(ADMIN, MANAGER)
@@ -93,7 +94,8 @@ public class SecurityConfig {
                 .equals(jwt.getClaimAsString(AuthenticationService.TOKEN_TYPE_CLAIM))
                 ? OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Refresh token cannot access APIs", null))
                 : OAuth2TokenValidatorResult.success();
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefault(), notRefreshToken));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(AuthenticationService.ISSUER), notRefreshToken));
         return decoder;
     }
 

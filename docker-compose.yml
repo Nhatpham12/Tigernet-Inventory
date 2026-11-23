@@ -28,7 +28,9 @@ services:
       - ./docs/Database_Script_v7.sql:/schema/Database_Script_v7.sql:ro
       - ./database/tenant/V6__user_page_permissions.sql:/schema/V6__user_page_permissions.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      # không cần mật khẩu: mysqladmin ping trả 0 khi server đang chạy, kể cả khi bị từ chối đăng nhập
+      # (tránh để mật khẩu root trên dòng lệnh, ai xem được danh sách tiến trình cũng thấy)
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 10s
       timeout: 5s
       retries: 30
@@ -80,6 +82,7 @@ services:
     environment:
       DOMAIN: ${DOMAIN:-localhost}
     volumes:
+      - ./deploy/nginx/ratelimit.conf:/etc/nginx/conf.d/00-ratelimit.conf:ro
       - ./deploy/nginx/common.inc:/etc/nginx/tigernet/common.inc:ro
       - ./deploy/nginx/http-only.conf.template:/etc/nginx/tigernet/http-only.conf.template:ro
       - ./deploy/nginx/https.conf.template:/etc/nginx/tigernet/https.conf.template:ro

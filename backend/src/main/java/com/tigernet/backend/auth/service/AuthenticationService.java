@@ -40,6 +40,7 @@ public class AuthenticationService {
     // claim "typ" phân biệt 2 loại token; SecurityConfig từ chối refresh token khi gọi API
     public static final String TOKEN_TYPE_CLAIM = "typ";
     public static final String REFRESH_TOKEN_TYPE = "refresh";
+    public static final String ISSUER = "tigernet";
 
     UserRepository userRepository;
     PasswordEncoder passwordEncoder;
@@ -127,7 +128,7 @@ public class AuthenticationService {
         long duration = refresh ? refreshDuration : validDuration;
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                 .subject(user.getUsername())
-                .issuer("tigernet")
+                .issuer(ISSUER)
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(now.plus(duration, ChronoUnit.SECONDS)))
                 .jwtID(UUID.randomUUID().toString()) // để sau này có thể thu hồi (logout) từng token
