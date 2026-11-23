@@ -95,13 +95,16 @@ public class StocktakePrintService {
                 shortage = shortage.add(diffAmt);
                 shortQty -= diff;
             }
-            goodQty += d.getActualQty();
+            // hàng mất phẩm chất nằm trong số thực tế kiểm kê, nên còn tốt = thực tế − hỏng
+            bad = Math.min(bad, Math.max(d.getActualQty(), 0));
+            int good = d.getActualQty() - bad;
+            goodQty += good;
             damagedQty += bad;
             rows.add(new StocktakeRow(stt++, d.getProduct().getProductName(), PrintLine.productCode(d.getProduct()),
                     d.getProduct().getUnit(), price, d.getSystemQty(), bookAmt, d.getActualQty(), actAmt,
                     diff > 0 ? diff : null, diff > 0 ? diffAmt : null,
                     diff < 0 ? -diff : null, diff < 0 ? diffAmt : null,
-                    d.getActualQty(), bad > 0 ? bad : null, null));
+                    good, bad > 0 ? bad : null, null));
         }
         m.put("rows", rows);
         m.put("bookTotal", book);
