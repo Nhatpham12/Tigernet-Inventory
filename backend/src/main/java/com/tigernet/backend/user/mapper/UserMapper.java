@@ -21,6 +21,8 @@ public interface UserMapper {
     @Mapping(target = "passwordHash", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "tokenVersion", ignore = true)
+    @Mapping(target = "mfaSecret", ignore = true)
+    @Mapping(target = "mfaEnabled", ignore = true)
     UserEntity toUser(UserCreationRequest request);
 
     @Mapping(target = "roleId", source = "role.id")
@@ -37,5 +39,7 @@ public interface UserMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "username", ignore = true)
     @Mapping(target = "tokenVersion", ignore = true)
+    @Mapping(target = "mfaSecret", ignore = true)
+    @Mapping(target = "mfaEnabled", ignore = true)
     void updateUser(@MappingTarget UserEntity user, UserUpdateRequest request);
 }

@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,17 +44,55 @@ public class AuthController {
     public record LoginRequest(@NotBlank String username, @NotBlank String password, Boolean remember) {
     }
 
-    /** body FE nhận được: không có token */
-    public record SessionTokens(long expiresIn, boolean authenticated) {
+    /**
+     * Body FE nhận được: không có token gọi API. Quản trị còn bước mã 6 số thì authenticated = false và có
+     * mfaToken (5 phút, chỉ dùng cho /bff/auth/mfa/**); recoveryCodes chỉ có ngay khi vừa bật MFA.
+     */
+    public record SessionTokens(long expiresIn, boolean authenticated, boolean mfaRequired, boolean mfaSetupRequired,
+                                String mfaToken, List<String> recoveryCodes) {
+    }
+
+    public record MfaTokenRequest(@NotBlank String mfaToken) {
+    }
+
+    public record MfaCodeRequest(@NotBlank String mfaToken, String code, String recoveryCode, Boolean remember) {
     }
 
     @PostMapping("/login")
     ApiResponse<SessionTokens> login(@RequestBody @Valid LoginRequest request, HttpServletRequest http,
                                      HttpServletResponse response) {
-        JsonNode tokens = backendClient.post("/auth/login",
+        JsonNode result = backendClient.post("/auth/login",
                 Map.of("username", request.username(), "password", request.password()), null,
                 Map.of(CLIENT_IP_HEADER, clientIp(http)));
-        return ApiResponse.success(store(tokens, !Boolean.FALSE.equals(request.remember()), response));
+        return ApiResponse.success(store(result, !Boolean.FALSE.equals(request.remember()), response));
+    }
+
+    // Quản trị cài MFA lần đầu: trả khoá + link otpauth:// để FE vẽ QR
+    @PostMapping("/mfa/setup")
+    ApiResponse<JsonNode> mfaSetup(@RequestBody @Valid MfaTokenRequest request) {
+        return ApiResponse.success(backendClient.post("/auth/mfa/setup", Map.of("mfaToken", request.mfaToken()), null));
+    }
+
+    @PostMapping("/mfa/confirm")
+    ApiResponse<SessionTokens> mfaConfirm(@RequestBody @Valid MfaCodeRequest request, HttpServletRequest http,
+                                          HttpServletResponse response) {
+        return mfaStep("/auth/mfa/confirm", request, http, response);
+    }
+
+    @PostMapping("/mfa/verify")
+    ApiResponse<SessionTokens> mfaVerify(@RequestBody @Valid MfaCodeRequest request, HttpServletRequest http,
+                                         HttpServletResponse response) {
+        return mfaStep("/auth/mfa/verify", request, http, response);
+    }
+
+    private ApiResponse<SessionTokens> mfaStep(String path, MfaCodeRequest request, HttpServletRequest http,
+                                               HttpServletResponse response) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("mfaToken", request.mfaToken());
+        body.put("code", request.code());
+        body.put("recoveryCode", request.recoveryCode());
+        JsonNode result = backendClient.post(path, body, null, Map.of(CLIENT_IP_HEADER, clientIp(http)));
+        return ApiResponse.success(store(result, !Boolean.FALSE.equals(request.remember()), response));
     }
 
     // refresh token lấy từ cookie (Path=/bff/auth); backend xoay vòng nên ghi lại cả hai cookie
@@ -88,10 +129,23 @@ public class AuthController {
         return ApiResponse.success(null);
     }
 
-    private SessionTokens store(JsonNode tokens, boolean remember, HttpServletResponse response) {
-        long expiresIn = Json.decimal(tokens, "expiresIn").longValue();
-        cookies.write(response, Json.text(tokens, "token"), expiresIn, Json.text(tokens, "refreshToken"), remember);
-        return new SessionTokens(expiresIn, true);
+    /** có token thì cất vào cookie; chưa có (Quản trị còn bước MFA) thì chỉ chuyển tiếp thông tin bước MFA */
+    private SessionTokens store(JsonNode result, boolean remember, HttpServletResponse response) {
+        String accessToken = Json.text(result, "token");
+        List<String> recoveryCodes = null;
+        if (result.path("recoveryCodes").isArray()) {
+            recoveryCodes = new ArrayList<>();
+            for (JsonNode code : result.path("recoveryCodes")) {
+                recoveryCodes.add(code.asText());
+            }
+        }
+        if (accessToken == null) {
+            return new SessionTokens(0, false, result.path("mfaRequired").asBoolean(false),
+                    result.path("mfaSetupRequired").asBoolean(false), Json.text(result, "mfaToken"), null);
+        }
+        long expiresIn = Json.decimal(result, "expiresIn").longValue();
+        cookies.write(response, accessToken, expiresIn, Json.text(result, "refreshToken"), remember);
+        return new SessionTokens(expiresIn, true, false, false, null, recoveryCodes);
     }
 
     private static String clientIp(HttpServletRequest http) {

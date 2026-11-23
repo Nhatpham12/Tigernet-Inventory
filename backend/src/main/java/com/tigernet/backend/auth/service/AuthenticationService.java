@@ -34,6 +34,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,9 +44,12 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 
 public class AuthenticationService {
-    // claim "typ" phân biệt 2 loại token; SecurityConfig từ chối refresh token khi gọi API
+    // claim "typ" đánh dấu token không phải access token; SecurityConfig từ chối mọi token có "typ" khi gọi API
     public static final String TOKEN_TYPE_CLAIM = "typ";
     public static final String REFRESH_TOKEN_TYPE = "refresh";
+    // token tạm giữa bước mật khẩu và bước mã 6 số của Quản trị
+    public static final String MFA_TOKEN_TYPE = "mfa";
+    static final long MFA_TOKEN_SECONDS = 300;
     public static final String ISSUER = "tigernet";
     // claim "ver" = Users.Token_Version lúc cấp token; SecurityConfig và refresh() so với giá trị hiện tại
     public static final String TOKEN_VERSION_CLAIM = "ver";
@@ -59,6 +63,11 @@ public class AuthenticationService {
     LoginFailureRepository loginFailureRepository;
     PasswordEncoder passwordEncoder;
     AuditLogService auditLogService;
+    MfaService mfaService;
+
+    /** khoá Base32 (để gõ tay) + link otpauth:// (để quét QR) khi cài xác thực 2 bước */
+    public record MfaSetupResponse(String secret, String otpauthUri) {
+    }
 
     @NonFinal
     @Value("${jwt.signer-key}")
@@ -90,10 +99,9 @@ public class AuthenticationService {
         }
         UserEntity user = found.get();
         LocalDateTime now = LocalDateTime.now();
-        LoginFailureEntity.Key key = new LoginFailureEntity.Key(user.getUserId(), ip);
-        LoginFailureEntity failure = loginFailureRepository.findById(key).orElse(null);
+        LoginFailureEntity failure = failureRow(user, ip);
 
-        if(failure != null && failure.getLockedUntil() != null && failure.getLockedUntil().isAfter(now)){
+        if(isLocked(failure, now)){
             // không kiểm tra mật khẩu thật khi đang khoá, nhưng vẫn tốn thời gian như nhau để không lộ trạng thái
             passwordEncoder.matches(request.getPassword(), DUMMY_HASH);
             logFailure(user.getUsername(), ip, "locked");
@@ -101,7 +109,7 @@ public class AuthenticationService {
         }
 
         if(!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())){
-            recordFailedPassword(user, key, failure, now);
+            recordFailure(user, failure, now, "bad-password");
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
@@ -109,12 +117,124 @@ public class AuthenticationService {
             throw new AppException(ErrorCode.USER_INACTIVE);
         }
 
-        if(failure != null){
+        // Quản trị: đúng mật khẩu chưa đủ, phải qua bước mã 6 số. Giữ bộ đếm sai cho tới khi qua bước 2
+        // để kẻ có mật khẩu không thử mã liên tục được.
+        if(mfaService.requiredFor(user)){
+            return AuthenticationResponse.builder()
+                    .mfaRequired(user.isMfaEnabled())
+                    .mfaSetupRequired(!user.isMfaEnabled())
+                    .mfaToken(generateToken(user, MFA_TOKEN_TYPE, MFA_TOKEN_SECONDS))
+                    .build();
+        }
+        return completeLogin(user, failure, null);
+    }
+
+    /** Quản trị chưa bật MFA: tạo khoá mới (lưu mã hoá, chưa bật) và trả link QR để quét bằng app Authenticator */
+    @Transactional
+    public MfaSetupResponse mfaSetup(String mfaToken){
+        UserEntity user = userFromMfaToken(mfaToken);
+        if(user.isMfaEnabled()){
+            throw new AppException(ErrorCode.MFA_ALREADY_ENABLED);
+        }
+        String secret = mfaService.newSecret();
+        user.setMfaSecret(mfaService.encrypt(secret));
+        return new MfaSetupResponse(secret, MfaService.otpauthUri(user.getUsername(), secret));
+    }
+
+    /** nhập mã 6 số đầu tiên để bật MFA; thành công thì đăng nhập luôn và trả 8 mã khôi phục (hiện 1 lần) */
+    @Transactional(noRollbackFor = AppException.class)
+    public AuthenticationResponse mfaConfirm(String mfaToken, String code, String clientIp){
+        UserEntity user = userFromMfaToken(mfaToken);
+        if(user.isMfaEnabled()){
+            throw new AppException(ErrorCode.MFA_ALREADY_ENABLED);
+        }
+        if(user.getMfaSecret() == null){
+            throw new AppException(ErrorCode.MFA_NOT_SET_UP);
+        }
+        LoginFailureEntity failure = checkMfaAttempt(user, clientIp);
+        if(!mfaService.verifyCode(mfaService.decrypt(user.getMfaSecret()), code, Instant.now())){
+            recordFailure(user, failure, LocalDateTime.now(), "bad-mfa-code");
+            throw new AppException(ErrorCode.MFA_CODE_INVALID);
+        }
+        user.setMfaEnabled(true);
+        List<String> recoveryCodes = mfaService.regenerateRecoveryCodes(user.getUserId());
+        auditLogService.log(user, "MFA_ENABLED", "Users", user.getUserId(), null);
+        AuthenticationResponse response = completeLogin(user, failure, null);
+        response.setRecoveryCodes(recoveryCodes);
+        return response;
+    }
+
+    /** bước 2 khi đăng nhập Quản trị: mã 6 số từ app, hoặc một mã khôi phục */
+    @Transactional(noRollbackFor = AppException.class)
+    public AuthenticationResponse mfaVerify(String mfaToken, String code, String recoveryCode, String clientIp){
+        UserEntity user = userFromMfaToken(mfaToken);
+        if(!user.isMfaEnabled() || user.getMfaSecret() == null){
+            throw new AppException(ErrorCode.MFA_NOT_SET_UP);
+        }
+        LoginFailureEntity failure = checkMfaAttempt(user, clientIp);
+        boolean byRecovery = (code == null || code.isBlank()) && recoveryCode != null;
+        boolean ok = byRecovery
+                ? mfaService.useRecoveryCode(user.getUserId(), recoveryCode)
+                : mfaService.verifyCode(mfaService.decrypt(user.getMfaSecret()), code, Instant.now());
+        if(!ok){
+            recordFailure(user, failure, LocalDateTime.now(), "bad-mfa-code");
+            throw new AppException(ErrorCode.MFA_CODE_INVALID);
+        }
+        return completeLogin(user, failure, byRecovery ? Map.of("mfa", "recovery-code") : Map.of("mfa", "totp"));
+    }
+
+    private AuthenticationResponse completeLogin(UserEntity user, LoginFailureEntity failure, Object detail){
+        if(failure.getUpdatedAt() != null){ // dòng đã lưu: đăng nhập được thì xoá bộ đếm sai
             loginFailureRepository.delete(failure);
         }
         AuthenticationResponse response = issueTokens(user);
-        auditLogService.log(user, "LOGIN", "Users", user.getUserId(), null);
+        auditLogService.log(user, "LOGIN", "Users", user.getUserId(), detail);
         return response;
+    }
+
+    /** bộ đếm sai theo (tài khoản, IP); chưa sai lần nào thì trả dòng tạm chưa lưu (updatedAt = null) */
+    private LoginFailureEntity failureRow(UserEntity user, String ip){
+        LoginFailureEntity.Key key = new LoginFailureEntity.Key(user.getUserId(), ip);
+        return loginFailureRepository.findById(key).orElseGet(() -> {
+            LoginFailureEntity row = new LoginFailureEntity();
+            row.setId(key);
+            return row;
+        });
+    }
+
+    private static boolean isLocked(LoginFailureEntity failure, LocalDateTime now){
+        return failure.getLockedUntil() != null && failure.getLockedUntil().isAfter(now);
+    }
+
+    /** bước mã 6 số dùng chung bộ đếm sai với mật khẩu: đang khoá thì từ chối luôn */
+    private LoginFailureEntity checkMfaAttempt(UserEntity user, String clientIp){
+        LoginFailureEntity failure = failureRow(user, normalizeIp(clientIp));
+        if(isLocked(failure, LocalDateTime.now())){
+            logFailure(user.getUsername(), failure.getId().getIp(), "locked");
+            throw new AppException(ErrorCode.MFA_CODE_INVALID);
+        }
+        return failure;
+    }
+
+    /** mfaToken (5 phút, chỉ dùng cho /auth/mfa/**) → user còn hoạt động, token chưa bị thu hồi */
+    private UserEntity userFromMfaToken(String mfaToken){
+        JWTClaimsSet claims;
+        try {
+            claims = verify(mfaToken);
+        } catch (AppException e) {
+            throw new AppException(ErrorCode.MFA_TOKEN_INVALID);
+        }
+        if(!MFA_TOKEN_TYPE.equals(claims.getClaim(TOKEN_TYPE_CLAIM))
+                || !(claims.getClaim("userId") instanceof Number userId)){
+            throw new AppException(ErrorCode.MFA_TOKEN_INVALID);
+        }
+        UserEntity user = userRepository.findById(userId.intValue())
+                .orElseThrow(() -> new AppException(ErrorCode.MFA_TOKEN_INVALID));
+        if(!Boolean.TRUE.equals(user.getIsActive())
+                || !(claims.getClaim(TOKEN_VERSION_CLAIM) instanceof Number ver) || ver.intValue() != user.getTokenVersion()){
+            throw new AppException(ErrorCode.MFA_TOKEN_INVALID);
+        }
+        return user;
     }
 
     // đăng xuất mọi thiết bị: tăng Token_Version, mọi access/refresh token cũ của user mất hiệu lực
@@ -126,17 +246,16 @@ public class AuthenticationService {
         auditLogService.log(user, "LOGOUT", "Users", userId, null);
     }
 
-    private void recordFailedPassword(UserEntity user, LoginFailureEntity.Key key, LoginFailureEntity failure,
-                                      LocalDateTime now){
-        if(failure == null){
+    /** sai mật khẩu hoặc sai mã 6 số: tăng bộ đếm, đủ {@value #MAX_FAILED_LOGINS} lần thì khoá */
+    private void recordFailure(UserEntity user, LoginFailureEntity failure, LocalDateTime now, String reason){
+        if(failure.getUpdatedAt() == null){
             // dòng mới: dọn luôn các dòng không đổi trong 1 ngày để bảng không phình
             loginFailureRepository.deleteOlderThan(now.minusDays(1));
-            failure = new LoginFailureEntity();
-            failure.setId(key);
         }
         int failed = failure.getFailedCount() + 1;
         Map<String, Object> detail = new LinkedHashMap<>();
-        detail.put("ip", key.getIp());
+        detail.put("ip", failure.getId().getIp());
+        detail.put("reason", reason);
         if(failed >= MAX_FAILED_LOGINS){
             failure.setFailedCount(0);
             failure.setLockedUntil(now.plusMinutes(LOCK_MINUTES));
@@ -148,7 +267,7 @@ public class AuthenticationService {
         failure.setUpdatedAt(now);
         loginFailureRepository.save(failure);
         auditLogService.log(user, "LOGIN_FAILED", "Users", user.getUserId(), detail);
-        logFailure(user.getUsername(), key.getIp(), failed >= MAX_FAILED_LOGINS ? "locked-now" : "bad-password");
+        logFailure(user.getUsername(), failure.getId().getIp(), failed >= MAX_FAILED_LOGINS ? "locked-now" : reason);
     }
 
     // chỉ nhận chuỗi giống IPv4/IPv6 (header do BFF gửi); khác thì gom chung vào "unknown"
@@ -198,8 +317,8 @@ public class AuthenticationService {
 
     private AuthenticationResponse issueTokens(UserEntity user){
         return AuthenticationResponse.builder()
-                .token(generateToken(user, false))
-                .refreshToken(generateToken(user, true))
+                .token(generateToken(user, null, validDuration))
+                .refreshToken(generateToken(user, REFRESH_TOKEN_TYPE, refreshDuration))
                 .expiresIn(validDuration)
                 .authenticated(true)
                 .build();
@@ -226,9 +345,12 @@ public class AuthenticationService {
         }
     }
 
-    private String generateToken(UserEntity user, boolean refresh){
+    /**
+     * type null = access token (có "scope" = vai trò, dùng gọi API); "refresh" / "mfa" = token chỉ dùng cho
+     * /auth/refresh hoặc /auth/mfa/**, mang claim "typ" và bị SecurityConfig từ chối khi gọi API.
+     */
+    private String generateToken(UserEntity user, String type, long duration){
         Instant now = Instant.now();
-        long duration = refresh ? refreshDuration : validDuration;
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                 .subject(user.getUsername())
                 .issuer(ISSUER)
@@ -237,8 +359,8 @@ public class AuthenticationService {
                 .jwtID(UUID.randomUUID().toString())
                 .claim("userId", user.getUserId())
                 .claim(TOKEN_VERSION_CLAIM, user.getTokenVersion());
-        if(refresh){
-            claims.claim(TOKEN_TYPE_CLAIM, REFRESH_TOKEN_TYPE);
+        if(type != null){
+            claims.claim(TOKEN_TYPE_CLAIM, type);
         } else if(user.getRole() != null){
             claims.claim("scope", user.getRole().getRoleName());
         }

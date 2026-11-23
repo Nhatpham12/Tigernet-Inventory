@@ -3,6 +3,7 @@ package com.tigernet.backend.user.service;
 import com.tigernet.backend.audit.repository.AuditLogRepository;
 import com.tigernet.backend.audit.service.AuditLogService;
 import com.tigernet.backend.auth.repository.LoginFailureRepository;
+import com.tigernet.backend.auth.service.MfaService;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.security.SecurityUtils;
@@ -52,6 +53,9 @@ public class UserService {
 
     @Autowired
     private LoginFailureRepository loginFailureRepository;
+
+    @Autowired
+    private MfaService mfaService;
 
     @Autowired
     private AuditLogRepository auditLogRepository;
@@ -138,6 +142,15 @@ public class UserService {
         return userMapper.toUserResponse(saved);
     }
 
+    /** tắt xác thực 2 bước của user (xoá khoá + mã khôi phục), thu hồi token; lần đăng nhập sau phải cài lại */
+    public UserResponse resetMfa(Integer userId){
+        UserEntity user = findUserById(userId);
+        mfaService.reset(user);
+        user.revokeTokens();
+        auditLogService.log("RESET_MFA", "Users", userId, null);
+        return userMapper.toUserResponse(userRepository.save(user));
+    }
+
     /**
      * Xóa nhân viên. Tài khoản đã có lịch sử (nhật ký, phiếu...) thì chỉ khóa (xóa mềm, BACKLOG QT-01)
      * để không mất lịch sử giao dịch; tài khoản chưa dùng thì xóa hẳn.
@@ -162,6 +175,7 @@ public class UserService {
                     userWarehouseRepository.deleteByUserId(userId);
                     pagePermissionRepository.deleteByUserId(userId);
                     loginFailureRepository.deleteByUserId(userId);
+                    mfaService.reset(user); // xoá mã khôi phục (khoá ngoại tới Users)
                     userRepository.delete(user);
                     userRepository.flush(); // lộ lỗi khóa ngoại ngay tại đây nếu user đã tạo phiếu
                     auditLogService.log("DELETE_USER", "Users", userId, detail);

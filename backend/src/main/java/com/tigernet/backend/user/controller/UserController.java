@@ -59,4 +59,10 @@ public class UserController {
         UserDeleteResponse result = userService.deleteUser(userId);
         return ApiResponse.success(result.deleted() ? "User has been deleted" : "User has history and was locked instead", result);
     }
+
+    // Quản trị mất điện thoại và hết mã khôi phục: Quản trị khác tắt MFA, lần đăng nhập sau phải cài lại
+    @DeleteMapping("/{userId}/mfa")
+    ApiResponse<UserResponse> resetMfa(@PathVariable Integer userId){
+        return ApiResponse.success(userService.resetMfa(userId));
+    }
 }

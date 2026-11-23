@@ -50,6 +50,7 @@ class AuthenticationServiceTest {
     @Mock LoginFailureRepository loginFailureRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock AuditLogService auditLogService;
+    @Mock MfaService mfaService;
     @InjectMocks AuthenticationService service;
 
     UserEntity user;
@@ -201,5 +202,69 @@ class AuthenticationServiceTest {
     void safeLogValueStripsControlCharacters() {
         assertEquals("admin__FAKE_LINE", AuthenticationService.safeLogValue("admin\r\nFAKE LINE"));
         assertEquals("-", AuthenticationService.safeLogValue(null));
+    }
+
+    // ---- MFA cho Quản trị ----
+
+    private String adminChallenge(boolean mfaEnabled) {
+        user.setMfaEnabled(mfaEnabled);
+        user.setMfaSecret(mfaEnabled ? "enc" : null);
+        when(userRepository.findByUsername("kho1")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("good", "hash")).thenReturn(true);
+        when(mfaService.requiredFor(user)).thenReturn(true);
+        AuthenticationResponse challenge = service.authenticate(req("good"), "1.2.3.4");
+        assertNull(challenge.getToken()); // chưa có token gọi API
+        assertNull(challenge.getRefreshToken());
+        assertEquals(mfaEnabled, challenge.isMfaRequired());
+        assertEquals(!mfaEnabled, challenge.isMfaSetupRequired());
+        assertNotNull(challenge.getMfaToken());
+        lenient().when(userRepository.findById(7)).thenReturn(Optional.of(user));
+        return challenge.getMfaToken();
+    }
+
+    @Test
+    void adminWithMfaGetsTokensOnlyAfterCorrectCode() {
+        String mfaToken = adminChallenge(true);
+        when(mfaService.decrypt("enc")).thenReturn("SECRET");
+        when(mfaService.verifyCode(eq("SECRET"), eq("000000"), any())).thenReturn(false);
+        when(mfaService.verifyCode(eq("SECRET"), eq("123456"), any())).thenReturn(true);
+
+        AppException e = assertThrows(AppException.class, () -> service.mfaVerify(mfaToken, "000000", null, "1.2.3.4"));
+        assertEquals(ErrorCode.MFA_CODE_INVALID, e.getErrorCode());
+        assertEquals(1, failure("1.2.3.4").getFailedCount()); // sai mã tính chung bộ đếm khoá
+
+        AuthenticationResponse ok = service.mfaVerify(mfaToken, "123456", null, "1.2.3.4");
+        assertNotNull(ok.getToken());
+        assertNull(failure("1.2.3.4"));
+    }
+
+    @Test
+    void adminFirstLoginSetsUpMfaAndGetsRecoveryCodes() {
+        String mfaToken = adminChallenge(false);
+        when(mfaService.newSecret()).thenReturn("SECRET");
+        when(mfaService.encrypt("SECRET")).thenReturn("enc");
+        assertEquals("SECRET", service.mfaSetup(mfaToken).secret());
+        assertEquals("enc", user.getMfaSecret());
+
+        when(mfaService.decrypt("enc")).thenReturn("SECRET");
+        when(mfaService.verifyCode(eq("SECRET"), eq("123456"), any())).thenReturn(true);
+        when(mfaService.regenerateRecoveryCodes(7)).thenReturn(java.util.List.of("AAAA-BBBB"));
+        AuthenticationResponse ok = service.mfaConfirm(mfaToken, "123456", "1.2.3.4");
+        assertTrue(user.isMfaEnabled());
+        assertNotNull(ok.getToken());
+        assertEquals(java.util.List.of("AAAA-BBBB"), ok.getRecoveryCodes());
+        // đã bật rồi thì không cài lại bằng mfaToken cũ được
+        assertThrows(AppException.class, () -> service.mfaSetup(mfaToken));
+    }
+
+    @Test
+    void mfaTokenIsNotARefreshTokenAndDiesOnRevoke() {
+        String mfaToken = adminChallenge(true);
+        AppException e = assertThrows(AppException.class, () -> service.refresh(mfaToken));
+        assertEquals(ErrorCode.INVALID_REFRESH_TOKEN, e.getErrorCode());
+
+        user.revokeTokens(); // Quản trị khác reset MFA / đổi mật khẩu giữa chừng
+        e = assertThrows(AppException.class, () -> service.mfaVerify(mfaToken, "123456", null, "ip"));
+        assertEquals(ErrorCode.MFA_TOKEN_INVALID, e.getErrorCode());
     }
 }

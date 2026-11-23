@@ -10,6 +10,8 @@ import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.common.security.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -48,6 +50,32 @@ public class AuthenticationController {
     ApiResponse<Void> logout(){
         authenticationService.logout(SecurityUtils.currentUserId());
         return ApiResponse.success(null);
+    }
+
+    public record MfaTokenRequest(@NotBlank String mfaToken) {
+    }
+
+    public record MfaCodeRequest(@NotBlank String mfaToken, @Size(max = 6) String code,
+                                 @Size(max = 20) String recoveryCode) {
+    }
+
+    // Quản trị đăng nhập lần đầu: tạo khoá TOTP, trả link QR cho app Authenticator
+    @PostMapping("/mfa/setup")
+    ApiResponse<AuthenticationService.MfaSetupResponse> mfaSetup(@RequestBody @Valid MfaTokenRequest request){
+        return ApiResponse.success(authenticationService.mfaSetup(request.mfaToken()));
+    }
+
+    // nhập mã 6 số đầu tiên để bật MFA; trả token + 8 mã khôi phục
+    @PostMapping("/mfa/confirm")
+    ApiResponse<AuthenticationResponse> mfaConfirm(@RequestBody @Valid MfaCodeRequest request, HttpServletRequest http){
+        return ApiResponse.success(authenticationService.mfaConfirm(request.mfaToken(), request.code(), clientIp(http)));
+    }
+
+    // bước 2 khi đăng nhập: mã 6 số hoặc mã khôi phục
+    @PostMapping("/mfa/verify")
+    ApiResponse<AuthenticationResponse> mfaVerify(@RequestBody @Valid MfaCodeRequest request, HttpServletRequest http){
+        return ApiResponse.success(authenticationService.mfaVerify(request.mfaToken(), request.code(),
+                request.recoveryCode(), clientIp(http)));
     }
 
     private static String clientIp(HttpServletRequest http){
