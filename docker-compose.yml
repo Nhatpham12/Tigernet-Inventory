@@ -1,6 +1,6 @@
 # TIGERNET – chạy toàn bộ hệ thống bằng Docker (bản dev / demo).
 #   Local:  cp deploy/.env.example .env  (sửa mật khẩu)  ->  docker compose up -d --build
-#   EC2:    xem docs/DEPLOY_EC2.md (CI kéo image từ GHCR, không build trên máy chủ)
+#   Máy chủ: xem docs/DEPLOY_SERVER.md (CI kéo image từ GHCR, không build trên máy chủ)
 # Chỉ container "proxy" mở cổng ra ngoài (80/443). MySQL, backend, BFF chỉ nằm trong mạng nội bộ.
 
 name: tigernet
