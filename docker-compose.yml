@@ -65,6 +65,8 @@ services:
     environment:
       BACKEND_BASE_URL: http://backend:8080
       BFF_ALLOWED_ORIGINS: ${BFF_ALLOWED_ORIGINS:-https://${DOMAIN:-localhost},http://localhost:*}
+      # cookie token có cờ Secure; chỉ đặt false khi truy cập bằng HTTP thuần qua tên miền/IP (chưa có chứng chỉ)
+      BFF_COOKIE_SECURE: ${BFF_COOKIE_SECURE:-true}
       JAVA_OPTS: ${BFF_JAVA_OPTS:--XX:MaxRAMPercentage=50 -XX:+ExitOnOutOfMemoryError}
 
   web:
