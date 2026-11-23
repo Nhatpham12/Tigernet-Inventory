@@ -1,5 +1,10 @@
 package com.tigernet.backend.transfer.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.transfer.dto.request.StockTransferCreationRequest;
 import com.tigernet.backend.transfer.dto.request.StockTransferUpdateRequest;
@@ -14,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@RequiresPage({Pages.TRANSFERS})
 @RestController
 @RequestMapping("/stock-transfers")
 @RequiredArgsConstructor
@@ -44,6 +50,7 @@ public class StockTransferController {
         return ApiResponse.success(stockTransferService.updateTransfer(transferId, request));
     }
 
+    @RequiresRole({PageAccessPolicy.MANAGER})
     @PutMapping("/{transferId}/approve")
     ApiResponse<StockTransferResponse> approveTransfer(@PathVariable Integer transferId) {
         return ApiResponse.success(stockTransferService.approveTransfer(transferId));

@@ -71,7 +71,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final atLogin = state.matchedLocation == '/login';
       if (!loggedIn) return atLogin ? null : '/login';
       if (atLogin || state.matchedLocation == '/') return '/app/dashboard';
-      if (!_allowed(state.matchedLocation, session.value!)) {
+      // state.uri kèm query: "Tạo phiếu chi" (?direction=OUT) có quyền riêng với "Tạo phiếu thu"
+      if (!_allowed(state.uri.toString(), session.value!)) {
         return '/app/403';
       }
       return null;

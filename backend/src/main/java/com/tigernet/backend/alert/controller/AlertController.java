@@ -1,5 +1,7 @@
 package com.tigernet.backend.alert.controller;
 
+import com.tigernet.backend.common.security.NoPageCheck;
+
 import com.tigernet.backend.alert.dto.response.AlertResponse;
 import com.tigernet.backend.alert.enums.AlertType;
 import com.tigernet.backend.alert.service.AlertService;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@NoPageCheck("Chuông cảnh báo hiển thị cho mọi nhân viên")
 @RestController
 @RequestMapping("/alerts")
 @RequiredArgsConstructor

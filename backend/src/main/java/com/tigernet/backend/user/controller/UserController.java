@@ -1,5 +1,9 @@
 package com.tigernet.backend.user.controller;
 
+import com.tigernet.backend.common.security.NoPageCheck;
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
+
 import com.tigernet.backend.common.security.SecurityUtils;
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.user.dto.request.UserCreationRequest;
@@ -14,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 // đọc danh sách: ADMIN, MANAGER; tạo/sửa/xóa: chỉ ADMIN (SecurityConfig)
+@RequiresRole({PageAccessPolicy.ADMIN})
 @RestController
 @RequestMapping("/users")
 public class UserController {
@@ -25,12 +30,14 @@ public class UserController {
         return ApiResponse.success(userService.createUser(request));
     }
 
+    @RequiresRole({PageAccessPolicy.MANAGER})
     @GetMapping //lấy toàn bộ người dùng
     ApiResponse<List<UserResponse>> getUsers() {
         return ApiResponse.success(userService.getUsers());
     }
 
     // người dùng đang đăng nhập (đọc userId từ token)
+    @NoPageCheck("Thông tin của chính mình")
     @GetMapping("/me")
     ApiResponse<UserResponse> getMyInfo() {
         return ApiResponse.success(userService.getUserById(SecurityUtils.currentUserId()));

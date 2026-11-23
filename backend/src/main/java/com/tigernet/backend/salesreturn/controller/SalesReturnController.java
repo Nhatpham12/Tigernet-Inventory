@@ -1,5 +1,8 @@
 package com.tigernet.backend.salesreturn.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.salesreturn.dto.request.SalesReturnCreationRequest;
 import com.tigernet.backend.salesreturn.dto.request.SalesReturnUpdateRequest;
@@ -22,11 +25,13 @@ import java.util.List;
 public class SalesReturnController {
     SalesReturnService salesReturnService;
 
+    @RequiresPage({Pages.SALES_RETURNS})
     @PostMapping
     ApiResponse<SalesReturnResponse> createSalesReturn(@RequestBody @Valid SalesReturnCreationRequest request) {
         return ApiResponse.success(salesReturnService.createSalesReturn(request));
     }
 
+    @RequiresPage({Pages.SALES_RETURNS, Pages.PAYMENTS})
     @GetMapping // ?warehouseId=&exportReceiptId=&returnType=&status=
     ApiResponse<List<SalesReturnResponse>> getSalesReturns(@RequestParam(required = false) Integer warehouseId,
                                                            @RequestParam(required = false) Integer exportReceiptId,
@@ -35,17 +40,20 @@ public class SalesReturnController {
         return ApiResponse.success(salesReturnService.getSalesReturns(warehouseId, exportReceiptId, returnType, status));
     }
 
+    @RequiresPage({Pages.SALES_RETURNS, Pages.PAYMENTS})
     @GetMapping("/{salesReturnId}")
     ApiResponse<SalesReturnResponse> getSalesReturn(@PathVariable Integer salesReturnId) {
         return ApiResponse.success(salesReturnService.getSalesReturn(salesReturnId));
     }
 
+    @RequiresPage({Pages.SALES_RETURNS})
     @PutMapping("/{salesReturnId}")
     ApiResponse<SalesReturnResponse> updateSalesReturn(@PathVariable Integer salesReturnId,
                                                        @RequestBody @Valid SalesReturnUpdateRequest request) {
         return ApiResponse.success(salesReturnService.updateSalesReturn(salesReturnId, request));
     }
 
+    @RequiresPage({Pages.SALES_RETURNS})
     @DeleteMapping("/{salesReturnId}")
     ApiResponse<Void> deleteSalesReturn(@PathVariable Integer salesReturnId) {
         salesReturnService.deleteSalesReturn(salesReturnId);

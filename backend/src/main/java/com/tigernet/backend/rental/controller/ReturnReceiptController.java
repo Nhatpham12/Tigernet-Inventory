@@ -1,5 +1,8 @@
 package com.tigernet.backend.rental.controller;
 
+import com.tigernet.backend.common.security.Pages;
+import com.tigernet.backend.common.security.RequiresPage;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.rental.dto.request.ReturnReceiptCreationRequest;
 import com.tigernet.backend.rental.dto.response.ReturnReceiptResponse;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 // phiếu trả đã ảnh hưởng phiếu thuê nên không có API sửa/xóa
+@RequiresPage({Pages.RETURN_RECEIPTS})
 @RestController
 @RequestMapping("/return-receipts")
 @RequiredArgsConstructor

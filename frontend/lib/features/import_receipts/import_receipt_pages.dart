@@ -41,7 +41,7 @@ String _paymentPath(Object? id) =>
 /// Quyền thao tác theo menu (chỉ để ẩn/hiện, backend vẫn chặn quyền API).
 ({bool edit, bool pay}) _rights(Session? s) => (
   edit: s != null && canOpenPage('/app/import-receipts/new', s),
-  pay: s != null && canOpenPage('/app/payments/new?direction=OUT', s),
+  pay: s != null && canOpenPage(kPaymentsNewOut, s),
 );
 
 /// Gửi duyệt / hủy phiếu: dùng chung cho danh sách và màn chi tiết.

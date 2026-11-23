@@ -36,7 +36,8 @@ public class SessionController {
 
     public record SessionView(Integer userId, String username, String fullName, String email, String role,
                               boolean canViewAllWarehouses, List<WarehouseOption> warehouses,
-                              Integer defaultWarehouseId, long unreadAlerts, List<String> pages) {
+                              Integer defaultWarehouseId, long unreadAlerts, List<String> pages,
+                              List<String> effectivePages) {
     }
 
     @GetMapping("/bff/session")
@@ -68,14 +69,21 @@ public class SessionController {
         JsonNode permissionNode = await(permissions);
         List<String> pages = null;
         if (permissionNode != null && permissionNode.path("custom").asBoolean(false)) {
-            pages = new ArrayList<>();
-            for (JsonNode page : permissionNode.path("pages")) {
-                pages.add(page.asText());
-            }
+            pages = texts(permissionNode.path("pages"));
         }
+        // trang được vào thực tế (backend chặn API theo đúng danh sách này); FE ẩn/hiện menu theo đây
+        List<String> effectivePages = permissionNode == null ? null : texts(permissionNode.path("effectivePages"));
 
         return ApiResponse.success(new SessionView(userId, Json.text(user, "username"), Json.text(user, "fullName"),
                 Json.text(user, "email"), role, allWarehouses, options, defaultWarehouseId,
-                unreadNode == null ? 0 : unreadNode.asLong(), pages));
+                unreadNode == null ? 0 : unreadNode.asLong(), pages, effectivePages));
+    }
+
+    private static List<String> texts(JsonNode array) {
+        List<String> values = new ArrayList<>();
+        for (JsonNode node : array) {
+            values.add(node.asText());
+        }
+        return values;
     }
 }

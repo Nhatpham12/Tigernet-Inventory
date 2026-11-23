@@ -1,5 +1,8 @@
 package com.tigernet.backend.audit.controller;
 
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
+
 import com.tigernet.backend.audit.dto.response.AuditLogResponse;
 import com.tigernet.backend.audit.service.AuditLogService;
 import com.tigernet.backend.common.response.ApiResponse;
@@ -13,6 +16,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 // nhật ký chỉ đọc, không có API sửa/xóa
+@RequiresRole({PageAccessPolicy.ADMIN})
 @RestController
 @RequestMapping("/audit-logs")
 @RequiredArgsConstructor

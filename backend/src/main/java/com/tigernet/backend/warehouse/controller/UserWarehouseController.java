@@ -1,5 +1,9 @@
 package com.tigernet.backend.warehouse.controller;
 
+import com.tigernet.backend.common.security.NoPageCheck;
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
+
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.warehouse.dto.request.UserWarehouseAssignRequest;
 import com.tigernet.backend.warehouse.dto.response.UserWarehouseResponse;
@@ -19,11 +23,13 @@ import java.util.List;
 public class UserWarehouseController {
     UserWarehouseService userWarehouseService;
 
+    @NoPageCheck("UserWarehouseService chỉ cho xem của chính mình; Quản trị/Quản lý xem mọi người")
     @GetMapping
     ApiResponse<List<UserWarehouseResponse>> getUserWarehouses(@PathVariable Integer userId) {
         return ApiResponse.success(userWarehouseService.getUserWarehouses(userId));
     }
 
+    @RequiresRole({PageAccessPolicy.ADMIN})
     @PutMapping
     ApiResponse<List<UserWarehouseResponse>> assignWarehouses(@PathVariable Integer userId,
                                                               @RequestBody @Valid UserWarehouseAssignRequest request) {

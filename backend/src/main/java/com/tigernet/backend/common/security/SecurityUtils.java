@@ -33,4 +33,20 @@ public final class SecurityUtils {
         Set<String> wanted = Set.of(authorities);
         return authentication.getAuthorities().stream().anyMatch(a -> wanted.contains(a.getAuthority()));
     }
+
+    // Role_Name của token đang gọi API (claim "scope" → quyền "SCOPE_<role>"); null nếu không có
+    public static String currentRole() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return null;
+        }
+        return authentication.getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .filter(a -> a != null && a.startsWith(SCOPE_PREFIX))
+                .map(a -> a.substring(SCOPE_PREFIX.length()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static final String SCOPE_PREFIX = "SCOPE_";
 }
