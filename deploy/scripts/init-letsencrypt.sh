@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cấp chứng chỉ Let's Encrypt LẦN ĐẦU cho $DOMAIN (webroot qua container proxy đang chạy HTTP).
-# Điều kiện: DNS của DOMAIN đã trỏ về Elastic IP của EC2, security group mở cổng 80 và 443.
+# Điều kiện: DNS của DOMAIN đã trỏ về IP public của máy chủ, tường lửa (ufw + của nhà cung cấp) mở cổng 80 và 443.
 # Gia hạn sau đó do container certbot (profile tls) tự làm mỗi 12 giờ.
 set -euo pipefail
 cd "$(dirname "$0")/../.."

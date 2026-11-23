@@ -1,10 +1,11 @@
 # CI/CD nhánh dev:
 #   PR vào dev      -> kiểm tra (build + test backend, BFF, frontend)
-#   push vào dev    -> kiểm tra -> build 3 image, đẩy GHCR -> deploy SSH lên EC2 (khi bật DEPLOY_ENABLED)
+#   push vào dev    -> kiểm tra -> build 3 image, đẩy GHCR -> deploy SSH lên máy chủ (khi bật DEPLOY_ENABLED)
 #   chạy tay        -> có thể nhập image_tag để deploy lại / rollback một bản cũ, bỏ qua build
 # Secrets (Settings > Secrets and variables > Actions, nên đặt trong environment "dev"):
-#   EC2_HOST, EC2_USER, EC2_SSH_KEY (private key), EC2_SSH_KNOWN_HOSTS (kết quả ssh-keyscan)
-# Variables: DEPLOY_ENABLED=true để bật bước deploy. Mật khẩu ứng dụng nằm trong /opt/tigernet/.env trên EC2.
+#   VM_HOST, VM_USER, VM_SSH_KEY (private key), VM_SSH_KNOWN_HOSTS (kết quả ssh-keyscan)
+# Variables: DEPLOY_ENABLED=true để bật bước deploy; VM_SSH_PORT nếu SSH không ở cổng 22.
+# Mật khẩu ứng dụng nằm trong /opt/tigernet/.env trên máy chủ. Hướng dẫn: docs/DEPLOY_SERVER.md
 name: dev CI/CD
 
 on:
@@ -133,7 +134,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
   deploy:
-    name: Deploy EC2 (dev)
+    name: Deploy máy chủ (dev)
     needs: [images]
     # chạy cả khi images bị bỏ qua (deploy lại tag có sẵn), miễn không có job nào lỗi
     if: >-
@@ -157,24 +158,34 @@ jobs:
           echo "TAG=$tag" >> "$GITHUB_ENV"
       - name: Cấu hình SSH
         env:
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+          SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_PORT: ${{ vars.VM_SSH_PORT || '22' }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/ec2 && chmod 600 ~/.ssh/ec2
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/vm && chmod 600 ~/.ssh/vm
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-      - name: Chép file cấu hình lên EC2
-        env:
-          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
+          # mọi lệnh ssh/rsync sau dùng chung cấu hình này (khoá, cổng, kiểm tra known_hosts chặt)
+          {
+            echo "Host vm"
+            echo "  HostName $VM_HOST"
+            echo "  User $VM_USER"
+            echo "  Port $VM_PORT"
+            echo "  IdentityFile ~/.ssh/vm"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking yes"
+          } > ~/.ssh/config
+      - name: Chép file cấu hình lên máy chủ
         run: |
-          rsync -az -e "ssh -i ~/.ssh/ec2" --relative \
+          rsync -az --relative \
             docker-compose.yml deploy/ docs/Database_Script_v7.sql database/tenant/V6__user_page_permissions.sql \
             --exclude 'deploy/config/*.yaml' \
-            "$TARGET:/opt/tigernet/"
+            "vm:/opt/tigernet/"
       - name: Kéo image và khởi động lại
         env:
-          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "$GHCR_TOKEN" | ssh -i ~/.ssh/ec2 "$TARGET" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
-          ssh -i ~/.ssh/ec2 "$TARGET" "cd /opt/tigernet && ./deploy/scripts/deploy.sh '$TAG'"
+          echo "$GHCR_TOKEN" | ssh vm "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+          ssh vm "cd /opt/tigernet && ./deploy/scripts/deploy.sh '$TAG'"

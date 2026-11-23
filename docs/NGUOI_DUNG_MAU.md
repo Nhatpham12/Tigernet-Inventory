@@ -5,7 +5,7 @@ frontend: `frontend/lib/core/auth/role.dart`). Mỗi chức danh có một tài 
 
 ## Tài khoản
 
-Mật khẩu chung là giá trị `DEMO_PASSWORD` (local: `backend/.env`; EC2: `/opt/tigernet/.env`).
+Mật khẩu chung là giá trị `DEMO_PASSWORD` (local: `backend/.env`; máy chủ: `/opt/tigernet/.env`).
 Không ghi mật khẩu vào repo hay tài liệu.
 
 | Tài khoản | Chức danh (Role_Name) | Tên hiển thị | Kho được phân công |
@@ -16,7 +16,7 @@ Không ghi mật khẩu vào repo hay tài liệu.
 | `demo_warehouse` | Thủ kho (`WAREHOUSE`) | Demo Thủ kho | `MAIN` (mặc định) |
 | `demo_sales` | Bán hàng (`SALES`) | Demo Bán hàng | `MAIN` (mặc định) |
 
-Tạo / đặt lại trên máy chủ Docker (EC2 hoặc local chạy compose):
+Tạo / đặt lại trên máy chủ Docker (máy chủ hoặc local chạy compose):
 
 ```bash
 cd /opt/tigernet && ./deploy/scripts/seed-demo-users.sh

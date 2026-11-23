@@ -101,7 +101,7 @@ docker compose up -d --build     # mở http://localhost
 ./deploy/scripts/seed-demo-users.sh   # 5 tài khoản demo, xem docs/NGUOI_DUNG_MAU.md
 ```
 
-CI/CD nhánh `dev` (GitHub Actions → GHCR → EC2, HTTPS Let's Encrypt): xem [docs/DEPLOY_EC2.md](docs/DEPLOY_EC2.md).
+CI/CD nhánh `dev` (GitHub Actions → GHCR → máy chủ qua SSH, HTTPS Let's Encrypt): xem [docs/DEPLOY_SERVER.md](docs/DEPLOY_SERVER.md).
 
 ## Chạy demo không cần backend
 
