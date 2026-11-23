@@ -43,10 +43,18 @@ chown -R "$DEPLOY_USER":"$DEPLOY_USER" /opt/tigernet
 
 # Mở đúng cổng SSH đang chạy (máy được cấp có thể không dùng cổng 22) trước khi bật ufw,
 # nếu không sẽ tự khoá mình ra ngoài.
-ssh_port="$(sshd -T 2>/dev/null | awk '$1=="port"{print $2; exit}')"
-ufw allow "${ssh_port:-22}/tcp"
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw --force enable
+ssh_port="$(sshd -T 2>/dev/null | awk '$1=="port"{print $2; exit}' || true)"
+# dự phòng: cổng mà tiến trình sshd đang nghe
+[ -n "$ssh_port" ] || ssh_port="$(ss -Htlnp 2>/dev/null | awk '/"sshd"/{n=split($4,a,":"); print a[n]; exit}' || true)"
+if [ -n "$ssh_port" ]; then
+  ufw allow "$ssh_port/tcp"
+  ufw allow 80/tcp
+  ufw allow 443/tcp
+  ufw --force enable
+  echo "ufw: mở SSH cổng $ssh_port, 80, 443."
+else
+  echo "CẢNH BÁO: không xác định được cổng SSH nên KHÔNG bật ufw (tránh tự khoá). Tự chạy:"
+  echo "  sudo ufw allow <cổng-ssh>/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw enable"
+fi
 
-echo "Xong. SSH cổng ${ssh_port:-22}. Đăng xuất rồi SSH lại để nhóm docker có hiệu lực cho $DEPLOY_USER."
+echo "Xong. Đăng xuất rồi SSH lại để nhóm docker có hiệu lực cho $DEPLOY_USER."
