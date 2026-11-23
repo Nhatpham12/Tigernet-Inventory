@@ -61,6 +61,10 @@ public class WarrantyClaimPrintService {
             if (!Objects.equals(customerId, r.getCustomer() != null ? r.getCustomer().getId() : null)) {
                 throw new AppException(ErrorCode.INVALID_PARAMETER);
             }
+            // khách lẻ (không có Customer) không phân biệt được người, chỉ gộp phiếu của cùng một phiếu xuất
+            if (customerId == null && !Objects.equals(first.getId(), r.getId())) {
+                throw new AppException(ErrorCode.INVALID_PARAMETER);
+            }
         }
 
         PrintParty customer = PrintParty.of(first.getCustomer() == null ? null : first.getCustomer().getParty());
