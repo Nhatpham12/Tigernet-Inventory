@@ -48,6 +48,9 @@ set_tag "$target"
 docker compose "${profiles[@]}" pull backend bff web \
   || echo "CẢNH BÁO: không kéo được image (hết hạn đăng nhập GHCR?), dùng image có sẵn trên máy"
 docker compose "${profiles[@]}" up -d --remove-orphans
+# Image nginx không đổi nên compose không tạo lại proxy; restart để nạp cấu hình nginx vừa rsync
+# (rsync thay file mới, mount file đơn vẫn trỏ bản cũ tới khi container khởi động lại).
+docker compose "${profiles[@]}" restart proxy
 
 if health; then
   [ -n "$prev" ] && [ "$prev" != "$target" ] && echo "$prev" > .previous_image_tag
