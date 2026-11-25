@@ -91,6 +91,25 @@ const _fieldLabels = <String, String>{
   'reason': 'Lý do',
   'method': 'Loại thao tác',
   'path': 'Đường dẫn',
+  // tóm tắt đối tượng (AuditSummary ở backend)
+  'name': 'Tên',
+  'receiptCode': 'Số phiếu',
+  'productCode': 'Mã sản phẩm',
+  'productName': 'Sản phẩm',
+  'warehouseName': 'Kho',
+  'warehouseCode': 'Mã kho',
+  'sourcePartyName': 'Nhà cung cấp',
+  'customerName': 'Khách hàng',
+  'partyName': 'Đối tác',
+  'groupName': 'Nhóm',
+  'totalAmount': 'Tổng tiền',
+  'status': 'Trạng thái',
+  'paymentStatus': 'Thanh toán',
+  'quantity': 'Số lượng',
+  'note': 'Ghi chú',
+  'itemCount': 'Số dòng hàng',
+  'items': 'Hàng',
+  'count': 'Số bản ghi',
 };
 
 const _methodLabels = <String, String>{
@@ -108,22 +127,49 @@ String _valueText(Object? key, Object? v) => switch (v) {
   true => 'Có',
   false => 'Không',
   List() => v.isEmpty ? '—' : v.join(', '),
-  num() when key == 'amount' => Fmt.money(v),
+  num() when key == 'amount' || '$key'.endsWith('Amount') => Fmt.money(v),
   _ when key == 'method' => _methodLabels['$v'] ?? '$v',
   _ => '$v',
 };
 
-/// "PUT /suppliers/5" → "Cập nhật Nhà cung cấp #5".
+/// "PUT /suppliers/5" → "Cập nhật Nhà cung cấp #5"; thêm mới lấy id từ tóm tắt.
 String _requestText(Map d) {
   final segments = '${d['path'] ?? ''}'
       .split('/')
       .where((s) => s.isNotEmpty)
       .toList();
   if (segments.isEmpty) return _valueText('method', d['method']);
+  final summary = d['summary'];
   final id = segments.length > 1 && int.tryParse(segments[1]) != null
       ? segments[1]
-      : null;
+      : (summary is Map ? summary['id'] : null);
   return '${_valueText('method', d['method'])} ${targetLabel(segments.first, id)}';
+}
+
+/// Các dòng của tóm tắt đối tượng (bỏ id vì đã có trong "Thao tác").
+List<(String, String?, String)> _summaryRows(Object? summary) => [
+  if (summary is Map)
+    for (final MapEntry(:key, :value) in summary.entries)
+      if (key != 'id')
+        (
+          _fieldLabel(key),
+          null,
+          value is List ? value.join('\n') : _valueText(key, value),
+        ),
+];
+
+/// "PN-KHO1-2026-0005 · NCC A · 12.500.000 ₫": mã, tên/đối tác, tổng tiền.
+String _summaryText(Object? summary) {
+  if (summary is! Map) return '';
+  String? pick(bool Function(String k) test) => summary.entries
+      .where((e) => test('${e.key}') && e.value != null)
+      .map((e) => _valueText(e.key, e.value))
+      .firstOrNull;
+  return [
+    pick((k) => k.endsWith('Code')),
+    pick((k) => k == 'name' || (k.endsWith('Name') && k != 'warehouseName')),
+    pick((k) => k == 'totalAmount' || k == 'amount'),
+  ].whereType<String>().join(' · ');
 }
 
 /// Các dòng (trường, trước, sau) của chi tiết; [before] null khi không có giá trị cũ.
@@ -143,6 +189,7 @@ List<(String field, String? before, String after)> detailRows(Object? detail) {
   if (d['path'] != null) {
     return [
       ('Thao tác', null, _requestText(d)),
+      ..._summaryRows(d['summary']),
       ('Đường dẫn', null, '${d['path']}'),
     ];
   }
@@ -156,7 +203,10 @@ List<(String field, String? before, String after)> detailRows(Object? detail) {
 String detailSummary(Object? detail) {
   final d = _decode(detail);
   if (d == null) return '—';
-  if (d is Map && d['path'] != null) return _requestText(d);
+  if (d is Map && d['path'] != null) {
+    final extra = _summaryText(d['summary']);
+    return extra.isEmpty ? _requestText(d) : '${_requestText(d)}: $extra';
+  }
   if (d is Map && d['pages'] is List) {
     return '${(d['pages'] as List).length} trang';
   }
@@ -285,7 +335,7 @@ class AuditLogPage extends ConsumerWidget {
           ],
           endpoint: '/bff/audit-logs',
           useWarehouseScope: false,
-          searchHint: 'Tìm nhân viên, thao tác, đường dẫn...',
+          searchHint: 'Tìm nhân viên, thao tác, số phiếu, tên...',
           itemLabel: 'dòng nhật ký',
           defaultSort: 'createdAt,desc',
           filters: [
