@@ -74,8 +74,9 @@ public class AuditInterceptor implements HandlerInterceptor {
             }
         }
         try {
-            auditLogService.log(action.length() > 50 ? action.substring(0, 50) : action,
-                    segments[0].length() > 50 ? segments[0].substring(0, 50) : segments[0], targetId, detail);
+            auditLogService.logDocument(action.length() > 50 ? action.substring(0, 50) : action,
+                    segments[0].length() > 50 ? segments[0].substring(0, 50) : segments[0], targetId,
+                    AuditSummary.documentCode(segments[0], summary), detail);
         } catch (RuntimeException e) {
             // không để lỗi ghi nhật ký làm hỏng thao tác chính (đã xong)
             log.warn("Cannot write audit log for {} {}: {}", method, path, e.getMessage());

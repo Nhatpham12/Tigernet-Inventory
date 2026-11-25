@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -51,7 +52,8 @@ class AuditInterceptorTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> detail = ArgumentCaptor.forClass(Map.class);
-        verify(auditLogService).log(eq("CREATE"), eq("import-receipts"), eq(12), detail.capture());
+        verify(auditLogService).logDocument(eq("CREATE"), eq("import-receipts"), eq(12), eq("PN-KHO1-2026-0005"),
+                detail.capture());
         assertThat(detail.getValue()).containsEntry("method", "POST").containsEntry("path", "/import-receipts");
         assertThat(detail.getValue().get("summary"))
                 .isEqualTo(Map.of("id", 12, "receiptCode", "PN-KHO1-2026-0005")); // không có password
@@ -76,6 +78,6 @@ class AuditInterceptorTest {
 
         interceptor.afterCompletion(request, new MockHttpServletResponse(), null, null);
 
-        verify(auditLogService).log(eq("UPDATE"), anyString(), eq(7), any());
+        verify(auditLogService).logDocument(eq("UPDATE"), anyString(), eq(7), isNull(), any());
     }
 }

@@ -120,7 +120,8 @@ public class StockTransferService {
     public void deleteTransfer(Integer transferId) {
         StockTransferEntity transfer = findTransferInStatus(transferId, TransferStatus.DRAFT);
         warehouseAccess.assertAccess(transfer.getFromWarehouse()); // chỉ kho chuyển đi xoá phiếu nháp
-        auditLogService.log("DELETE", "Stock_Transfers", transfer.getId(), stockTransferMapper.toResponse(transfer));
+        auditLogService.logDocument("DELETE", "Stock_Transfers", transfer.getId(), transfer.getTransferCode(),
+                stockTransferMapper.toResponse(transfer));
         stockTransferRepository.delete(transfer);
     }
 

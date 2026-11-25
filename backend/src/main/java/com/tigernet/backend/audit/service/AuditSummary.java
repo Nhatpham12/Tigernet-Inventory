@@ -25,7 +25,35 @@ public final class AuditSummary {
     private static final Pattern BY_NAME = Pattern.compile(".*ByName");
     private static final Pattern SECRET = Pattern.compile("(?i).*(password|token|secret|mfa|otp|recovery|key).*");
 
+    /**
+     * Trường số giấy tờ của chính đối tượng, theo thứ tự ưu tiên. Mỗi loại giấy tờ đặt số ở trường khác nhau
+     * (phiếu nhập/xuất/thuê/trả/đổi trả: receiptCode, chuyển kho: transferCode, kiểm kê: stocktakeCode,
+     * bảo hành: claimCode, thu/chi: paymentCode); các trường *Code khác là giấy tờ tham chiếu
+     * (exportReceiptCode, referenceCode...) hoặc kho nên không lấy.
+     */
+    private static final List<String> DOCUMENT_CODES =
+            List.of("receiptCode", "transferCode", "stocktakeCode", "claimCode", "paymentCode");
+    // danh mục không phải giấy tờ: chỉ lấy mã khi đúng loại đối tượng (vd mã kho khi thao tác trên kho)
+    private static final Map<String, List<String>> MASTER_CODES = Map.of(
+            "warehouses", List.of("warehouseCode", "locationCode"),
+            "warehouse-locations", List.of("locationCode"));
+
     private AuditSummary() {}
+
+    /** số giấy tờ của đối tượng trong tóm tắt; target là phần đầu đường dẫn API (vd "warehouses") */
+    public static String documentCode(String target, Map<String, Object> summary) {
+        if (summary == null) {
+            return null;
+        }
+        List<String> keys = new ArrayList<>(DOCUMENT_CODES);
+        keys.addAll(MASTER_CODES.getOrDefault(target, List.of()));
+        return keys.stream()
+                .map(summary::get)
+                .filter(v -> v instanceof String s && !s.isBlank())
+                .map(String.class::cast)
+                .findFirst()
+                .orElse(null);
+    }
 
     /** null khi không có gì đáng ghi */
     public static Map<String, Object> of(Object result, JsonMapper mapper) {

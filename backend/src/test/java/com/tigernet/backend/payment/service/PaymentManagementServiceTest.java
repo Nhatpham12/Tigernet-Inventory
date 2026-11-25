@@ -91,6 +91,8 @@ class PaymentManagementServiceTest {
         verify(paymentService).record(eq(PaymentDirection.IN), eq(customerParty), eq(PaymentReferenceType.Export_Receipts),
                 eq(5), any(), any(), any(), eq("MAIN"), any());
         assertEquals("PX-MAIN-2026-0005", r.getReferenceCode());
+        // nhật ký ghi số phiếu được thanh toán, không phải id
+        verify(auditLogService).logDocument(eq("PAYMENT"), eq("Export_Receipts"), eq(5), eq("PX-MAIN-2026-0005"), any());
     }
 
     @Test
@@ -110,6 +112,7 @@ class PaymentManagementServiceTest {
     void cancelSubtractsPaidAndMarksCancelled() {
         PaymentEntity p = new PaymentEntity();
         p.setId(77);
+        p.setPaymentCode("THU-MAIN-2026-0001");
         p.setReferenceType(PaymentReferenceType.Export_Receipts);
         p.setReferenceId(5);
         p.setAmount(new BigDecimal("250000.00"));
@@ -122,6 +125,8 @@ class PaymentManagementServiceTest {
 
         verify(exportReceiptService).adjustPaid(export, new BigDecimal("-250000.00"));
         assertEquals(PaymentEntryStatus.CANCELLED, p.getStatus());
+        verify(auditLogService).logDocument(eq("CANCEL"), eq("Payments"), eq(77), eq("THU-MAIN-2026-0001"),
+                eq(java.util.Collections.singletonMap("reason", "nhập nhầm")));
         assertEquals(ErrorCode.PAYMENT_ALREADY_CANCELLED, assertThrows(AppException.class,
                 () -> service.cancelPayment(77, null)).getErrorCode());
     }

@@ -102,7 +102,8 @@ public class SalesReturnService {
 
     public void deleteSalesReturn(Integer salesReturnId) {
         SalesReturnEntity salesReturn = findEditableSalesReturn(salesReturnId);
-        auditLogService.log("DELETE", "Sales_Returns", salesReturn.getId(), salesReturnMapper.toResponse(salesReturn));
+        auditLogService.logDocument("DELETE", "Sales_Returns", salesReturn.getId(), salesReturn.getReceiptCode(),
+                salesReturnMapper.toResponse(salesReturn));
         salesReturnRepository.delete(salesReturn);
     }
 

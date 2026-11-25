@@ -42,6 +42,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -147,7 +148,8 @@ public class ExportReceiptService {
         receipt.setCancelledBy(currentUserService.getCurrentUser());
         receipt.setCancelledAt(LocalDateTime.now());
         receipt.setCancelReason(reason);
-        auditLogService.log("CANCEL", "Export_Receipts", receipt.getId(), reason);
+        auditLogService.logDocument("CANCEL", "Export_Receipts", receipt.getId(), receipt.getReceiptCode(),
+                Collections.singletonMap("reason", reason));
         return exportReceiptMapper.toResponse(exportReceiptRepository.save(receipt));
     }
 
@@ -166,7 +168,7 @@ public class ExportReceiptService {
         detail.put("paidAfter", receipt.getPaid());
         detail.put("remainAfter", receipt.getRemain());
         detail.put("note", request.getNote());
-        auditLogService.log("PAYMENT", "Export_Receipts", receipt.getId(), detail);
+        auditLogService.logDocument("PAYMENT", "Export_Receipts", receipt.getId(), receipt.getReceiptCode(), detail);
 
         return exportReceiptMapper.toResponse(exportReceiptRepository.save(receipt));
     }

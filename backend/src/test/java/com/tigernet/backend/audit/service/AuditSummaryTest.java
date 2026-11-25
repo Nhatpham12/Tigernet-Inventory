@@ -42,6 +42,24 @@ class AuditSummaryTest {
     }
 
     @Test
+    void documentCodeTakesOwnCodeNotReferenceOrWarehouse() {
+        // phiếu đổi trả: số của chính nó là receiptCode, exportReceiptCode là phiếu tham chiếu
+        assertThat(AuditSummary.documentCode("sales-returns", Map.of(
+                "exportReceiptCode", "PX-1", "receiptCode", "DT-1", "warehouseCode", "MAIN"))).isEqualTo("DT-1");
+        assertThat(AuditSummary.documentCode("stock-transfers", Map.of(
+                "transferCode", "CK-1", "fromWarehouseCode", "MAIN"))).isEqualTo("CK-1");
+        assertThat(AuditSummary.documentCode("stocktakes", Map.of("stocktakeCode", "KK-1"))).isEqualTo("KK-1");
+        assertThat(AuditSummary.documentCode("warranty-claims", Map.of(
+                "claimCode", "BH-1", "exportReceiptCode", "PX-1"))).isEqualTo("BH-1");
+        assertThat(AuditSummary.documentCode("payments", Map.of(
+                "paymentCode", "THU-1", "referenceCode", "PX-1"))).isEqualTo("THU-1");
+        // mã kho chỉ là số của đối tượng khi thao tác trên kho
+        assertThat(AuditSummary.documentCode("warehouses", Map.of("warehouseCode", "MAIN"))).isEqualTo("MAIN");
+        assertThat(AuditSummary.documentCode("alerts", Map.of("warehouseCode", "MAIN"))).isNull();
+        assertThat(AuditSummary.documentCode("products", null)).isNull();
+    }
+
+    @Test
     void dropsSensitiveKeysEvenIfWhitelisted() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", 3);

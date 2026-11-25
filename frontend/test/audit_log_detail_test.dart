@@ -41,6 +41,43 @@ void main() {
       expect(rows.last, ('Đường dẫn', null, '/import-receipts'));
     });
 
+    test(
+      'có số giấy tờ: đối tượng và thao tác hiện số phiếu, không lặp lại',
+      () {
+        expect(
+          targetLabel('Import_Receipts', 1, 'PN-MAIN-2026-0001'),
+          'Phiếu nhập PN-MAIN-2026-0001',
+        );
+        expect(targetLabel('stock-transfers', 3, null), 'Chuyển kho #3');
+        expect(
+          targetLabel('payments', 9, 'THU-MAIN-2026-0002'),
+          'Phiếu thu/chi THU-MAIN-2026-0002',
+        );
+        final detail = {
+          'method': 'PUT',
+          'path': '/import-receipts/1',
+          'summary': {
+            'id': 1,
+            'receiptCode': 'PN-MAIN-2026-0001',
+            'sourcePartyName': 'NCC A',
+          },
+        };
+        expect(
+          detailSummary(detail, code: 'PN-MAIN-2026-0001'),
+          'Cập nhật Phiếu nhập PN-MAIN-2026-0001: NCC A',
+        );
+        expect(detailRows(detail, code: 'PN-MAIN-2026-0001').first, (
+          'Thao tác',
+          null,
+          'Cập nhật Phiếu nhập PN-MAIN-2026-0001',
+        ));
+        // hủy phiếu do service ghi: lý do hiện nhãn tiếng Việt
+        expect(detailSummary({'reason': 'Nhập nhầm'}), 'Lý do: Nhập nhầm');
+        expect(actionLabel('LOGIN_FAILED'), 'Đăng nhập sai');
+        expect(actionLabel('COMPLETE'), 'Hoàn tất');
+      },
+    );
+
     test('sửa nhân viên chỉ liệt kê trường đã đổi, nhãn tiếng Việt', () {
       final detail = {
         'before': {'fullName': 'An', 'isActive': true, 'role': 'SALES'},

@@ -34,6 +34,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -115,7 +116,8 @@ public class ImportReceiptService {
         receipt.setCancelledBy(currentUserService.getCurrentUser());
         receipt.setCancelledAt(LocalDateTime.now());
         receipt.setCancelReason(reason);
-        auditLogService.log("CANCEL", "Import_Receipts", receipt.getId(), reason);
+        auditLogService.logDocument("CANCEL", "Import_Receipts", receipt.getId(), receipt.getReceiptCode(),
+                Collections.singletonMap("reason", reason));
         return importReceiptMapper.toResponse(importReceiptRepository.save(receipt));
     }
 
