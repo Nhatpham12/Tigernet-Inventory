@@ -36,7 +36,10 @@ location /bff/ {
     proxy_read_timeout 120s;
 }
 
+# HTTP/1.1 bắt buộc: gzip của container web mặc định chỉ nén request HTTP/1.1,
+# proxy mặc định HTTP/1.0 làm main.dart.js/canvaskit.wasm (~10 MB) gửi không nén.
 location / {
     proxy_pass http://web:80;
+    proxy_http_version 1.1;
     proxy_set_header Host $host;
 }
