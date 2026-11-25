@@ -13,7 +13,10 @@ import java.util.List;
 public interface RecoveryCodeRepository extends JpaRepository<RecoveryCodeEntity, Integer> {
     List<RecoveryCodeEntity> findByUserId(Integer userId);
 
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    // KHÔNG clearAutomatically: hàm được gọi giữa transaction (bật MFA rồi cấp token ngay); clear sẽ tách
+    // UserEntity đang dùng, đọc role (lazy) sau đó ném LazyInitializationException → HTTP 500.
+    // Không cần clear vì RecoveryCodeEntity không được nạp vào context trước khi xoá trong cùng transaction.
+    @Modifying(flushAutomatically = true)
     @Query("delete from RecoveryCodeEntity r where r.userId = :userId")
     void deleteByUserId(@Param("userId") Integer userId);
 }

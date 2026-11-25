@@ -1,6 +1,7 @@
 package com.tigernet.backend.audit.config;
 
 import com.tigernet.backend.audit.service.AuditLogService;
+import com.tigernet.backend.audit.service.AuditSummary;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,14 +20,16 @@ import java.util.Set;
  * Ghi nhật ký cho mọi thao tác ghi (POST/PUT/PATCH/DELETE) thành công của nhân viên đã đăng nhập,
  * để trang "Lịch sử thao tác" thấy được ai đã làm gì. Thao tác nào service đã tự ghi nhật ký chi tiết
  * (hủy phiếu, thanh toán, quản lý user...) thì bỏ qua để không trùng.
+ * Chi tiết gồm loại thao tác, đường dẫn và tóm tắt kết quả (AuditSummary: mã phiếu, tên, kho, tổng tiền, dòng hàng...).
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class AuditInterceptor implements HandlerInterceptor {
-    private static final Set<String> WRITE_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
+    static final Set<String> WRITE_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
 
     private final AuditLogService auditLogService;
+    private final JsonMapper jsonMapper;
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
@@ -61,12 +65,30 @@ public class AuditInterceptor implements HandlerInterceptor {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("method", method);
         detail.put("path", path);
+        Map<String, Object> summary = summarize(request.getAttribute(AuditResponseCapture.RESULT_ATTRIBUTE), method, path);
+        if (summary != null) {
+            detail.put("summary", summary);
+            // thêm mới: path chưa có id → lấy id của đối tượng vừa tạo
+            if (targetId == null && summary.get("id") instanceof Integer id) {
+                targetId = id;
+            }
+        }
         try {
             auditLogService.log(action.length() > 50 ? action.substring(0, 50) : action,
                     segments[0].length() > 50 ? segments[0].substring(0, 50) : segments[0], targetId, detail);
         } catch (RuntimeException e) {
             // không để lỗi ghi nhật ký làm hỏng thao tác chính (đã xong)
             log.warn("Cannot write audit log for {} {}: {}", method, path, e.getMessage());
+        }
+    }
+
+    // tóm tắt lỗi thì vẫn ghi nhật ký, chỉ thiếu phần tóm tắt
+    private Map<String, Object> summarize(Object result, String method, String path) {
+        try {
+            return AuditSummary.of(result, jsonMapper);
+        } catch (RuntimeException e) {
+            log.warn("Cannot summarize audit result for {} {}: {}", method, path, e.getMessage());
+            return null;
         }
     }
 }

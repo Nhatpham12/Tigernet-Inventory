@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../config/env.dart';
 import 'api_exception.dart';
@@ -10,7 +11,7 @@ import 'page_data.dart';
 
 /// Điểm gọi API duy nhất của FE. Mọi request đi tới BFF (`/bff/**`), không gọi thẳng backend.
 class ApiClient {
-  ApiClient({String? baseUrl})
+  ApiClient({String? baseUrl, @visibleForTesting HttpClientAdapter? adapter})
     : _dio = Dio(
         BaseOptions(
           baseUrl: baseUrl ?? Env.bffBaseUrl,
@@ -24,10 +25,17 @@ class ApiClient {
         ),
       ) {
     if (Env.demoMode) _dio.httpClientAdapter = DemoAdapter();
+    if (adapter != null) _dio.httpClientAdapter = adapter;
+    _plainDio = Dio(_dio.options)..httpClientAdapter = _dio.httpClientAdapter;
     _dio.interceptors.add(_AuthInterceptor(this));
   }
 
   final Dio _dio;
+
+  /// Cùng cấu hình nhưng KHÔNG có [_AuthInterceptor]: dùng cho làm mới token và gửi lại request
+  /// từ bên trong interceptor. Gọi qua [_dio] ở đó sẽ treo vĩnh viễn khi gặp lỗi: QueuedInterceptor
+  /// xếp onError của request mới sau onError đang chạy, mà onError đang chạy lại chờ request mới.
+  late final Dio _plainDio;
 
   /// Gọi khi refresh token cũng hết hạn → SessionController chuyển về màn đăng nhập.
   void Function()? onSessionExpired;
@@ -118,10 +126,7 @@ class ApiClient {
   /// Lỗi tạm thời (429 quá nhiều request, 5xx, mất mạng) thì ném DioException để giữ phiên đăng nhập.
   Future<bool> refreshTokens() async {
     try {
-      await _dio.post(
-        '/bff/auth/refresh',
-        options: Options(extra: {_AuthInterceptor.skipAuth: true}),
-      );
+      await _plainDio.post('/bff/auth/refresh');
       return true;
     } on DioException catch (e) {
       final status = e.response?.statusCode;
@@ -196,8 +201,6 @@ class ApiClient {
 class _AuthInterceptor extends QueuedInterceptor {
   _AuthInterceptor(this._client);
 
-  static const skipAuth = 'skipAuth';
-  static const _retried = 'retried';
   static const _sentAt = 'sentAt';
   final ApiClient _client;
 
@@ -217,23 +220,24 @@ class _AuthInterceptor extends QueuedInterceptor {
   ) async {
     final options = err.requestOptions;
     final isAuthCall = options.path.startsWith('/bff/auth/');
-    if (err.response?.statusCode != 401 ||
-        isAuthCall ||
-        options.extra[skipAuth] == true ||
-        options.extra[_retried] == true) {
+    if (err.response?.statusCode != 401 || isAuthCall) {
       return handler.next(err);
     }
     // Nhiều request cùng gặp 401 được xếp hàng (QueuedInterceptor): request gửi trước lần làm mới
     // vừa thành công thì chỉ cần gửi lại (cookie đã mới), không gọi /bff/auth/refresh thêm.
     final sentAt = options.extra[_sentAt] as DateTime?;
     final alreadyRefreshed =
-        _lastRefresh != null && sentAt != null && sentAt.isBefore(_lastRefresh!);
+        _lastRefresh != null &&
+        sentAt != null &&
+        sentAt.isBefore(_lastRefresh!);
     if (!alreadyRefreshed) {
       final bool ok;
       try {
         ok = await _client.refreshTokens();
       } on DioException {
-        return handler.next(err); // lỗi tạm thời: giữ phiên, báo lỗi request này
+        return handler.next(
+          err,
+        ); // lỗi tạm thời: giữ phiên, báo lỗi request này
       }
       if (!ok) {
         _client.onSessionExpired?.call();
@@ -241,9 +245,8 @@ class _AuthInterceptor extends QueuedInterceptor {
       }
       _lastRefresh = DateTime.now();
     }
-    options.extra[_retried] = true;
     try {
-      handler.resolve(await _client._dio.fetch(options));
+      handler.resolve(await _client._plainDio.fetch(options));
     } on DioException catch (e) {
       handler.next(e);
     }
