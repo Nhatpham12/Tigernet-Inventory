@@ -18,6 +18,7 @@ public class AuditLogResponse {
     private String action;
     private String targetTable;
     private Integer targetId;
+    private String targetCode;
     private String detail; // chuỗi JSON
     private LocalDateTime createdAt;
 }

@@ -32,16 +32,27 @@ public class AuditLogService {
 
     // ghi 1 dòng nhật ký cho user đang đăng nhập; detail được lưu dạng JSON
     public void log(String action, String targetTable, Integer targetId, Object detail) {
-        log(currentUserService.getCurrentUser(), action, targetTable, targetId, detail);
+        write(currentUserService.getCurrentUser(), action, targetTable, targetId, null, detail);
+    }
+
+    // như log(), kèm số giấy tờ của đối tượng (số phiếu nhập/xuất/chuyển kho, số phiếu thu/chi...)
+    public void logDocument(String action, String targetTable, Integer targetId, String targetCode, Object detail) {
+        write(currentUserService.getCurrentUser(), action, targetTable, targetId, targetCode, detail);
     }
 
     // dùng khi chưa có token trong SecurityContext (vd đăng nhập)
     public void log(UserEntity user, String action, String targetTable, Integer targetId, Object detail) {
+        write(user, action, targetTable, targetId, null, detail);
+    }
+
+    private void write(UserEntity user, String action, String targetTable, Integer targetId, String targetCode,
+                       Object detail) {
         AuditLogEntity auditLog = new AuditLogEntity();
         auditLog.setUser(user);
         auditLog.setAction(action);
         auditLog.setTargetTable(targetTable);
         auditLog.setTargetId(targetId);
+        auditLog.setTargetCode(targetCode == null || targetCode.length() <= 50 ? targetCode : targetCode.substring(0, 50));
         auditLog.setDetail(detail == null ? null : jsonMapper.writeValueAsString(detail));
         auditLog.setCreatedAt(LocalDateTime.now());
         auditLogRepository.save(auditLog);
@@ -70,6 +81,7 @@ public class AuditLogService {
                 .action(auditLog.getAction())
                 .targetTable(auditLog.getTargetTable())
                 .targetId(auditLog.getTargetId())
+                .targetCode(auditLog.getTargetCode())
                 .detail(auditLog.getDetail())
                 .createdAt(auditLog.getCreatedAt())
                 .build();

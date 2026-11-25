@@ -289,7 +289,7 @@ public class ViewController {
                 mapOf("userId", userId, "action", action, "from", from, "to", to), auth);
         return page(rows, keyword, sort == null ? "createdAt,desc" : sort, page, size,
                 r -> Json.text(r, "username") + " " + Json.text(r, "action") + " " + Json.text(r, "targetTable")
-                        + " " + Json.text(r, "targetId") + " " + Json.text(r, "detail"));
+                        + " " + Json.text(r, "targetId") + " " + Json.text(r, "targetCode") + " " + Json.text(r, "detail"));
     }
 
     // ===== helpers =====

@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,7 @@ public class PaymentManagementService {
         BigDecimal amount = MoneyUtils.round(request.getAmount());
 
         String warehouseCode;
+        String receiptCode = null; // số phiếu được thanh toán, ghi vào nhật ký
         if (type == PaymentReferenceType.Export_Receipts) {
             ExportReceiptEntity receipt = exportReceiptService.findReceipt(refId);
             // phiếu xuất: khách trả tiền (IN), đúng khách của phiếu
@@ -76,6 +78,7 @@ public class PaymentManagementService {
             if (receipt.getStatus() == ExportStatus.CANCELLED) throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
             exportReceiptService.adjustPaid(receipt, amount);
             warehouseCode = receipt.getWarehouse().getWarehouseCode();
+            receiptCode = receipt.getReceiptCode();
         } else if (type == PaymentReferenceType.Import_Receipts) {
             ImportReceiptEntity receipt = importReceiptService.findReceipt(refId);
             // phiếu nhập: chi trả NCC (OUT), đúng bên bán của phiếu
@@ -86,6 +89,7 @@ public class PaymentManagementService {
             if (receipt.getStatus() == ImportStatus.CANCELLED) throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
             importReceiptService.adjustPaid(receipt, amount);
             warehouseCode = receipt.getWarehouse().getWarehouseCode();
+            receiptCode = receipt.getReceiptCode();
         } else {
             warehouseCode = defaultWarehouseCode(type, refId);
         }
@@ -93,9 +97,11 @@ public class PaymentManagementService {
         PaymentEntity payment = paymentService.record(request.getDirection(), party, type, refId, amount,
                 request.getMethod(), request.getNote(), warehouseCode, request.getPaidAt());
         Map<String, Object> detail = new LinkedHashMap<>();
-        detail.put("code", payment.getPaymentCode());
+        detail.put("paymentCode", payment.getPaymentCode());
         detail.put("amount", amount);
-        auditLogService.log("PAYMENT", type.name(), refId, detail);
+        // đối tượng là phiếu được thanh toán; loại tham chiếu khác thì dùng số phiếu thu/chi
+        auditLogService.logDocument("PAYMENT", type.name(), refId,
+                receiptCode != null ? receiptCode : payment.getPaymentCode(), detail);
         return toResponse(payment);
     }
 
@@ -129,7 +135,8 @@ public class PaymentManagementService {
         }
         payment.setStatus(PaymentEntryStatus.CANCELLED);
         paymentService.save(payment);
-        auditLogService.log("CANCEL", "Payments", payment.getId(), request != null ? request.getReason() : null);
+        auditLogService.logDocument("CANCEL", "Payments", payment.getId(), payment.getPaymentCode(),
+                Collections.singletonMap("reason", request != null ? request.getReason() : null));
         return toResponse(payment);
     }
 

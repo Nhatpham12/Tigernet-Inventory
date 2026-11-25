@@ -14,6 +14,10 @@ import 'page_permissions_page.dart' show usersLookupProvider;
 
 const _actionLabels = <String, String>{
   'LOGIN': 'Đăng nhập',
+  'LOGIN_FAILED': 'Đăng nhập sai',
+  'LOGOUT': 'Đăng xuất',
+  'MFA_ENABLED': 'Bật xác thực 2 bước',
+  'RESET_MFA': 'Tắt xác thực 2 bước',
   'CREATE': 'Tạo mới',
   'UPDATE': 'Cập nhật',
   'DELETE': 'Xóa',
@@ -21,6 +25,16 @@ const _actionLabels = <String, String>{
   'PAYMENT': 'Ghi nhận thanh toán',
   'CONFIRM': 'Xác nhận',
   'APPROVE': 'Duyệt',
+  'COMPLETE': 'Hoàn tất',
+  'STATUS': 'Đổi trạng thái',
+  'ITEMS': 'Cập nhật dòng hàng',
+  'PAYMENTS': 'Ghi nhận thanh toán',
+  'LOCATION': 'Đổi vị trí hàng',
+  'LOCATIONS': 'Vị trí trong kho',
+  'RECEIVERS': 'Người nhận hàng',
+  'BANK_ACCOUNTS': 'Tài khoản ngân hàng',
+  'DOCUMENTS': 'Chứng từ',
+  'READ': 'Đánh dấu đã xử lý',
   'CREATE_USER': 'Tạo nhân viên',
   'UPDATE_USER': 'Sửa nhân viên',
   'DELETE_USER': 'Xóa nhân viên',
@@ -48,22 +62,35 @@ const _targetLabels = <String, String>{
   'alerts': 'Cảnh báo',
   'config': 'Cấu hình',
   'inventory': 'Tồn kho',
+  'payments': 'Phiếu thu/chi',
+  'warranty-claims': 'Phiếu bảo hành',
+  'warehouse-locations': 'Vị trí kho',
+  'receivers': 'Người nhận hàng',
+  'stock-settings': 'Cài đặt tồn kho',
+  'vat-options': 'Thuế VAT',
+  'return-fee-policies': 'Chính sách phí đổi trả',
 };
 
 String actionLabel(Object? action) =>
     _actionLabels['$action'] ?? '${action ?? '—'}';
 
-String targetLabel(Object? table, Object? id) {
+/// "Phiếu nhập PN-MAIN-2026-0001" khi có số giấy tờ, không thì "Phiếu nhập #1".
+String targetLabel(Object? table, Object? id, [Object? code]) {
   if (table == null) return '—';
   final key = '$table'.toLowerCase().replaceAll('_', '-');
   final label = _targetLabels[key] ?? '$table';
+  if (code != null && '$code'.isNotEmpty) return '$label $code';
   return id == null ? label : '$label #$id';
 }
 
 ChipTone _tone(String? action) => switch (action) {
-  'LOGIN' => ChipTone.neutral,
-  'DELETE' || 'DELETE_USER' || 'CANCEL' || 'LOCK_USER' => ChipTone.danger,
-  'CREATE' || 'CREATE_USER' => ChipTone.success,
+  'LOGIN' || 'LOGOUT' => ChipTone.neutral,
+  'DELETE' ||
+  'DELETE_USER' ||
+  'CANCEL' ||
+  'LOCK_USER' ||
+  'LOGIN_FAILED' => ChipTone.danger,
+  'CREATE' || 'CREATE_USER' || 'APPROVE' || 'COMPLETE' => ChipTone.success,
   'SET_PERMISSIONS' || 'RESET_PERMISSIONS' => ChipTone.purple,
   'PAYMENT' => ChipTone.warning,
   _ => ChipTone.info,
@@ -110,6 +137,9 @@ const _fieldLabels = <String, String>{
   'itemCount': 'Số dòng hàng',
   'items': 'Hàng',
   'count': 'Số bản ghi',
+  'paymentCode': 'Số phiếu thu/chi',
+  'paidAfter': 'Đã trả sau lần này',
+  'remainAfter': 'Còn lại sau lần này',
 };
 
 const _methodLabels = <String, String>{
@@ -127,13 +157,19 @@ String _valueText(Object? key, Object? v) => switch (v) {
   true => 'Có',
   false => 'Không',
   List() => v.isEmpty ? '—' : v.join(', '),
-  num() when key == 'amount' || '$key'.endsWith('Amount') => Fmt.money(v),
+  num()
+      when key == 'amount' ||
+          key == 'paidAfter' ||
+          key == 'remainAfter' ||
+          '$key'.endsWith('Amount') =>
+    Fmt.money(v),
   _ when key == 'method' => _methodLabels['$v'] ?? '$v',
   _ => '$v',
 };
 
-/// "PUT /suppliers/5" → "Cập nhật Nhà cung cấp #5"; thêm mới lấy id từ tóm tắt.
-String _requestText(Map d) {
+/// "PUT /suppliers/5" → "Cập nhật Nhà cung cấp #5"; có số giấy tờ thì hiện số
+/// ("Cập nhật Phiếu nhập PN-MAIN-2026-0001"); thêm mới lấy id từ tóm tắt.
+String _requestText(Map d, Object? code) {
   final segments = '${d['path'] ?? ''}'
       .split('/')
       .where((s) => s.isNotEmpty)
@@ -143,7 +179,7 @@ String _requestText(Map d) {
   final id = segments.length > 1 && int.tryParse(segments[1]) != null
       ? segments[1]
       : (summary is Map ? summary['id'] : null);
-  return '${_valueText('method', d['method'])} ${targetLabel(segments.first, id)}';
+  return '${_valueText('method', d['method'])} ${targetLabel(segments.first, id, code)}';
 }
 
 /// Các dòng của tóm tắt đối tượng (bỏ id vì đã có trong "Thao tác").
@@ -158,22 +194,26 @@ List<(String, String?, String)> _summaryRows(Object? summary) => [
         ),
 ];
 
-/// "PN-KHO1-2026-0005 · NCC A · 12.500.000 ₫": mã, tên/đối tác, tổng tiền.
-String _summaryText(Object? summary) {
+/// "PN-KHO1-2026-0005 · NCC A · 12.500.000 ₫": mã (khi chưa hiện ở phần thao tác), tên/đối tác, tổng tiền.
+String _summaryText(Object? summary, Object? code) {
   if (summary is! Map) return '';
   String? pick(bool Function(String k) test) => summary.entries
       .where((e) => test('${e.key}') && e.value != null)
       .map((e) => _valueText(e.key, e.value))
       .firstOrNull;
   return [
-    pick((k) => k.endsWith('Code')),
+    if (code == null || '$code'.isEmpty) pick((k) => k.endsWith('Code')),
     pick((k) => k == 'name' || (k.endsWith('Name') && k != 'warehouseName')),
     pick((k) => k == 'totalAmount' || k == 'amount'),
   ].whereType<String>().join(' · ');
 }
 
 /// Các dòng (trường, trước, sau) của chi tiết; [before] null khi không có giá trị cũ.
-List<(String field, String? before, String after)> detailRows(Object? detail) {
+/// [code]: số giấy tờ của dòng nhật ký (cột Target_Code).
+List<(String field, String? before, String after)> detailRows(
+  Object? detail, {
+  Object? code,
+}) {
   final d = _decode(detail);
   if (d == null) return const [];
   if (d is! Map) return [('Nội dung', null, '$d')];
@@ -188,7 +228,7 @@ List<(String field, String? before, String after)> detailRows(Object? detail) {
   }
   if (d['path'] != null) {
     return [
-      ('Thao tác', null, _requestText(d)),
+      ('Thao tác', null, _requestText(d, code)),
       ..._summaryRows(d['summary']),
       ('Đường dẫn', null, '${d['path']}'),
     ];
@@ -200,12 +240,13 @@ List<(String field, String? before, String after)> detailRows(Object? detail) {
 }
 
 /// Tóm tắt cột "Chi tiết": các trường đã đổi hoặc mô tả thao tác.
-String detailSummary(Object? detail) {
+String detailSummary(Object? detail, {Object? code}) {
   final d = _decode(detail);
   if (d == null) return '—';
   if (d is Map && d['path'] != null) {
-    final extra = _summaryText(d['summary']);
-    return extra.isEmpty ? _requestText(d) : '${_requestText(d)}: $extra';
+    final action = _requestText(d, code);
+    final extra = _summaryText(d['summary'], code);
+    return extra.isEmpty ? action : '$action: $extra';
   }
   if (d is Map && d['pages'] is List) {
     return '${(d['pages'] as List).length} trang';
@@ -275,7 +316,7 @@ class AuditLogPage extends ConsumerWidget {
   final int? initialUserId;
 
   void _showDetail(BuildContext context, RowData r) {
-    final rows = detailRows(r['detail']);
+    final rows = detailRows(r['detail'], code: r['targetCode']);
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -288,7 +329,7 @@ class AuditLogPage extends ConsumerWidget {
               children: [
                 Text('Thời gian: ${Fmt.dateTime(r['createdAt'])}'),
                 Text(
-                  'Đối tượng: ${targetLabel(r['targetTable'], r['targetId'])}',
+                  'Đối tượng: ${targetLabel(r['targetTable'], r['targetId'], r['targetCode'])}',
                 ),
                 const SizedBox(height: 12),
                 rows.isEmpty
@@ -386,12 +427,13 @@ class AuditLogPage extends ConsumerWidget {
             ),
             TableColumnDef.text(
               'Đối tượng',
-              (r) => targetLabel(r['targetTable'], r['targetId']),
-              minWidth: 150,
+              (r) =>
+                  targetLabel(r['targetTable'], r['targetId'], r['targetCode']),
+              minWidth: 210,
             ),
             TableColumnDef.text(
               'Chi tiết',
-              (r) => detailSummary(r['detail']),
+              (r) => detailSummary(r['detail'], code: r['targetCode']),
               flex: 4,
               minWidth: 240,
               maxWidth: 480,

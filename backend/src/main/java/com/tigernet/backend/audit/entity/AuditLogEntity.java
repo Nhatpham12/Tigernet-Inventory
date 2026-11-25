@@ -29,6 +29,9 @@ public class AuditLogEntity {
     @Column(name = "Target_ID")
     private Integer targetId;
 
+    @Column(name = "Target_Code", length = 50)
+    private String targetCode; // số giấy tờ (PN-..., PX-..., CK-..., THU-...) để đọc nhật ký không cần tra id
+
     @Column(name = "Detail", columnDefinition = "JSON")
     private String detail; // chuỗi JSON hợp lệ
 
