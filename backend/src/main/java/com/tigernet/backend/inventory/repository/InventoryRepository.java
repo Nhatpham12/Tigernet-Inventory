@@ -12,6 +12,15 @@ public interface InventoryRepository extends JpaRepository<InventoryEntity, Inte
 
     java.util.Optional<InventoryEntity> findBySerial(String serial);
 
+    // lô không serial còn hàng ở một trạng thái, cũ trước (FIFO); gọi sau khi đã khóa dòng Stock_Summary
+    @Query("""
+            select i from InventoryEntity i
+            where i.product.id = :productId and i.warehouse.id = :warehouseId and i.status = :status
+              and i.serial is null and i.quantityOnHand > 0
+            order by i.dateIn, i.id
+            """)
+    List<InventoryEntity> findLotsFifo(Integer productId, Integer warehouseId, InventoryStatus status);
+
     // tham số null thì bỏ qua điều kiện đó
     @Query("""
             select i from InventoryEntity i

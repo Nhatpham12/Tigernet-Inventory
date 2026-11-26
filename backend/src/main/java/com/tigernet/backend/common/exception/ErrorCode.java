@@ -96,6 +96,9 @@ public enum ErrorCode {
     PAYMENT_REFERENCE_INVALID(2027, "Payment reference is missing or does not match the direction/party", HttpStatus.BAD_REQUEST),
     PAYMENT_ALREADY_CANCELLED(2028, "Payment has already been cancelled", HttpStatus.CONFLICT),
     WARRANTY_STATUS_INVALID(2029, "Warranty claim cannot move to this status from its current status", HttpStatus.CONFLICT),
+    INSUFFICIENT_STOCK(2030, "Not enough stock in the warehouse", HttpStatus.CONFLICT),
+    INVENTORY_STATUS_INVALID(2031, "Inventory item is not in the required status", HttpStatus.CONFLICT),
+    SERIAL_COUNT_MISMATCH(2032, "Serialized products need exactly one serial per unit; other products take no serial", HttpStatus.BAD_REQUEST),
 
     // 4xxx: in biểu mẫu
     PRINT_TEMPLATE_INVALID(4001, "Unknown print template", HttpStatus.BAD_REQUEST),
