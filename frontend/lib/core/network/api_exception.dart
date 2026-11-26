@@ -73,6 +73,9 @@ const Map<int, String> kErrorMessages = {
   2027: 'Phiếu gốc hoặc đối tượng không hợp lệ cho phiếu thu/chi.',
   2028: 'Phiếu đã hủy trước đó.',
   2029: 'Không chuyển được sang trạng thái này.',
+  2030: 'Không đủ hàng trong kho.',
+  2031: 'Hàng không ở trạng thái phù hợp (có thể đã bán, đang giữ hoặc đang cho thuê).',
+  2032: 'Hàng theo dõi serial phải nhập đủ mỗi đơn vị một serial; hàng không serial thì không nhập serial.',
   9503: 'Không kết nối được máy chủ. Vui lòng thử lại.',
 };
 

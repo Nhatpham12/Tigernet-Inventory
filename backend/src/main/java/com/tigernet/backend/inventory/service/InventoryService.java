@@ -27,7 +27,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.util.List;
 
-// phía đọc của tồn kho; thay đổi số lượng tồn sẽ đi qua StockService (chưa làm)
+// phía đọc của tồn kho; mọi thay đổi số lượng tồn đi qua StockService
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
