@@ -100,6 +100,7 @@ public enum ErrorCode {
     INVENTORY_STATUS_INVALID(2031, "Inventory item is not in the required status", HttpStatus.CONFLICT),
     SERIAL_COUNT_MISMATCH(2032, "Serialized products need exactly one serial per unit; other products take no serial", HttpStatus.BAD_REQUEST),
     SOURCE_NOT_SUPPLIER(2033, "The seller of an import receipt must be an active supplier", HttpStatus.BAD_REQUEST),
+    RECEIPT_HAS_PAYMENTS(2034, "Cancel the receipt's payments before cancelling the receipt", HttpStatus.CONFLICT),
 
     // 4xxx: in biểu mẫu
     PRINT_TEMPLATE_INVALID(4001, "Unknown print template", HttpStatus.BAD_REQUEST),

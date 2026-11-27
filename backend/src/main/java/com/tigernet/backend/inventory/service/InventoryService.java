@@ -116,6 +116,12 @@ public class InventoryService {
         return inventory;
     }
 
+    // tra đơn vị theo serial (serial là duy nhất toàn hệ thống)
+    public InventoryEntity findBySerial(String serial) {
+        return inventoryRepository.findBySerial(serial)
+                .orElseThrow(() -> new AppException(ErrorCode.INVENTORY_NOT_FOUND));
+    }
+
     // serial là duy nhất toàn hệ thống
     @Transactional(readOnly = true)
     public boolean serialExists(String serial) {

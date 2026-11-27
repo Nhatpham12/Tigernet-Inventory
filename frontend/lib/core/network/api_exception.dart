@@ -77,6 +77,7 @@ const Map<int, String> kErrorMessages = {
   2031: 'Hàng không ở trạng thái phù hợp (có thể đã bán, đang giữ hoặc đang cho thuê).',
   2032: 'Hàng theo dõi serial phải nhập đủ mỗi đơn vị một serial; hàng không serial thì không nhập serial.',
   2033: 'Bên bán của phiếu nhập phải là nhà cung cấp đang hoạt động.',
+  2034: 'Phiếu đã có tiền thu. Hãy hủy các phiếu thu của phiếu này trước khi hủy phiếu.',
   9503: 'Không kết nối được máy chủ. Vui lòng thử lại.',
 };
 

@@ -2,6 +2,8 @@ package com.tigernet.backend.outbound.controller;
 
 import com.tigernet.backend.common.security.Pages;
 import com.tigernet.backend.common.security.RequiresPage;
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
 
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.outbound.dto.request.ExportReceiptCreationRequest;
@@ -57,7 +59,23 @@ public class ExportReceiptController {
         return ApiResponse.success(exportReceiptService.updateReceipt(receiptId, request));
     }
 
-    // hủy phiếu PENDING: phiếu chuyển sang CANCELLED, không xóa
+    // Quản lý duyệt: giữ hàng cho phiếu (PENDING → CONFIRMED)
+    @RequiresPage({Pages.EXPORTS})
+    @RequiresRole({PageAccessPolicy.MANAGER})
+    @PutMapping("/{receiptId}/confirm")
+    ApiResponse<ExportReceiptResponse> confirmReceipt(@PathVariable Integer receiptId) {
+        return ApiResponse.success(exportReceiptService.confirmReceipt(receiptId));
+    }
+
+    // Thủ kho hoàn tất xuất: hàng giữ thành đã bán (CONFIRMED → EXPORTED)
+    @RequiresPage({Pages.EXPORTS})
+    @RequiresRole({PageAccessPolicy.WAREHOUSE, PageAccessPolicy.MANAGER})
+    @PutMapping("/{receiptId}/complete")
+    ApiResponse<ExportReceiptResponse> completeReceipt(@PathVariable Integer receiptId) {
+        return ApiResponse.success(exportReceiptService.completeReceipt(receiptId));
+    }
+
+    // hủy phiếu PENDING/CONFIRMED (trả lại hàng đang giữ): phiếu chuyển sang CANCELLED, không xóa
     @RequiresPage({Pages.EXPORTS_NEW})
     @DeleteMapping("/{receiptId}")
     ApiResponse<ExportReceiptResponse> cancelReceipt(@PathVariable Integer receiptId,
