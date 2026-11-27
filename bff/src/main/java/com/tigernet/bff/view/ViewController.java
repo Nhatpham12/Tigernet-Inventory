@@ -160,8 +160,9 @@ public class ViewController {
             @RequestParam(required = false, defaultValue = "true") boolean onlyOutstanding,
             @RequestParam(required = false) String keyword, @RequestParam(required = false) String sort,
             @RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size) {
+        // cùng quy tắc với biên bản đối chiếu: phiếu đã duyệt / đã xuất mới là công nợ (chờ duyệt, đã hủy thì chưa)
         List<JsonNode> rows = backend.getList("/export-receipts", mapOf("warehouseId", warehouseId), auth).stream()
-                .filter(r -> !"CANCELLED".equals(Json.text(r, "status")))
+                .filter(r -> Set.of("CONFIRMED", "EXPORTED").contains(Json.text(r, "status")))
                 .filter(r -> !onlyOutstanding || Json.decimal(r, "remain").compareTo(BigDecimal.ZERO) > 0)
                 .toList();
         return page(rows, keyword, sort == null ? "dateOut,desc" : sort, page, size,
