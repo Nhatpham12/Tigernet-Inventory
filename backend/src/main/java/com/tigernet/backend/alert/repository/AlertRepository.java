@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface AlertRepository extends JpaRepository<AlertEntity, Integer> {
     @Query("""
@@ -23,4 +24,11 @@ public interface AlertRepository extends JpaRepository<AlertEntity, Integer> {
               and (:warehouseId is null or a.warehouse.id = :warehouseId)
             """)
     long countUnresolved(Integer warehouseId);
+
+    // cảnh báo đang mở của 1 đối tượng: mỗi đối tượng chỉ giữ 1 cảnh báo mở cùng loại
+    Optional<AlertEntity> findFirstByAlertTypeAndWarehouseIdAndRefTableAndRefIdAndIsResolvedFalse(
+            AlertType alertType, Integer warehouseId, String refTable, Integer refId);
+
+    List<AlertEntity> findByAlertTypeAndRefTableAndRefIdAndIsResolvedFalse(AlertType alertType, String refTable,
+                                                                          Integer refId);
 }

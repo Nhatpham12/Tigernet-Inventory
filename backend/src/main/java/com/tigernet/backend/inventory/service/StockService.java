@@ -1,5 +1,6 @@
 package com.tigernet.backend.inventory.service;
 
+import com.tigernet.backend.alert.service.StockAlertService;
 import com.tigernet.backend.catalog.entity.ProductEntity;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
@@ -53,6 +54,7 @@ public class StockService {
     StockSummaryRepository summaryRepository;
     StockMovementRepository movementRepository;
     EntityManager entityManager;
+    StockAlertService alertService;
 
     /**
      * Đưa hàng mới vào kho ở trạng thái IN_STOCK (phiếu nhập xác nhận, kiểm kê thừa).
@@ -264,6 +266,8 @@ public class StockService {
             movement.setReferenceId(ref.id());
             movement.setCreatedAt(LocalDateTime.now());
             movementRepository.save(movement);
+            // tồn khả dụng vừa đổi: mở/đóng cảnh báo tồn thấp của (SP, kho)
+            alertService.refreshLowStock(summary.getProduct(), summary.getWarehouse(), summary.getQtyOnHand());
         }
     }
 

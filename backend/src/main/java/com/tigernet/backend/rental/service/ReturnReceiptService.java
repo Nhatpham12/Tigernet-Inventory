@@ -31,6 +31,8 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import com.tigernet.backend.alert.enums.AlertType;
+import com.tigernet.backend.alert.service.StockAlertService;
 import com.tigernet.backend.inventory.entity.InventoryEntity;
 import com.tigernet.backend.inventory.enums.InventoryStatus;
 import com.tigernet.backend.inventory.service.StockRef;
@@ -60,6 +62,7 @@ public class ReturnReceiptService {
     CurrentUserService currentUserService;
     WarehouseAccessService warehouseAccess;
     StockService stockService;
+    StockAlertService alertService;
 
     /** 1 dòng trả kèm cờ hỏng (cờ không lưu ở dòng trả, trạng thái nằm ở Inventory) */
     private record ReturnLine(ReturnReceiptDetailEntity detail, boolean damaged) { }
@@ -102,6 +105,7 @@ public class ReturnReceiptService {
         if (allReturned) {
             rental.setReturnDate(returnDate);
             rental.setPaymentStatus(lookupService.findPaymentStatus(PaymentStatusEntity.RETURNED));
+            alertService.resolve(AlertType.RENT_DUE, StockAlertService.REF_RENTALS, rental.getId());
         }
 
         ReturnReceiptEntity saved = returnReceiptRepository.save(receipt); // cần id phiếu cho thẻ kho
