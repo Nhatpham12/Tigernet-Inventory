@@ -16,6 +16,11 @@ public interface ExportReceiptRepository extends JpaRepository<ExportReceiptEnti
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ExportReceiptEntity> findFirstByReceiptCodeStartingWithOrderByReceiptCodeDesc(String prefix);
 
+    // khóa phiếu tới hết transaction: 2 người cùng duyệt/xuất/hủy 1 phiếu thì người sau thấy trạng thái mới
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from ExportReceiptEntity r where r.id = :id")
+    Optional<ExportReceiptEntity> findByIdForUpdate(Integer id);
+
     @Query("""
             select r from ExportReceiptEntity r
             where (:warehouseId is null or r.warehouse.id = :warehouseId)

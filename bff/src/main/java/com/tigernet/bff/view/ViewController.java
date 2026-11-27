@@ -128,7 +128,7 @@ public class ViewController {
                 .map(r -> {
                     ObjectNode copy = (ObjectNode) r;
                     copy.put("productCode", ProductStockService.productCode(Json.integer(r, "productId")));
-                    copy.put("qtyAvailable", Math.max(0, Json.intOrZero(r, "qtyOnHand") - Json.intOrZero(r, "qtyReserved")));
+                    copy.put("qtyAvailable", Json.intOrZero(r, "qtyOnHand")); // Qty_On_Hand = khả dụng, không trừ Qty_Reserved lần nữa
                     return (JsonNode) copy;
                 }).toList();
         return page(rows, keyword, sort == null ? "productName,asc" : sort, page, size,

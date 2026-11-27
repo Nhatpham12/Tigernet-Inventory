@@ -154,6 +154,20 @@ final routerProvider = Provider<GoRouter>((ref) {
             (_) => const ExportReceiptFormPage(),
           ),
           page(
+            '/app/export-receipts/:id/edit',
+            (s) => ExportReceiptFormPage(
+              key: ValueKey('edit-${s.pathParameters['id']}'),
+              receiptId: int.parse(s.pathParameters['id']!),
+            ),
+          ),
+          page(
+            '/app/export-receipts/:id',
+            (s) => ExportReceiptDetailPage(
+              key: ValueKey(s.pathParameters['id']),
+              id: int.parse(s.pathParameters['id']!),
+            ),
+          ),
+          page(
             '/app/rentals',
             (s) => RentalListPage(
               kind: RentalKind.rent,

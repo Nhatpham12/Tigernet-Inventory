@@ -46,7 +46,7 @@ public class ProductStockService {
         return await(products).stream().map(p -> {
             Integer id = Json.integer(p, "id");
             int[] qty = qtyByProduct.getOrDefault(id, new int[4]);
-            int available = Math.max(0, qty[0] - qty[1]);
+            int available = qty[0]; // Qty_On_Hand đã là hàng khả dụng (hàng giữ cho phiếu xuất nằm ở Qty_Reserved)
             BigDecimal priceOut = Json.decimal(p, "defaultPriceOut");
             Integer min = Json.integer(p, "minStockLevel");
             return new ProductRow(id, productCode(id), Json.text(p, "productName"), Json.integer(p, "groupId"),
