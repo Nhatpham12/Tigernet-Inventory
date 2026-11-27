@@ -7,7 +7,7 @@ import java.util.List;
 /** JSON xem trước đối chiếu công nợ trên màn hình (cùng số liệu với biên bản in). */
 public record DebtStatementResponse(Integer partyId, String partyName, LocalDate from, LocalDate to,
                                     BigDecimal openingBalance, BigDecimal increase, BigDecimal decrease,
-                                    BigDecimal closingBalance, List<Line> lines) {
+                                    BigDecimal closingBalance, List<Line> lines, boolean payable) {
     public record Line(LocalDate date, String code, String description, BigDecimal increase, BigDecimal decrease) {
     }
 
@@ -15,6 +15,7 @@ public record DebtStatementResponse(Integer partyId, String partyName, LocalDate
                                            DebtStatement s) {
         return new DebtStatementResponse(partyId, partyName, from, to, s.opening(), s.increase(), s.decrease(),
                 s.closing(), s.lines().stream()
-                .map(l -> new Line(l.date(), l.voucher(), l.description(), l.increase(), l.decrease())).toList());
+                .map(l -> new Line(l.date(), l.voucher(), l.description(), l.increase(), l.decrease())).toList(),
+                s.payable());
     }
 }

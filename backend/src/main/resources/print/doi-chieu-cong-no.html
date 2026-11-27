@@ -34,6 +34,8 @@
 
 <p class="ind">Hôm nay, <span th:text="${f.longDate(to).toLowerCase()}">ngày … tháng … năm …</span> chúng tôi gồm có:</p>
 
+<!-- khách hàng: đối tác là bên mua; NCC (statement.payable): công ty là bên mua -->
+<th:block th:unless="${statement.payable}">
 <p class="li"><b>Bên A (Bên mua): <span th:text="${f.blank(party.name) ? '……………' : party.name}"></span></b></p>
 <p class="li">- Địa chỉ: <span th:text="${f.blank(party.address) ? '……………' : party.address}"></span></p>
 <p class="li">- Điện thoại: <span th:text="${f.blank(party.phone) ? '……………' : party.phone}"></span></p>
@@ -45,6 +47,20 @@
 <p class="li">- Điện thoại: <span th:text="${f.blank(company.phone) ? '……………' : company.phone}"></span></p>
 <p class="li">- Mã số thuế: <span th:text="${f.blank(company.taxCode) ? '……………' : company.taxCode}"></span></p>
 <p class="li">- Đại diện: <span th:unless="${!f.blank(company.representative) and (company.representative.startsWith('Ông') or company.representative.startsWith('Bà'))}">Ông </span><b th:text="${f.blank(company.representative) ? '……………………' : company.representative}"></b> &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; Chức vụ: <b th:text="${f.blank(company.representativeTitle) ? '……………' : company.representativeTitle}"></b></p>
+</th:block>
+<th:block th:if="${statement.payable}">
+<p class="li"><b>Bên A (Bên mua): <span th:text="${f.blank(company.name) ? '……………' : company.name}"></span></b></p>
+<p class="li">- Địa chỉ: <span th:text="${f.blank(company.address) ? '……………' : company.address}"></span></p>
+<p class="li">- Điện thoại: <span th:text="${f.blank(company.phone) ? '……………' : company.phone}"></span></p>
+<p class="li">- Mã số thuế: <span th:text="${f.blank(company.taxCode) ? '……………' : company.taxCode}"></span></p>
+<p class="li">- Đại diện: <span th:unless="${!f.blank(company.representative) and (company.representative.startsWith('Ông') or company.representative.startsWith('Bà'))}">Ông </span><b th:text="${f.blank(company.representative) ? '……………………' : company.representative}"></b> &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; Chức vụ: <b th:text="${f.blank(company.representativeTitle) ? '……………' : company.representativeTitle}"></b></p>
+
+<p class="li"><b>Bên B (Bên bán): <span th:text="${f.blank(party.name) ? '……………' : party.name}"></span></b></p>
+<p class="li">- Địa chỉ: <span th:text="${f.blank(party.address) ? '……………' : party.address}"></span></p>
+<p class="li">- Điện thoại: <span th:text="${f.blank(party.phone) ? '……………' : party.phone}"></span></p>
+<p class="li">- Mã số thuế: <span th:text="${f.blank(party.taxCode) ? '……………' : party.taxCode}"></span></p>
+<p class="li">- Đại diện: Ông <b>……………………</b> &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; Chức vụ: <b>……………</b></p>
+</th:block>
 
 <p class="ind" style="margin-top:6pt">Hai bên cùng nhau đối chiếu công nợ từ <span th:text="${f.longDate(from).toLowerCase()}"></span> đến <span th:text="${f.longDate(to).toLowerCase()}"></span>, cụ thể như sau:</p>
 
@@ -56,9 +72,9 @@
 <p><i>(Bằng chữ: <span th:text="${f.words(statement.closing)}"></span>).</i></p>
 
 <p class="sec">2. Công nợ chi tiết:</p>
-<p class="ind">Tính đến hết ngày <span th:text="${f.dmy(to)}"></span>, <span th:text="${f.blank(party.name) ? '……………' : party.name}"></span>
+<p class="ind" th:with="debtor=${statement.payable ? company.name : party.name}, creditor=${statement.payable ? party.name : company.name}">Tính đến hết ngày <span th:text="${f.dmy(to)}"></span>, <span th:text="${f.blank(debtor) ? '……………' : debtor}"></span>
   <span th:text="${statement.closing.signum() >= 0 ? 'còn nợ' : 'đã tạm ứng cho'}"></span>
-  <span th:text="${f.blank(company.name) ? '……………' : company.name}"></span> số tiền là:
+  <span th:text="${f.blank(creditor) ? '……………' : creditor}"></span> số tiền là:
   <span th:text="${f.money(statement.closing.abs())}"></span> VND (<i>Bằng chữ: <span th:text="${f.words(statement.closing.abs())}"></span></i>).</p>
 
 <table class="detail" th:if="${!statement.lines.isEmpty()}">

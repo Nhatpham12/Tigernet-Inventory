@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
@@ -89,8 +90,9 @@ public class DashboardController {
                 .count();
         BigDecimal stockValue = productRows.stream().map(ProductStockService.ProductRow::stockValue)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // công nợ phải thu: phiếu xuất đã duyệt / đã xuất (khớp báo cáo công nợ và biên bản đối chiếu)
         BigDecimal receivables = exportRows.stream()
-                .filter(r -> !"CANCELLED".equals(Json.text(r, "status")))
+                .filter(r -> Set.of("CONFIRMED", "EXPORTED").contains(Json.text(r, "status")))
                 .map(r -> Json.decimal(r, "remain"))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 

@@ -22,9 +22,15 @@ import com.tigernet.backend.payment.enums.PaymentDirection;
 import com.tigernet.backend.payment.enums.PaymentEntryStatus;
 import com.tigernet.backend.payment.enums.PaymentReferenceType;
 import com.tigernet.backend.payment.mapper.PaymentMapper;
+import com.tigernet.backend.catalog.entity.PaymentStatusEntity;
+import com.tigernet.backend.rental.entity.RentalReceiptEntity;
+import com.tigernet.backend.rental.entity.ReturnReceiptEntity;
 import com.tigernet.backend.rental.repository.RentalReceiptRepository;
-import com.tigernet.backend.warehouse.entity.WarehouseEntity;
-import com.tigernet.backend.warehouse.repository.WarehouseRepository;
+import com.tigernet.backend.rental.repository.ReturnReceiptRepository;
+import com.tigernet.backend.salesreturn.entity.SalesReturnEntity;
+import com.tigernet.backend.salesreturn.repository.SalesReturnRepository;
+import com.tigernet.backend.supplierreturn.entity.SupplierReturnEntity;
+import com.tigernet.backend.supplierreturn.repository.SupplierReturnRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -54,7 +60,9 @@ public class PaymentManagementService {
     ExportReceiptRepository exportReceiptRepository;
     ImportReceiptRepository importReceiptRepository;
     RentalReceiptRepository rentalReceiptRepository;
-    WarehouseRepository warehouseRepository;
+    ReturnReceiptRepository returnReceiptRepository;
+    SalesReturnRepository salesReturnRepository;
+    SupplierReturnRepository supplierReturnRepository;
     AuditLogService auditLogService;
 
     public PaymentResponse createPayment(PaymentCreationRequest request) {
@@ -91,7 +99,7 @@ public class PaymentManagementService {
             warehouseCode = receipt.getWarehouse().getWarehouseCode();
             receiptCode = receipt.getReceiptCode();
         } else {
-            warehouseCode = defaultWarehouseCode(type, refId);
+            warehouseCode = otherReferenceWarehouse(type, refId, party);
         }
 
         PaymentEntity payment = paymentService.record(request.getDirection(), party, type, refId, amount,
@@ -155,16 +163,46 @@ public class PaymentManagementService {
         };
     }
 
-    // phiếu gốc khác (thuê, trả hàng...) không đổi Paid; lấy kho của phiếu thuê, không có thì kho hoạt động đầu tiên
-    private String defaultWarehouseCode(PaymentReferenceType type, Integer id) {
-        if (type == PaymentReferenceType.Rental_Receipts) {
-            String code = rentalReceiptRepository.findById(id)
-                    .map(r -> r.getWarehouse().getWarehouseCode()).orElse(null);
-            if (code != null) return code;
+    /**
+     * Phiếu gốc khác (thuê, trả hàng thuê, trả hàng bán, trả NCC) không có cột Paid nên không cập nhật số đã trả,
+     * nhưng phải có thật, đúng đối tác của phiếu và phiếu thuê chưa hủy. Trả về mã kho của phiếu (dùng cho số phiếu thu/chi).
+     */
+    private String otherReferenceWarehouse(PaymentReferenceType type, Integer id, PartyEntity party) {
+        return switch (type) {
+            case Rental_Receipts -> {
+                RentalReceiptEntity r = rentalReceiptRepository.findById(id).orElseThrow(PaymentManagementService::badReference);
+                requireParty(r.getCustomer().getParty(), party);
+                if (PaymentStatusEntity.CANCELLED.equals(r.getPaymentStatus().getPaymentStatus())) {
+                    throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
+                }
+                yield r.getWarehouse().getWarehouseCode();
+            }
+            case Return_Receipts -> {
+                ReturnReceiptEntity r = returnReceiptRepository.findById(id).orElseThrow(PaymentManagementService::badReference);
+                requireParty(r.getRentalReceipt().getCustomer().getParty(), party);
+                yield r.getWarehouse().getWarehouseCode();
+            }
+            case Sales_Returns -> {
+                SalesReturnEntity r = salesReturnRepository.findById(id).orElseThrow(PaymentManagementService::badReference);
+                requireParty(r.getParty(), party);
+                yield r.getWarehouse().getWarehouseCode();
+            }
+            case Supplier_Returns -> {
+                SupplierReturnEntity r = supplierReturnRepository.findById(id).orElseThrow(PaymentManagementService::badReference);
+                requireParty(r.getSupplier().getParty(), party);
+                yield r.getWarehouse().getWarehouseCode();
+            }
+            default -> throw badReference(); // phiếu nhập/xuất đã xử lý ở createPayment
+        };
+    }
+
+    private static void requireParty(PartyEntity expected, PartyEntity actual) {
+        if (expected == null || !Objects.equals(expected.getId(), actual.getId())) {
+            throw badReference();
         }
-        return warehouseRepository.findByIsActive(true).stream()
-                .min(java.util.Comparator.comparing(WarehouseEntity::getId))
-                .map(WarehouseEntity::getWarehouseCode)
-                .orElseThrow(() -> new AppException(ErrorCode.WAREHOUSE_NOT_FOUND));
+    }
+
+    private static AppException badReference() {
+        return new AppException(ErrorCode.PAYMENT_REFERENCE_INVALID);
     }
 }
