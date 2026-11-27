@@ -16,6 +16,11 @@ public interface StocktakeRepository extends JpaRepository<StocktakeEntity, Inte
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<StocktakeEntity> findFirstByStocktakeCodeStartingWithOrderByStocktakeCodeDesc(String prefix);
 
+    // khóa phiếu tới hết transaction: 2 người cùng chốt 1 phiếu thì người sau thấy đã COMPLETED
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from StocktakeEntity s where s.id = :id")
+    Optional<StocktakeEntity> findByIdForUpdate(Integer id);
+
     @Query("""
             select s from StocktakeEntity s
             where (:warehouseId is null or s.warehouse.id = :warehouseId)
