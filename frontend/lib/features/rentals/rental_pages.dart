@@ -174,7 +174,10 @@ class RentalListPage extends StatelessWidget {
                   ),
                 ],
               ),
-              if (!asReport && r['rentalState'] != 'RETURNED')
+              // chỉ phiếu còn hàng ở chỗ khách mới trả hàng được
+              if (!asReport &&
+                  (r['rentalState'] == 'RENTING' ||
+                      r['rentalState'] == 'OVERDUE'))
                 IconButton(
                   tooltip: 'Trả hàng',
                   onPressed: () => context.go(
@@ -246,6 +249,11 @@ class _RentalFormPageState extends ConsumerState<RentalFormPage> {
     if (!_form.currentState!.validate()) return;
     if (_lines.isEmpty || _lines.any((l) => l.quantity <= 0)) {
       Toast.error(context, 'Phiếu cần ít nhất một dòng hàng có số lượng > 0.');
+      return;
+    }
+    final serialError = serialLineError(_lines);
+    if (serialError != null) {
+      Toast.error(context, serialError);
       return;
     }
     if (_dueDate != null && _dateOut != null && _dueDate!.isBefore(_dateOut!)) {

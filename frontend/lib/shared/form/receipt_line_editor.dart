@@ -38,6 +38,21 @@ class ReceiptLine {
   }
 }
 
+/// Lỗi serial của phiếu (null = hợp lệ), khớp kiểm tra của backend (mã 2032):
+/// hàng theo dõi serial mỗi dòng SL 1 kèm serial; hàng không serial để trống serial.
+String? serialLineError(List<ReceiptLine> lines) {
+  for (final l in lines) {
+    final ok = l.product['isSerialized'] == true
+        ? l.serialValue != null && l.quantity == 1
+        : l.serialValue == null;
+    if (!ok) {
+      return 'Dòng "${l.product['productName'] ?? ''}": hàng theo dõi serial cần mỗi dòng '
+          'SL 1 kèm serial; hàng không serial thì để trống serial.';
+    }
+  }
+  return null;
+}
+
 /// Bảng "Danh sách hàng hóa" (Figma 978:1453): đổi SL, thêm/xóa dòng, ô tìm SKU để thêm hàng.
 class ReceiptLineEditor extends StatelessWidget {
   const ReceiptLineEditor({

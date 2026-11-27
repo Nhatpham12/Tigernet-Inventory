@@ -664,19 +664,9 @@ class _ImportReceiptFormPageState extends ConsumerState<ImportReceiptFormPage> {
       Toast.error(context, 'Phiếu cần ít nhất một dòng hàng có số lượng > 0.');
       return;
     }
-    // hàng serial: mỗi dòng 1 cái kèm serial; hàng không serial: để trống serial (khớp backend)
-    final badLine = _lines.where(
-      (l) => l.product['isSerialized'] == true
-          ? l.serialValue == null || l.quantity != 1
-          : l.serialValue != null,
-    );
-    if (badLine.isNotEmpty) {
-      final name = badLine.first.product['productName'] ?? '';
-      Toast.error(
-        context,
-        'Dòng "$name": hàng theo dõi serial cần mỗi dòng SL 1 kèm serial; '
-        'hàng không serial thì để trống serial.',
-      );
+    final serialError = serialLineError(_lines);
+    if (serialError != null) {
+      Toast.error(context, serialError);
       return;
     }
     setState(() => _saving = true);

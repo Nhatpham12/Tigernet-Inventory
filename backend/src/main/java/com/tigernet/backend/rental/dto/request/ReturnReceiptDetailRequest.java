@@ -22,4 +22,5 @@ public class ReturnReceiptDetailRequest {
     private Integer inventoryId;    // null = lấy theo dòng thuê gốc
     private String serial;          // null = lấy theo dòng thuê gốc
     private String conditionNote;   // nguyên vẹn / hư / mất...
+    private Boolean damaged;        // true = hàng hỏng, vào kho ở trạng thái DAMAGED; null/false = về IN_STOCK
 }

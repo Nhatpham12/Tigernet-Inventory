@@ -139,6 +139,7 @@ class Statuses {
       tone: ChipTone.danger,
       icon: Icons.warning_amber,
     ),
+    'CANCELLED' => const StatusChip(label: 'Đã hủy', tone: ChipTone.neutral),
     _ => const StatusChip(label: 'Đang thuê', tone: ChipTone.info),
   };
 

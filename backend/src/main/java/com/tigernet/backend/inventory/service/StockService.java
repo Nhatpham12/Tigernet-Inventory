@@ -97,18 +97,9 @@ public class StockService {
         if (from == to && sameWarehouse) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
-        ProductEntity product = unit.getProduct();
-        StockSummaryEntity source;
-        StockSummaryEntity target;
-        if (sameWarehouse) {
-            source = target = lockSummary(product, fromWarehouse);
-        } else if (fromWarehouse.getId() < toWarehouse.getId()) { // khóa theo id kho tăng dần, tránh khóa chéo
-            source = lockSummary(product, fromWarehouse);
-            target = lockSummary(product, toWarehouse);
-        } else {
-            target = lockSummary(product, toWarehouse);
-            source = lockSummary(product, fromWarehouse);
-        }
+        StockSummaryEntity[] pair = lockPair(unit.getProduct(), fromWarehouse, toWarehouse);
+        StockSummaryEntity source = pair[0];
+        StockSummaryEntity target = pair[1];
 
         lockLatest(unit);
         if (unit.getStatus() != from || !sameWarehouse(unit.getWarehouse(), fromWarehouse)) {
@@ -133,15 +124,26 @@ public class StockService {
      */
     public List<InventoryEntity> moveQty(ProductEntity product, WarehouseEntity warehouse, int qty,
                                          InventoryStatus from, InventoryStatus to, StockRef ref) {
+        return moveQty(product, warehouse, warehouse, qty, from, to, ref);
+    }
+
+    /**
+     * Như trên nhưng các lô lấy ra có thể chuyển sang kho khác (VD trả hàng thuê không serial về kho khác:
+     * RENTED ở kho A → IN_STOCK/DAMAGED ở kho B). Lô sang kho mới bỏ vị trí kệ cũ. {@code to == null} chỉ dùng cùng kho.
+     */
+    public List<InventoryEntity> moveQty(ProductEntity product, WarehouseEntity fromWarehouse,
+                                         WarehouseEntity toWarehouse, int qty,
+                                         InventoryStatus from, InventoryStatus to, StockRef ref) {
         requirePositive(qty);
-        if (from == to) {
+        boolean sameWarehouse = sameWarehouse(fromWarehouse, toWarehouse);
+        if ((from == to && sameWarehouse) || (to == null && !sameWarehouse)) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
         if (Boolean.TRUE.equals(product.getIsSerialized())) {
             throw new AppException(ErrorCode.SERIAL_COUNT_MISMATCH);
         }
-        StockSummaryEntity summary = lockSummary(product, warehouse);
-        List<InventoryEntity> lots = inventoryRepository.findLotsFifo(product.getId(), warehouse.getId(), from);
+        StockSummaryEntity[] pair = lockPair(product, fromWarehouse, toWarehouse);
+        List<InventoryEntity> lots = inventoryRepository.findLotsFifo(product.getId(), fromWarehouse.getId(), from);
         int available = lots.stream().mapToInt(InventoryEntity::getQuantityOnHand).sum();
         if (available < qty) {
             throw new AppException(ErrorCode.INSUFFICIENT_STOCK);
@@ -166,15 +168,34 @@ public class StockService {
             }
             target.setStatus(to);
             target.setDateOut(to == InventoryStatus.SOLD ? LocalDateTime.now() : null);
+            if (!sameWarehouse) {
+                target.setWarehouse(toWarehouse);
+                target.setLocation(null); // vị trí kệ của kho cũ không còn đúng
+            }
             moved.add(target);
         }
         inventoryRepository.saveAll(lots);
         inventoryRepository.saveAll(moved);
-        shift(summary, from, -qty, ref);
+        shift(pair[0], from, -qty, ref);
         if (to != null) {
-            shift(summary, to, qty, ref);
+            shift(pair[1], to, qty, ref);
         }
         return moved;
+    }
+
+    /** khóa Stock_Summary của (SP, kho đi) và (SP, kho đến) theo id kho tăng dần để không khóa chéo; cùng kho thì 1 dòng */
+    private StockSummaryEntity[] lockPair(ProductEntity product, WarehouseEntity fromWarehouse,
+                                          WarehouseEntity toWarehouse) {
+        if (sameWarehouse(fromWarehouse, toWarehouse)) {
+            StockSummaryEntity summary = lockSummary(product, fromWarehouse);
+            return new StockSummaryEntity[]{summary, summary};
+        }
+        if (fromWarehouse.getId() < toWarehouse.getId()) {
+            StockSummaryEntity source = lockSummary(product, fromWarehouse);
+            return new StockSummaryEntity[]{source, lockSummary(product, toWarehouse)};
+        }
+        StockSummaryEntity target = lockSummary(product, toWarehouse);
+        return new StockSummaryEntity[]{lockSummary(product, fromWarehouse), target};
     }
 
     /** Điều chỉnh tồn khả dụng hàng không serial theo chênh lệch kiểm kê: dương thêm lô mới, âm bớt theo FIFO. */

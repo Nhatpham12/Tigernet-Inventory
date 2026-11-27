@@ -100,6 +100,7 @@ public class DashboardController {
         LocalDateTime now = LocalDateTime.now();
         int overdue = (int) rentalRows.stream()
                 .filter(r -> Json.text(r, "returnDate") == null)
+                .filter(r -> !"CANCELLED".equals(Json.text(r, "paymentStatus"))) // phiếu hủy không còn nợ hàng
                 .filter(r -> {
                     LocalDateTime due = Json.dateTime(r, "dueDate");
                     return due != null && due.isBefore(now);

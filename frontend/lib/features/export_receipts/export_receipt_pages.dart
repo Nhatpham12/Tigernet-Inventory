@@ -745,18 +745,9 @@ class _ExportReceiptFormPageState extends ConsumerState<ExportReceiptFormPage> {
       Toast.error(context, 'Đã thanh toán không được vượt quá tổng tiền.');
       return;
     }
-    // hàng serial: mỗi dòng 1 cái kèm serial đang có trong kho; hàng không serial: để trống serial
-    final badLine = _lines.where(
-      (l) => l.product['isSerialized'] == true
-          ? l.serialValue == null || l.quantity != 1
-          : l.serialValue != null,
-    );
-    if (badLine.isNotEmpty) {
-      Toast.error(
-        context,
-        'Dòng "${badLine.first.product['productName'] ?? ''}": hàng theo dõi serial cần '
-        'mỗi dòng SL 1 kèm serial; hàng không serial thì để trống serial.',
-      );
+    final serialError = serialLineError(_lines);
+    if (serialError != null) {
+      Toast.error(context, serialError);
       return;
     }
     setState(() => _saving = true);

@@ -8,7 +8,11 @@ import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.DocumentCodeGenerator;
 import com.tigernet.backend.common.util.MoneyUtils;
+import com.tigernet.backend.catalog.entity.ProductEntity;
 import com.tigernet.backend.inventory.entity.InventoryEntity;
+import com.tigernet.backend.inventory.enums.InventoryStatus;
+import com.tigernet.backend.inventory.service.StockRef;
+import com.tigernet.backend.inventory.service.StockService;
 import com.tigernet.backend.inventory.service.InventoryService;
 import com.tigernet.backend.partner.entity.ReceiverEntity;
 import com.tigernet.backend.partner.service.CustomerService;
@@ -38,12 +42,15 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 // phiếu thuê/mượn tự duyệt khi lập (Status = APPROVED); tiến trình theo Payment_Status RENTING -> RETURNED / CANCELLED.
-// Chuyển hàng sang RENTED/LENT và trả về IN_STOCK khi hủy sẽ đi qua StockService
+// Lập phiếu: hàng IN_STOCK -> RENTED (thuê) / LENT (mượn); sửa dòng hoặc hủy phiếu thì trả hàng về IN_STOCK (qua StockService)
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -61,6 +68,7 @@ public class RentalReceiptService {
     LookupService lookupService;
     CurrentUserService currentUserService;
     WarehouseAccessService warehouseAccess;
+    StockService stockService;
 
     @NonFinal
     @Value("${tigernet.rental.due-warning-days}")
@@ -91,7 +99,9 @@ public class RentalReceiptService {
         validateDates(receipt);
         replaceDetails(receipt, request.getDetails());
 
-        return rentalMapper.toRentalResponse(rentalReceiptRepository.save(receipt));
+        RentalReceiptEntity saved = rentalReceiptRepository.save(receipt); // cần id phiếu cho thẻ kho
+        moveStock(saved, InventoryStatus.IN_STOCK, rentedStatus(saved));
+        return rentalMapper.toRentalResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -122,6 +132,12 @@ public class RentalReceiptService {
     // chỉ sửa khi đang thuê và chưa trả dòng nào
     public RentalReceiptResponse updateReceipt(Integer receiptId, RentalReceiptUpdateRequest request) {
         RentalReceiptEntity receipt = findUntouchedReceipt(receiptId);
+        // đổi dòng hàng hoặc thuê <-> mượn: trả hàng cũ về kho trước, lấy lại theo phiếu mới ở cuối
+        boolean restock = request.getDetails() != null
+                || (request.getRentalType() != null && request.getRentalType() != receipt.getRentalType());
+        if (restock) {
+            moveStock(receipt, rentedStatus(receipt), InventoryStatus.IN_STOCK);
+        }
         if (request.getCustomerId() != null) {
             receipt.setCustomer(customerService.findCustomer(request.getCustomerId()));
         }
@@ -142,12 +158,17 @@ public class RentalReceiptService {
         if (request.getDetails() != null) {
             replaceDetails(receipt, request.getDetails());
         }
-        return rentalMapper.toRentalResponse(rentalReceiptRepository.save(receipt));
+        RentalReceiptEntity saved = rentalReceiptRepository.save(receipt);
+        if (restock) {
+            moveStock(saved, InventoryStatus.IN_STOCK, rentedStatus(saved));
+        }
+        return rentalMapper.toRentalResponse(saved);
     }
 
     // hủy phiếu chưa trả dòng nào -> CANCELLED (phiếu giữ lại để tra cứu, không xóa)
     public RentalReceiptResponse cancelReceipt(Integer receiptId) {
         RentalReceiptEntity receipt = findUntouchedReceipt(receiptId);
+        moveStock(receipt, rentedStatus(receipt), InventoryStatus.IN_STOCK);
         receipt.setPaymentStatus(lookupService.findPaymentStatus(PaymentStatusEntity.CANCELLED));
         return rentalMapper.toRentalResponse(rentalReceiptRepository.save(receipt));
     }
@@ -158,9 +179,10 @@ public class RentalReceiptService {
                 .orElseThrow(() -> new AppException(ErrorCode.RENTAL_RECEIPT_NOT_FOUND));
     }
 
-    // phiếu đang thuê/mượn (chưa trả hết, chưa hủy)
+    // phiếu đang thuê/mượn (chưa trả hết, chưa hủy); khóa FOR UPDATE vì sau đó sẽ đổi tồn kho / trạng thái phiếu
     public RentalReceiptEntity findRentingReceipt(Integer receiptId) {
-        RentalReceiptEntity receipt = findReceipt(receiptId);
+        RentalReceiptEntity receipt = rentalReceiptRepository.findByIdForUpdate(receiptId)
+                .orElseThrow(() -> new AppException(ErrorCode.RENTAL_RECEIPT_NOT_FOUND));
         if (!PaymentStatusEntity.RENTING.equals(receipt.getPaymentStatus().getPaymentStatus())) {
             throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
         }
@@ -175,6 +197,37 @@ public class RentalReceiptService {
             throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
         }
         return receipt;
+    }
+
+    /** trạng thái hàng đang ở chỗ khách: thuê -> RENTED, mượn -> LENT */
+    public static InventoryStatus rentedStatus(RentalReceiptEntity receipt) {
+        return receipt.getRentalType() == RentalType.LEND ? InventoryStatus.LENT : InventoryStatus.RENTED;
+    }
+
+    /**
+     * Chuyển hàng của cả phiếu (kho cho thuê) giữa 2 trạng thái: hàng serial theo từng đơn vị,
+     * hàng không serial gộp SL theo SP. Đi theo id SP tăng dần để không khóa chéo.
+     */
+    private void moveStock(RentalReceiptEntity receipt, InventoryStatus from, InventoryStatus to) {
+        StockRef ref = StockRef.of(StockRef.RENTAL, receipt.getId());
+        Map<Integer, List<RentalReceiptDetailEntity>> byProduct = new TreeMap<>();
+        for (RentalReceiptDetailEntity d : receipt.getDetails()) {
+            byProduct.computeIfAbsent(d.getProduct().getId(), k -> new ArrayList<>()).add(d);
+        }
+        for (List<RentalReceiptDetailEntity> lines : byProduct.values()) {
+            ProductEntity product = lines.get(0).getProduct();
+            if (Boolean.TRUE.equals(product.getIsSerialized())) {
+                for (RentalReceiptDetailEntity d : lines) {
+                    if (d.getInventory() == null) {
+                        throw new AppException(ErrorCode.SERIAL_COUNT_MISMATCH); // phiếu cũ chưa chọn serial
+                    }
+                    stockService.moveSerial(d.getInventory(), from, to, ref);
+                }
+            } else {
+                int qty = lines.stream().mapToInt(RentalReceiptDetailEntity::getQuantity).sum();
+                stockService.moveQty(product, receipt.getWarehouse(), qty, from, to, ref);
+            }
+        }
     }
 
     private void validateDates(RentalReceiptEntity receipt) {
@@ -194,30 +247,42 @@ public class RentalReceiptService {
         receipt.setReceiverPhoneSnapshot(phone != null ? phone : receiver != null ? receiver.getPhone() : null);
     }
 
-    // Total_Rent = Σ (số lượng × giá thuê cả kỳ của dòng)
+    /**
+     * Thay toàn bộ dòng; Total_Rent = Σ (số lượng × giá thuê cả kỳ của dòng).
+     * Hàng serial: mỗi dòng SL 1, chọn đơn vị bằng inventoryId hoặc serial, đơn vị phải đang IN_STOCK ở kho cho thuê
+     * (đơn vị đang được thuê/giữ/bán thì 409). Hàng không serial không nhận serial; thiếu hàng báo khi chuyển tồn.
+     */
     private void replaceDetails(RentalReceiptEntity receipt, List<RentalReceiptDetailRequest> requests) {
         receipt.getDetails().clear();
         Set<Integer> inventoryIds = new HashSet<>();
         BigDecimal totalRent = BigDecimal.ZERO;
+        Integer warehouseId = receipt.getWarehouse().getId();
 
         for (RentalReceiptDetailRequest line : requests) {
             RentalReceiptDetailEntity detail = new RentalReceiptDetailEntity();
             detail.setRentalReceipt(receipt);
-            detail.setProduct(productService.findProduct(line.getProductId()));
+            ProductEntity product = productService.findProduct(line.getProductId());
+            detail.setProduct(product);
             detail.setQuantity(line.getQuantity());
             detail.setRentalPrice(MoneyUtils.round(line.getRentalPrice()));
-            detail.setSerial(StringUtils.hasText(line.getSerial()) ? line.getSerial().trim() : null);
             detail.setIsReturned(false);
+            String serial = StringUtils.hasText(line.getSerial()) ? line.getSerial().trim() : null;
 
-            if (line.getInventoryId() != null) {
-                if (!inventoryIds.add(line.getInventoryId())) throw new AppException(ErrorCode.DUPLICATE_SERIAL);
-                InventoryEntity inventory = inventoryService.findInventoryForLine(
-                        line.getInventoryId(), line.getProductId(), receipt.getWarehouse().getId());
-                detail.setInventory(inventory);
-                if (detail.getSerial() == null) detail.setSerial(inventory.getSerial());
-            }
-            if (detail.getSerial() != null && line.getQuantity() != 1) {
-                throw new AppException(ErrorCode.SERIAL_QUANTITY_INVALID);
+            if (Boolean.TRUE.equals(product.getIsSerialized())) {
+                if (line.getQuantity() != 1) throw new AppException(ErrorCode.SERIAL_QUANTITY_INVALID);
+                Integer inventoryId = line.getInventoryId() != null ? line.getInventoryId()
+                        : serial != null ? inventoryService.findBySerial(serial).getId()
+                        : null;
+                if (inventoryId == null) throw new AppException(ErrorCode.SERIAL_COUNT_MISMATCH);
+                if (!inventoryIds.add(inventoryId)) throw new AppException(ErrorCode.DUPLICATE_SERIAL);
+                InventoryEntity unit = inventoryService.findInventoryForLine(inventoryId, product.getId(), warehouseId);
+                if (unit.getStatus() != InventoryStatus.IN_STOCK) {
+                    throw new AppException(ErrorCode.INVENTORY_STATUS_INVALID);
+                }
+                detail.setInventory(unit);
+                detail.setSerial(unit.getSerial());
+            } else if (line.getInventoryId() != null || serial != null) {
+                throw new AppException(ErrorCode.SERIAL_COUNT_MISMATCH);
             }
             receipt.getDetails().add(detail);
             totalRent = totalRent.add(MoneyUtils.lineTotal(line.getQuantity(), line.getRentalPrice()));

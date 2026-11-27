@@ -7,7 +7,6 @@ import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.DocumentCodeGenerator;
 import com.tigernet.backend.common.util.MoneyUtils;
-import com.tigernet.backend.inventory.service.InventoryService;
 import com.tigernet.backend.rental.dto.request.ReturnReceiptCreationRequest;
 import com.tigernet.backend.rental.dto.request.ReturnReceiptDetailRequest;
 import com.tigernet.backend.rental.dto.response.ReturnReceiptResponse;
@@ -32,13 +31,20 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import com.tigernet.backend.inventory.entity.InventoryEntity;
+import com.tigernet.backend.inventory.enums.InventoryStatus;
+import com.tigernet.backend.inventory.service.StockRef;
+import com.tigernet.backend.inventory.service.StockService;
+
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 // phiếu trả hàng thuê/mượn: đánh dấu dòng đã trả, tính phạt quá hạn, chốt phiếu thuê khi trả đủ.
-// Đưa hàng về IN_STOCK / DAMAGED tại kho nhận sẽ đi qua StockService
+// Hàng trả về kho nhận (có thể khác kho cho thuê): tốt -> IN_STOCK, hỏng -> DAMAGED, qua StockService
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -50,10 +56,13 @@ public class ReturnReceiptService {
     RentalReceiptService rentalReceiptService;
     RentalMapper rentalMapper;
     WarehouseService warehouseService;
-    InventoryService inventoryService;
     LookupService lookupService;
     CurrentUserService currentUserService;
     WarehouseAccessService warehouseAccess;
+    StockService stockService;
+
+    /** 1 dòng trả kèm cờ hỏng (cờ không lưu ở dòng trả, trạng thái nằm ở Inventory) */
+    private record ReturnLine(ReturnReceiptDetailEntity detail, boolean damaged) { }
 
     @NonFinal
     @Value("${tigernet.rental.penalty-after-days}")
@@ -76,7 +85,7 @@ public class ReturnReceiptService {
         receipt.setNote(request.getNote());
         receipt.setCreatedBy(currentUserService.getCurrentUser());
         receipt.setCreatedAt(LocalDateTime.now());
-        addDetails(receipt, rental, request.getDetails());
+        List<ReturnLine> lines = addDetails(receipt, rental, request.getDetails());
 
         // quá hạn tính theo ngày; phạt = số ngày quá hạn × giá thuê/ngày khi quá hạn từ N ngày trở lên
         long daysOverdue = Math.max(0, ChronoUnit.DAYS.between(
@@ -95,7 +104,30 @@ public class ReturnReceiptService {
             rental.setPaymentStatus(lookupService.findPaymentStatus(PaymentStatusEntity.RETURNED));
         }
 
-        return rentalMapper.toReturnResponse(returnReceiptRepository.save(receipt));
+        ReturnReceiptEntity saved = returnReceiptRepository.save(receipt); // cần id phiếu cho thẻ kho
+        restock(saved, rental, lines);
+        return rentalMapper.toReturnResponse(saved);
+    }
+
+    /**
+     * Đưa hàng trả vào kho nhận: hàng serial đúng đơn vị đã cho thuê, hàng không serial lấy lô đang cho thuê
+     * của SP ở kho cho thuê (cũ trước). Đi theo id SP tăng dần để không khóa chéo.
+     */
+    private void restock(ReturnReceiptEntity receipt, RentalReceiptEntity rental, List<ReturnLine> lines) {
+        StockRef ref = StockRef.of(StockRef.RETURN, receipt.getId());
+        InventoryStatus rented = RentalReceiptService.rentedStatus(rental);
+        List<ReturnLine> sorted = new ArrayList<>(lines);
+        sorted.sort(Comparator.comparing((ReturnLine l) -> l.detail().getProduct().getId()));
+        for (ReturnLine line : sorted) {
+            ReturnReceiptDetailEntity d = line.detail();
+            InventoryStatus target = line.damaged() ? InventoryStatus.DAMAGED : InventoryStatus.IN_STOCK;
+            if (Boolean.TRUE.equals(d.getProduct().getIsSerialized())) {
+                stockService.moveSerial(d.getInventory(), rented, target, receipt.getWarehouse(), ref);
+            } else {
+                stockService.moveQty(d.getProduct(), rental.getWarehouse(), receipt.getWarehouse(), d.getQuantity(),
+                        rented, target, ref);
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -118,8 +150,9 @@ public class ReturnReceiptService {
         return rentalMapper.toReturnResponse(receipt);
     }
 
-    private void addDetails(ReturnReceiptEntity receipt, RentalReceiptEntity rental,
-                            List<ReturnReceiptDetailRequest> requests) {
+    private List<ReturnLine> addDetails(ReturnReceiptEntity receipt, RentalReceiptEntity rental,
+                                        List<ReturnReceiptDetailRequest> requests) {
+        List<ReturnLine> result = new ArrayList<>();
         Map<Integer, RentalReceiptDetailEntity> rentalLines = new HashMap<>();
         rental.getDetails().forEach(line -> rentalLines.put(line.getId(), line));
         Map<Integer, Integer> returningNow = new HashMap<>(); // cộng dồn nếu 1 dòng thuê xuất hiện nhiều lần
@@ -140,18 +173,28 @@ public class ReturnReceiptService {
             detail.setReturnReceipt(receipt);
             detail.setRentalDetail(rentalLine);
             detail.setProduct(rentalLine.getProduct());
-            detail.setInventory(line.getInventoryId() != null
-                    ? inventoryService.findInventoryOfProduct(line.getInventoryId(), rentalLine.getProduct().getId())
-                    : rentalLine.getInventory());
+            // hàng serial trả đúng đơn vị đã cho thuê; hàng không serial không gắn đơn vị
+            InventoryEntity unit = rentalLine.getInventory();
+            if (Boolean.TRUE.equals(rentalLine.getProduct().getIsSerialized())) {
+                if (unit == null) throw new AppException(ErrorCode.SERIAL_COUNT_MISMATCH); // phiếu cũ chưa có serial
+                if (line.getInventoryId() != null && !line.getInventoryId().equals(unit.getId())) {
+                    throw new AppException(ErrorCode.RENTAL_DETAIL_INVALID);
+                }
+            }
+            boolean damaged = Boolean.TRUE.equals(line.getDamaged());
+            detail.setInventory(unit);
             detail.setQuantity(line.getQuantity());
-            detail.setSerial(StringUtils.hasText(line.getSerial()) ? line.getSerial().trim() : rentalLine.getSerial());
-            detail.setConditionNote(line.getConditionNote());
+            detail.setSerial(rentalLine.getSerial());
+            detail.setConditionNote(StringUtils.hasText(line.getConditionNote()) ? line.getConditionNote()
+                    : damaged ? "Hư hỏng" : null);
             receipt.getDetails().add(detail);
+            result.add(new ReturnLine(detail, damaged));
 
             if (returned == rentalLine.getQuantity()) {
                 rentalLine.setIsReturned(true);
             }
         }
+        return result;
     }
 
     private String nextReceiptCode(WarehouseEntity warehouse) {
