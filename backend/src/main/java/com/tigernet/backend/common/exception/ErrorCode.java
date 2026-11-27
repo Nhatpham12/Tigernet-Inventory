@@ -100,6 +100,8 @@ public enum ErrorCode {
     INVENTORY_STATUS_INVALID(2031, "Inventory item is not in the required status", HttpStatus.CONFLICT),
     SERIAL_COUNT_MISMATCH(2032, "Serialized products need exactly one serial per unit; other products take no serial", HttpStatus.BAD_REQUEST),
     SOURCE_NOT_SUPPLIER(2033, "The seller of an import receipt must be an active supplier", HttpStatus.BAD_REQUEST),
+    STOCKTAKE_SERIAL_DIFFERENCE(2035, "Serialized products with a stocktake difference must be reconciled by serial (import or cancel units) before completing", HttpStatus.CONFLICT),
+    ADJUSTMENT_REASON_REQUIRED(2036, "Every stocktake difference needs a reason", HttpStatus.BAD_REQUEST),
     RECEIPT_HAS_PAYMENTS(2034, "Cancel the receipt's payments before cancelling the receipt", HttpStatus.CONFLICT),
 
     // 4xxx: in biểu mẫu

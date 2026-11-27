@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/role.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
@@ -403,8 +404,7 @@ class _StocktakeDetailPageState extends ConsumerState<StocktakeDetailPage> {
           },
         );
       }
-      // Hợp đồng: PUT /stocktakes/{id}/complete {reasons:{productId: lý do}} → sinh Stock_Adjustments.
-      // Lưu ý: điều chỉnh CHƯA được áp vào tồn kho (chờ StockService phía backend).
+      // PUT /stocktakes/{id}/complete {reasons:{productId: lý do}} → sinh Stock_Adjustments và áp chênh lệch vào tồn.
       await api.put(
         '/bff/api/stocktakes/${widget.id}/complete',
         data: {'reasons': reasons},
@@ -455,6 +455,9 @@ class _StocktakeDetailPageState extends ConsumerState<StocktakeDetailPage> {
     final draft = data['status'] != 'COMPLETED';
     final details = _details(data);
     final dirty = draft && _dirty(data);
+    // chốt phiếu = điều chỉnh tồn: chỉ Quản lý/Quản trị (khớp @RequiresRole của API)
+    final role = ref.watch(sessionProvider).value?.role;
+    final canComplete = role == AppRole.manager || role == AppRole.admin;
     final diffCount = details
         .where((d) => _actual(d) != (Fmt.toNum(d['systemQty'])?.toInt() ?? 0))
         .length;
@@ -476,7 +479,7 @@ class _StocktakeDetailPageState extends ConsumerState<StocktakeDetailPage> {
                 onPressed: _busy ? null : _delete,
                 child: const Text('Xóa nháp'),
               ),
-            if (draft)
+            if (draft && canComplete)
               ElevatedButton(
                 onPressed: _busy ? null : () => _complete(data),
                 child: const Text('Chốt phiếu'),
@@ -673,7 +676,9 @@ class _CompleteDialogState extends State<_CompleteDialog> {
                 Text(
                   widget.diffs.isEmpty
                       ? 'Không có chênh lệch. Chốt phiếu sẽ khóa số liệu kiểm kê.'
-                      : 'Nhập lý do cho ${widget.diffs.length} dòng chênh lệch. Sau khi chốt không sửa được số đếm.',
+                      : 'Nhập lý do cho ${widget.diffs.length} dòng chênh lệch. Khi chốt, tồn kho được '
+                            'điều chỉnh theo số thực tế và không sửa được số đếm nữa. Hàng theo dõi serial '
+                            'có chênh lệch phải đối chiếu từng serial trước.',
                   style: TextStyle(color: c.muted),
                 ),
                 const SizedBox(height: 12),

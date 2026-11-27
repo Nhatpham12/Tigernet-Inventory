@@ -6,6 +6,8 @@ import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.DocumentCodeGenerator;
 import com.tigernet.backend.inventory.service.InventoryService;
+import com.tigernet.backend.inventory.service.StockRef;
+import com.tigernet.backend.inventory.service.StockService;
 import com.tigernet.backend.stocktake.dto.request.StocktakeCompleteRequest;
 import com.tigernet.backend.stocktake.dto.request.StocktakeCreationRequest;
 import com.tigernet.backend.stocktake.dto.request.StocktakeDetailRequest;
@@ -30,13 +32,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 // lập phiếu kiểm kê và nhập số đếm khi còn DRAFT;
-// chốt phiếu (COMPLETED) -> sinh Stock_Adjustments và áp vào tồn sẽ đi qua StockService
+// chốt phiếu (COMPLETED) -> sinh Stock_Adjustments và áp chênh lệch vào tồn qua StockService
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -52,6 +55,7 @@ public class StocktakeService {
     InventoryService inventoryService;
     CurrentUserService currentUserService;
     WarehouseAccessService warehouseAccess;
+    StockService stockService;
 
     public StocktakeResponse createStocktake(StocktakeCreationRequest request) {
         warehouseAccess.assertAccess(request.getWarehouseId());
@@ -88,23 +92,40 @@ public class StocktakeService {
         return stocktakeMapper.toResponse(stocktakeRepository.save(stocktake));
     }
 
-    // chốt phiếu: mỗi dòng chênh lệch sinh một Stock_Adjustments (adjustQty = actual − system).
-    // TODO(StockService): chưa áp adjustQty vào Inventory/Stock_Movements, chờ StockService; hiện chỉ ghi nhận điều chỉnh.
-    // Entity Stocktakes chưa có cột người duyệt/thời điểm duyệt nên chưa ghi.
+    /**
+     * Chốt phiếu (QL-03): mỗi dòng chênh lệch sinh một Stock_Adjustments (adjustQty = actual − system, bắt buộc lý do)
+     * và áp vào tồn khả dụng qua StockService (thừa: thêm lô; thiếu: bớt lô cũ trước), thẻ kho ghi theo phiếu điều chỉnh.
+     * Hàng serial có chênh lệch thì chặn: phải đối chiếu từng serial (nhập bổ sung / xử lý đơn vị) chứ không cộng trừ số.
+     * Dòng đi theo id SP tăng dần để không khóa chéo. Entity Stocktakes chưa có cột người/thời điểm duyệt nên chưa ghi.
+     */
     public StocktakeResponse completeStocktake(Integer stocktakeId, StocktakeCompleteRequest request) {
         StocktakeEntity stocktake = findDraftStocktake(stocktakeId);
         Map<Integer, String> reasons = request != null && request.getReasons() != null
                 ? request.getReasons() : Map.of();
+        List<StocktakeDetailEntity> diffs = stocktake.getDetails().stream()
+                .filter(d -> d.getDifference() != 0)
+                .sorted(Comparator.comparing((StocktakeDetailEntity d) -> d.getProduct().getId()))
+                .toList();
+        for (StocktakeDetailEntity detail : diffs) {
+            if (Boolean.TRUE.equals(detail.getProduct().getIsSerialized())) {
+                throw new AppException(ErrorCode.STOCKTAKE_SERIAL_DIFFERENCE);
+            }
+            String reason = reasons.get(detail.getProduct().getId());
+            if (reason == null || reason.isBlank()) {
+                throw new AppException(ErrorCode.ADJUSTMENT_REASON_REQUIRED);
+            }
+        }
         LocalDateTime now = LocalDateTime.now();
-        for (StocktakeDetailEntity detail : stocktake.getDetails()) {
-            if (detail.getDifference() == 0) continue;
+        for (StocktakeDetailEntity detail : diffs) {
             StockAdjustmentEntity adjustment = new StockAdjustmentEntity();
             adjustment.setStocktake(stocktake);
             adjustment.setProduct(detail.getProduct());
             adjustment.setAdjustQty(detail.getDifference());
-            adjustment.setReason(reasons.get(detail.getProduct().getId()));
+            adjustment.setReason(reasons.get(detail.getProduct().getId()).trim());
             adjustment.setCreatedAt(now);
             stockAdjustmentRepository.save(adjustment);
+            stockService.adjust(detail.getProduct(), stocktake.getWarehouse(), detail.getDifference(),
+                    StockRef.of(StockRef.ADJUSTMENT, adjustment.getId()));
         }
         stocktake.setStatus(StocktakeStatus.COMPLETED);
         return stocktakeMapper.toResponse(stocktakeRepository.save(stocktake));
@@ -136,8 +157,11 @@ public class StocktakeService {
         return stocktake;
     }
 
+    // khóa phiếu (FOR UPDATE) trước khi kiểm trạng thái: chốt 2 lần cùng lúc không điều chỉnh tồn 2 lần
     private StocktakeEntity findDraftStocktake(Integer stocktakeId) {
-        StocktakeEntity stocktake = findStocktake(stocktakeId);
+        StocktakeEntity stocktake = stocktakeRepository.findByIdForUpdate(stocktakeId)
+                .orElseThrow(() -> new AppException(ErrorCode.STOCKTAKE_NOT_FOUND));
+        warehouseAccess.assertAccess(stocktake.getWarehouse());
         if (stocktake.getStatus() != StocktakeStatus.DRAFT) {
             throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
         }
