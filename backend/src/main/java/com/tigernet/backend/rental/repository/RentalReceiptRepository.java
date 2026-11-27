@@ -16,6 +16,11 @@ public interface RentalReceiptRepository extends JpaRepository<RentalReceiptEnti
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RentalReceiptEntity> findFirstByReceiptCodeStartingWithOrderByReceiptCodeDesc(String prefix);
 
+    // khóa phiếu tới hết transaction: sửa/hủy/trả hàng cùng lúc trên 1 phiếu thì người sau thấy trạng thái mới
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from RentalReceiptEntity r where r.id = :id")
+    Optional<RentalReceiptEntity> findByIdForUpdate(Integer id);
+
     @Query("""
             select r from RentalReceiptEntity r
             where (:warehouseId is null or r.warehouse.id = :warehouseId)

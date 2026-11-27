@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -101,17 +102,19 @@ public class ViewController {
         List<JsonNode> rows = withTotalQuantity(backend.getList("/rental-receipts",
                 mapOf("warehouseId", warehouseId, "type", type), auth)).stream()
                 .map(r -> {
-                    // trạng thái thuê để lọc tab Tất cả / Chưa trả / Đã trả / Quá hạn
+                    // trạng thái thuê để lọc tab Tất cả / Chưa trả / Đã trả / Quá hạn; phiếu hủy không còn thuê
                     ObjectNode copy = (ObjectNode) r;
                     LocalDateTime due = Json.dateTime(r, "dueDate");
-                    String rentalState = Json.text(r, "returnDate") != null ? "RETURNED"
+                    String rentalState = "CANCELLED".equals(Json.text(r, "paymentStatus")) ? "CANCELLED"
+                            : Json.text(r, "returnDate") != null ? "RETURNED"
                             : due != null && due.isBefore(now) ? "OVERDUE" : "RENTING";
                     copy.put("rentalState", rentalState);
                     return (JsonNode) copy;
                 })
                 .filter(r -> state == null || state.isBlank()
                         || state.equals(Json.text(r, "rentalState"))
-                        || ("NOT_RETURNED".equals(state) && !"RETURNED".equals(Json.text(r, "rentalState"))))
+                        || ("NOT_RETURNED".equals(state)
+                            && Set.of("RENTING", "OVERDUE").contains(Json.text(r, "rentalState"))))
                 .toList();
         return page(rows, keyword, sort == null ? "dateOut,desc" : sort, page, size,
                 r -> Json.text(r, "receiptCode") + " " + Json.text(r, "customerName") + " " + serials(r));

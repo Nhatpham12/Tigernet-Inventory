@@ -147,17 +147,20 @@ final _openRentalsProvider = FutureProvider.autoDispose<List<Json>>((
 const _conditions = ['Nguyên vẹn', 'Hư hỏng', 'Mất'];
 
 class _RLine {
-  _RLine(this.detail)
-    : qty = TextEditingController(text: '${detail['quantity'] ?? 1}');
+  /// [max] = SL thuê − SL đã trả ở các phiếu trả trước (dòng không serial trả nhiều lần được).
+  _RLine(this.detail, this.max) : qty = TextEditingController(text: '$max');
 
   final Json detail;
+  final int max;
   final TextEditingController qty;
   bool selected = true;
   String condition = _conditions.first;
 
   int get rentalDetailId => (detail['id'] as num).toInt();
-  int get max => (Fmt.toNum(detail['quantity']) ?? 0).toInt();
   int get quantity => parseNumber(qty.text)?.toInt() ?? 0;
+
+  /// Hư hỏng / Mất: không đưa lại vào hàng bán được, backend ghi trạng thái DAMAGED tại kho nhận.
+  bool get damaged => condition != _conditions.first;
 }
 
 /// Tạo phiếu trả hàng thuê / mượn — POST /bff/api/return-receipts (ReturnReceiptCreationRequest).
@@ -204,10 +207,22 @@ class _ReturnReceiptFormPageState extends ConsumerState<ReturnReceiptFormPage> {
   Future<void> _pick(int id) async {
     setState(() => _loading = true);
     try {
-      final r = await ref
-          .read(apiClientProvider)
-          .get('/bff/api/rental-receipts/$id');
-      final rental = Map<String, dynamic>.from(r as Map);
+      final api = ref.read(apiClientProvider);
+      final results = await Future.wait([
+        api.get('/bff/api/rental-receipts/$id'),
+        api.getList('/bff/api/return-receipts', query: {'rentalReceiptId': id}),
+      ]);
+      final rental = Map<String, dynamic>.from(results[0] as Map);
+      // SL đã trả theo dòng thuê, cộng từ các phiếu trả trước của phiếu này
+      final returned = <int, int>{};
+      for (final rr in results[1] as List<Json>) {
+        for (final x in (rr['details'] as List? ?? const []).cast<Map>()) {
+          final key = (x['rentalDetailId'] as num?)?.toInt();
+          if (key == null) continue;
+          returned[key] =
+              (returned[key] ?? 0) + ((x['quantity'] as num?)?.toInt() ?? 0);
+        }
+      }
       for (final l in _lines) {
         l.qty.dispose();
       }
@@ -220,7 +235,11 @@ class _ReturnReceiptFormPageState extends ConsumerState<ReturnReceiptFormPage> {
           ..addAll([
             for (final d in (rental['details'] as List? ?? const []))
               if ((d as Map)['isReturned'] != true)
-                _RLine(Map<String, dynamic>.from(d)),
+                _RLine(
+                  Map<String, dynamic>.from(d),
+                  ((d['quantity'] as num?)?.toInt() ?? 0) -
+                      (returned[(d['id'] as num).toInt()] ?? 0),
+                ),
           ]);
       });
     } catch (e) {
@@ -272,6 +291,7 @@ class _ReturnReceiptFormPageState extends ConsumerState<ReturnReceiptFormPage> {
                     'rentalDetailId': l.rentalDetailId,
                     'quantity': l.quantity,
                     'conditionNote': l.condition,
+                    'damaged': l.damaged,
                   },
               ],
             },
@@ -384,7 +404,7 @@ class _ReturnReceiptFormPageState extends ConsumerState<ReturnReceiptFormPage> {
                       'Trả',
                       'Sản phẩm',
                       'Serial',
-                      'Đang thuê',
+                      'Còn phải trả',
                       'SL trả',
                       'Tình trạng',
                     ],
