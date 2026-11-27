@@ -61,6 +61,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21", cache: maven }
+      # bản Maven mà mvnw tải về: giữ giữa các lần chạy để khỏi tải lại từ Maven Central (27/11 lỗi mạng 2 lần)
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper
+          key: maven-wrapper-${{ hashFiles('**/.mvn/wrapper/maven-wrapper.properties') }}
       - name: Dựng schema tigernet_dev (giống deploy/mysql-init)
         working-directory: .
         run: |
@@ -78,6 +83,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21", cache: maven }
+      # bản Maven mà mvnw tải về: giữ giữa các lần chạy để khỏi tải lại từ Maven Central (27/11 lỗi mạng 2 lần)
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper
+          key: maven-wrapper-${{ hashFiles('**/.mvn/wrapper/maven-wrapper.properties') }}
       - run: chmod +x mvnw && ./mvnw -B -ntp verify
 
   frontend:

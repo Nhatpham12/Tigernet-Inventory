@@ -188,6 +188,10 @@ class _UserListPageState extends ConsumerState<UserListPage> {
                   'pages' => context.go(
                     '/app/permissions?userId=${r['userId']}',
                   ),
+                  'warehouses' => showDialog<void>(
+                    context: context,
+                    builder: (_) => _WarehouseAssignDialog(user: r),
+                  ),
                   'audit' => context.go(
                     '/app/audit-logs?userId=${r['userId']}',
                   ),
@@ -204,6 +208,12 @@ class _UserListPageState extends ConsumerState<UserListPage> {
                     const PopupMenuItem(
                       value: 'pages',
                       child: Text('Phân quyền trang'),
+                    ),
+                  // Thủ kho / Bán hàng chỉ làm việc ở kho được gán; vai trò khác xem mọi kho
+                  if (_scopedRoles.contains(r['roleName']))
+                    const PopupMenuItem(
+                      value: 'warehouses',
+                      child: Text('Gán kho'),
                     ),
                   const PopupMenuItem(
                     value: 'audit',
@@ -228,6 +238,146 @@ class _UserListPageState extends ConsumerState<UserListPage> {
       ],
     );
   }
+}
+
+/// Vai trò chỉ thấy dữ liệu của kho được gán (khớp WarehouseAccessService ở backend).
+final _scopedRoles = {AppRole.warehouse.code, AppRole.sales.code};
+
+/// Gán kho cho nhân viên: GET/PUT /bff/api/users/{id}/warehouses (chỉ Quản trị).
+/// Chọn các kho được làm việc và một kho mặc định (kho mở sẵn khi đăng nhập).
+class _WarehouseAssignDialog extends ConsumerStatefulWidget {
+  const _WarehouseAssignDialog({required this.user});
+
+  final RowData user;
+
+  @override
+  ConsumerState<_WarehouseAssignDialog> createState() =>
+      _WarehouseAssignDialogState();
+}
+
+class _WarehouseAssignDialogState
+    extends ConsumerState<_WarehouseAssignDialog> {
+  late final Future<List<Map<String, dynamic>>> _load = _fetch();
+  final Set<int> _selected = {};
+  int? _default;
+  bool _saving = false;
+
+  String get _path => '/bff/api/users/${widget.user['userId']}/warehouses';
+
+  // danh sách kho đang hoạt động + kho đang gán cho nhân viên
+  Future<List<Map<String, dynamic>>> _fetch() async {
+    final api = ref.read(apiClientProvider);
+    final results = await Future.wait([
+      ref.read(warehousesLookupProvider.future),
+      api.getList(_path),
+    ]);
+    for (final a in results[1]) {
+      final id = (a['warehouseId'] as num).toInt();
+      _selected.add(id);
+      if (a['isDefault'] == true) _default = id;
+    }
+    return results[0];
+  }
+
+  void _toggle(int id, bool on) => setState(() {
+    on ? _selected.add(id) : _selected.remove(id);
+    if (!on && _default == id) _default = null;
+    if (on && _default == null) _default = id;
+  });
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(apiClientProvider)
+          .put(
+            _path,
+            data: {
+              'warehouses': [
+                for (final id in _selected)
+                  {'warehouseId': id, 'isDefault': id == _default},
+              ],
+            },
+          );
+      if (!mounted) return;
+      Toast.success(
+        context,
+        'Đã gán ${_selected.length} kho cho ${widget.user['username']}.',
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        Toast.error(context, e);
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Gán kho cho ${widget.user['username']}'),
+    content: SizedBox(
+      width: 420,
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _load,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const SizedBox(height: 80, child: LoadingView());
+          }
+          if (snap.hasError) return Text(userMessage(snap.error!));
+          final warehouses = snap.data!;
+          if (warehouses.isEmpty) {
+            return const Text('Chưa có kho nào đang hoạt động.');
+          }
+          return SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Nhân viên chỉ thấy và thao tác hàng, phiếu của các kho được chọn.',
+                  style: TextStyle(color: context.colors.muted),
+                ),
+                const SizedBox(height: 8),
+                for (final w in warehouses)
+                  Builder(
+                    builder: (_) {
+                      final id = (w['id'] as num).toInt();
+                      final on = _selected.contains(id);
+                      return CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: on,
+                        title: Text('${w['warehouseName']}'),
+                        subtitle: Text('${w['warehouseCode'] ?? ''}'),
+                        onChanged: (v) => _toggle(id, v ?? false),
+                        secondary: on
+                            ? TextButton(
+                                onPressed: () => setState(() => _default = id),
+                                child: Text(
+                                  _default == id ? 'Mặc định' : 'Đặt mặc định',
+                                ),
+                              )
+                            : null,
+                      );
+                    },
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _saving ? null : () => Navigator.pop(context),
+        child: const Text('Hủy'),
+      ),
+      ElevatedButton(
+        onPressed: _saving ? null : _save,
+        child: Text(_saving ? 'Đang lưu...' : 'Lưu'),
+      ),
+    ],
+  );
 }
 
 /// Hộp thoại thêm (user = null) hoặc sửa nhân viên. Sửa: không đổi tên đăng nhập,

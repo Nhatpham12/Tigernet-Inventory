@@ -8,6 +8,8 @@ import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
 import com.tigernet.backend.common.util.DocumentCodeGenerator;
 import com.tigernet.backend.common.util.MoneyUtils;
+import com.tigernet.backend.alert.enums.AlertType;
+import com.tigernet.backend.alert.service.StockAlertService;
 import com.tigernet.backend.catalog.entity.ProductEntity;
 import com.tigernet.backend.inventory.entity.InventoryEntity;
 import com.tigernet.backend.inventory.enums.InventoryStatus;
@@ -69,6 +71,7 @@ public class RentalReceiptService {
     CurrentUserService currentUserService;
     WarehouseAccessService warehouseAccess;
     StockService stockService;
+    StockAlertService alertService;
 
     @NonFinal
     @Value("${tigernet.rental.due-warning-days}")
@@ -170,6 +173,7 @@ public class RentalReceiptService {
         RentalReceiptEntity receipt = findUntouchedReceipt(receiptId);
         moveStock(receipt, rentedStatus(receipt), InventoryStatus.IN_STOCK);
         receipt.setPaymentStatus(lookupService.findPaymentStatus(PaymentStatusEntity.CANCELLED));
+        alertService.resolve(AlertType.RENT_DUE, StockAlertService.REF_RENTALS, receipt.getId());
         return rentalMapper.toRentalResponse(rentalReceiptRepository.save(receipt));
     }
 

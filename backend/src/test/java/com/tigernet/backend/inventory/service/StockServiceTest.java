@@ -1,5 +1,6 @@
 package com.tigernet.backend.inventory.service;
 
+import com.tigernet.backend.alert.service.StockAlertService;
 import com.tigernet.backend.catalog.entity.ProductEntity;
 import com.tigernet.backend.common.exception.AppException;
 import com.tigernet.backend.common.exception.ErrorCode;
@@ -51,6 +52,7 @@ class StockServiceTest {
     @Mock StockSummaryRepository summaryRepository;
     @Mock StockMovementRepository movementRepository;
     @Mock EntityManager entityManager;
+    @Mock StockAlertService alertService;
     @InjectMocks StockService stockService;
 
     final StockRef ref = StockRef.of(StockRef.IMPORT, 7);
