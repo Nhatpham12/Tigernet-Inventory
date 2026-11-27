@@ -73,6 +73,7 @@ class ImportReceiptWarehouseScopeTest {
         r.setWarehouse(warehouse(warehouseId));
         r.setStatus(ImportStatus.DRAFT);
         when(importReceiptRepository.findById(receiptId)).thenReturn(Optional.of(r));
+        when(importReceiptRepository.findByIdForUpdate(receiptId)).thenReturn(Optional.of(r)); // đường sửa/hủy
     }
 
     @Test

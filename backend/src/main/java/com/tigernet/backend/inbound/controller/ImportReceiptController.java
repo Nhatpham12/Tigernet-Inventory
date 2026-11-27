@@ -2,6 +2,8 @@ package com.tigernet.backend.inbound.controller;
 
 import com.tigernet.backend.common.security.Pages;
 import com.tigernet.backend.common.security.RequiresPage;
+import com.tigernet.backend.common.security.RequiresRole;
+import com.tigernet.backend.user.service.PageAccessPolicy;
 
 import com.tigernet.backend.common.response.ApiResponse;
 import com.tigernet.backend.inbound.dto.request.ImportReceiptCreationRequest;
@@ -54,6 +56,14 @@ public class ImportReceiptController {
     ApiResponse<ImportReceiptResponse> updateReceipt(@PathVariable Integer receiptId,
                                                      @RequestBody @Valid ImportReceiptUpdateRequest request) {
         return ApiResponse.success(importReceiptService.updateReceipt(receiptId, request));
+    }
+
+    // xác nhận nhập kho: cộng tồn, phiếu sang CONFIRMED (không sửa/hủy được nữa)
+    @RequiresPage({Pages.IMPORTS_NEW})
+    @RequiresRole({PageAccessPolicy.WAREHOUSE, PageAccessPolicy.MANAGER})
+    @PutMapping("/{receiptId}/confirm")
+    ApiResponse<ImportReceiptResponse> confirmReceipt(@PathVariable Integer receiptId) {
+        return ApiResponse.success(importReceiptService.confirmReceipt(receiptId));
     }
 
     // hủy phiếu chưa nhập kho: phiếu chuyển sang CANCELLED, không xóa

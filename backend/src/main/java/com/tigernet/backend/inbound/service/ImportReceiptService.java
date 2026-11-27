@@ -18,7 +18,12 @@ import com.tigernet.backend.inbound.entity.ImportReceiptEntity;
 import com.tigernet.backend.inbound.enums.ImportStatus;
 import com.tigernet.backend.inbound.mapper.ImportReceiptMapper;
 import com.tigernet.backend.inbound.repository.ImportReceiptRepository;
+import com.tigernet.backend.catalog.entity.ProductEntity;
 import com.tigernet.backend.inventory.service.InventoryService;
+import com.tigernet.backend.inventory.service.StockRef;
+import com.tigernet.backend.inventory.service.StockService;
+import com.tigernet.backend.partner.entity.PartyEntity;
+import com.tigernet.backend.partner.repository.SupplierRepository;
 import com.tigernet.backend.partner.service.PartyService;
 import com.tigernet.backend.user.service.CurrentUserService;
 import com.tigernet.backend.warehouse.service.WarehouseAccessService;
@@ -35,11 +40,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-// lập/sửa/hủy phiếu nhập khi còn DRAFT/PENDING; xác nhận nhập kho (CONFIRMED) sẽ đi qua StockService
+// lập/sửa/hủy phiếu nhập khi còn DRAFT/PENDING; xác nhận nhập kho (CONFIRMED) cộng tồn qua StockService
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -57,6 +63,8 @@ public class ImportReceiptService {
     CurrentUserService currentUserService;
     AuditLogService auditLogService;
     WarehouseAccessService warehouseAccess;
+    SupplierRepository supplierRepository;
+    StockService stockService;
 
     public ImportReceiptResponse createReceipt(ImportReceiptCreationRequest request) {
         warehouseAccess.assertAccess(request.getWarehouseId());
@@ -65,7 +73,7 @@ public class ImportReceiptService {
         ImportReceiptEntity receipt = new ImportReceiptEntity();
         receipt.setReceiptCode(nextReceiptCode(warehouse));
         receipt.setWarehouse(warehouse);
-        receipt.setSourceParty(partyService.findParty(request.getSourcePartyId()));
+        receipt.setSourceParty(findSupplierParty(request.getSourcePartyId()));
         receipt.setDateIn(request.getDateIn() != null ? request.getDateIn() : LocalDateTime.now());
         receipt.setVat(request.getVatId() != null ? lookupService.findVatOption(request.getVatId()) : null);
         receipt.setStatus(editableStatus(request.getStatus(), ImportStatus.DRAFT));
@@ -95,7 +103,7 @@ public class ImportReceiptService {
     public ImportReceiptResponse updateReceipt(Integer receiptId, ImportReceiptUpdateRequest request) {
         ImportReceiptEntity receipt = findEditableReceipt(receiptId);
         if (request.getSourcePartyId() != null) {
-            receipt.setSourceParty(partyService.findParty(request.getSourcePartyId()));
+            receipt.setSourceParty(findSupplierParty(request.getSourcePartyId()));
         }
         if (request.getDateIn() != null) receipt.setDateIn(request.getDateIn());
         if (request.getVatId() != null) receipt.setVat(lookupService.findVatOption(request.getVatId()));
@@ -105,6 +113,24 @@ public class ImportReceiptService {
             replaceDetails(receipt, request.getDetails());
         }
         recalculateMoney(receipt); // VAT hoặc dòng chi tiết có thể đã đổi
+        return importReceiptMapper.toResponse(importReceiptRepository.save(receipt));
+    }
+
+    /**
+     * Xác nhận nhập kho (TK-07, QL-02): DRAFT/PENDING → CONFIRMED, mỗi dòng cộng tồn qua StockService
+     * (hàng serial: 1 dòng = 1 serial; hàng không serial: 1 dòng = 1 lô). Lỗi ở dòng nào thì cả phiếu rollback.
+     * Dòng sắp theo SP để 2 phiếu cùng kho luôn khóa Stock_Summary cùng thứ tự (tránh khóa chéo).
+     * Nhật ký CONFIRM do AuditInterceptor ghi theo đường dẫn /confirm.
+     */
+    public ImportReceiptResponse confirmReceipt(Integer receiptId) {
+        ImportReceiptEntity receipt = findEditableReceipt(receiptId);
+        StockRef ref = StockRef.of(StockRef.IMPORT, receipt.getId());
+        receipt.getDetails().stream()
+                .sorted(Comparator.comparing((ImportReceiptDetailEntity d) -> d.getProduct().getId()))
+                .forEach(d -> stockService.receive(d.getProduct(), receipt.getWarehouse(), d.getQuantity(),
+                        d.getSerial() != null ? List.of(d.getSerial()) : List.of(), d.getPriceIn(), d,
+                        ref));
+        receipt.setStatus(ImportStatus.CONFIRMED);
         return importReceiptMapper.toResponse(importReceiptRepository.save(receipt));
     }
 
@@ -140,8 +166,11 @@ public class ImportReceiptService {
         return receipt;
     }
 
+    // khóa phiếu (FOR UPDATE) trước khi kiểm trạng thái: xác nhận 2 lần cùng lúc không cộng tồn 2 lần
     private ImportReceiptEntity findEditableReceipt(Integer receiptId) {
-        ImportReceiptEntity receipt = findReceipt(receiptId);
+        ImportReceiptEntity receipt = importReceiptRepository.findByIdForUpdate(receiptId)
+                .orElseThrow(() -> new AppException(ErrorCode.IMPORT_RECEIPT_NOT_FOUND));
+        warehouseAccess.assertAccess(receipt.getWarehouse());
         if (receipt.getStatus() == ImportStatus.CONFIRMED || receipt.getStatus() == ImportStatus.CANCELLED) {
             throw new AppException(ErrorCode.RECEIPT_NOT_EDITABLE);
         }
@@ -166,6 +195,11 @@ public class ImportReceiptService {
 
         for (ImportReceiptDetailRequest line : requests) {
             String serial = StringUtils.hasText(line.getSerial()) ? line.getSerial().trim() : null;
+            ProductEntity product = productService.findProduct(line.getProductId());
+            // hàng quản lý serial: mỗi dòng đúng 1 serial; hàng khác không nhận serial
+            if (Boolean.TRUE.equals(product.getIsSerialized()) != (serial != null)) {
+                throw new AppException(ErrorCode.SERIAL_COUNT_MISMATCH);
+            }
             if (serial != null) {
                 if (line.getQuantity() != 1) throw new AppException(ErrorCode.SERIAL_QUANTITY_INVALID);
                 if (!serials.add(serial)) throw new AppException(ErrorCode.DUPLICATE_SERIAL);
@@ -174,7 +208,7 @@ public class ImportReceiptService {
 
             ImportReceiptDetailEntity detail = new ImportReceiptDetailEntity();
             detail.setImportReceipt(receipt);
-            detail.setProduct(productService.findProduct(line.getProductId()));
+            detail.setProduct(product);
             detail.setQuantity(line.getQuantity());
             detail.setPriceIn(MoneyUtils.round(line.getPriceIn()));
             detail.setSerial(serial);
@@ -207,6 +241,15 @@ public class ImportReceiptService {
             paymentStatus = PaymentStatusEntity.PARTIAL;
         }
         receipt.setPaymentStatus(lookupService.findPaymentStatus(paymentStatus));
+    }
+
+    // bên bán của phiếu nhập phải là NCC đang hoạt động (không nhận khách hàng hay đối tác đã xóa)
+    private PartyEntity findSupplierParty(Integer partyId) {
+        PartyEntity party = partyService.findParty(partyId);
+        supplierRepository.findByPartyId(partyId)
+                .filter(s -> !Boolean.TRUE.equals(s.getIsDeleted()))
+                .orElseThrow(() -> new AppException(ErrorCode.SOURCE_NOT_SUPPLIER));
+        return party;
     }
 
     private String nextReceiptCode(WarehouseEntity warehouse) {
