@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/role.dart';
 import '../../core/auth/session.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/network/api_exception.dart';
@@ -39,10 +40,21 @@ String _paymentPath(Object? id) =>
     '/app/payments/new?direction=OUT&refType=Import_Receipts&refId=$id';
 
 /// Quyền thao tác theo menu (chỉ để ẩn/hiện, backend vẫn chặn quyền API).
-({bool edit, bool pay}) _rights(Session? s) => (
-  edit: s != null && canOpenPage('/app/import-receipts/new', s),
-  pay: s != null && canOpenPage(kPaymentsNewOut, s),
-);
+/// Xác nhận nhập kho: Thủ kho, Quản lý, Quản trị (khớp @RequiresRole của API).
+({bool edit, bool pay, bool confirm}) _rights(Session? s) {
+  final edit = s != null && canOpenPage('/app/import-receipts/new', s);
+  return (
+    edit: edit,
+    pay: s != null && canOpenPage(kPaymentsNewOut, s),
+    confirm:
+        edit &&
+        const {
+          AppRole.warehouse,
+          AppRole.manager,
+          AppRole.admin,
+        }.contains(s.role),
+  );
+}
 
 /// Gửi duyệt / hủy phiếu: dùng chung cho danh sách và màn chi tiết.
 class _ImportOps {
@@ -63,6 +75,35 @@ class _ImportOps {
           );
       if (context.mounted) {
         Toast.success(context, 'Đã gửi duyệt phiếu ${r['receiptCode']}.');
+      }
+      onDone();
+    } catch (e) {
+      if (context.mounted) Toast.error(context, e);
+    }
+  }
+
+  // cộng tồn kho theo các dòng của phiếu; sau bước này phiếu không sửa/hủy được nữa
+  static Future<void> confirm(
+    BuildContext context,
+    WidgetRef ref,
+    _Json r,
+    VoidCallback onDone,
+  ) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Xác nhận nhập kho ${r['receiptCode']}',
+      message:
+          'Hàng trên phiếu sẽ được cộng vào tồn kho ${r['warehouseName'] ?? ''}. '
+          'Sau khi xác nhận, phiếu không sửa hay hủy được nữa.',
+      confirmLabel: 'Xác nhận nhập kho',
+    );
+    if (!ok) return;
+    try {
+      await ref
+          .read(apiClientProvider)
+          .put('/bff/api/import-receipts/${r['id']}/confirm');
+      if (context.mounted) {
+        Toast.success(context, 'Đã nhập kho phiếu ${r['receiptCode']}.');
       }
       onDone();
     } catch (e) {
@@ -243,6 +284,8 @@ class _ImportActions extends ConsumerWidget {
         const PopupMenuItem(value: 'edit', child: Text('Sửa phiếu')),
       if (rights.edit && status == 'DRAFT')
         const PopupMenuItem(value: 'submit', child: Text('Gửi duyệt')),
+      if (rights.confirm && _editable(status))
+        const PopupMenuItem(value: 'confirm', child: Text('Xác nhận nhập kho')),
       if (rights.pay && _payable(row))
         const PopupMenuItem(value: 'pay', child: Text('Tạo phiếu chi')),
       if (rights.edit && _editable(status))
@@ -261,6 +304,7 @@ class _ImportActions extends ConsumerWidget {
             'view' => context.go('/app/import-receipts/$id'),
             'edit' => context.go('/app/import-receipts/$id/edit'),
             'submit' => _ImportOps.submit(context, ref, row, onDone),
+            'confirm' => _ImportOps.confirm(context, ref, row, onDone),
             'pay' => context.go(_paymentPath(id)),
             _ => _ImportOps.cancel(context, ref, row, onDone),
           },
@@ -359,6 +403,12 @@ class _ImportReceiptDetailPageState
                 onPressed: () => _ImportOps.cancel(context, ref, r, _reload),
                 child: const Text('Hủy phiếu'),
               ),
+            if (rights.confirm && _editable(status))
+              ElevatedButton.icon(
+                icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                label: const Text('Xác nhận nhập kho'),
+                onPressed: () => _ImportOps.confirm(context, ref, r, _reload),
+              ),
             if (rights.pay && _payable(r))
               ElevatedButton.icon(
                 icon: const Icon(Icons.payments_outlined, size: 18),
@@ -388,7 +438,7 @@ class _ImportReceiptDetailPageState
         if (status == 'PENDING') ...[
           const SizedBox(height: 12),
           const HintText(
-            'Phiếu đang chờ duyệt. Bước xác nhận nhập kho (cộng tồn) chưa có trên hệ thống.',
+            'Phiếu đang chờ duyệt. Thủ kho hoặc Quản lý bấm "Xác nhận nhập kho" để cộng hàng vào tồn.',
           ),
         ],
         const SizedBox(height: 16),
@@ -614,6 +664,21 @@ class _ImportReceiptFormPageState extends ConsumerState<ImportReceiptFormPage> {
       Toast.error(context, 'Phiếu cần ít nhất một dòng hàng có số lượng > 0.');
       return;
     }
+    // hàng serial: mỗi dòng 1 cái kèm serial; hàng không serial: để trống serial (khớp backend)
+    final badLine = _lines.where(
+      (l) => l.product['isSerialized'] == true
+          ? l.serialValue == null || l.quantity != 1
+          : l.serialValue != null,
+    );
+    if (badLine.isNotEmpty) {
+      final name = badLine.first.product['productName'] ?? '';
+      Toast.error(
+        context,
+        'Dòng "$name": hàng theo dõi serial cần mỗi dòng SL 1 kèm serial; '
+        'hàng không serial thì để trống serial.',
+      );
+      return;
+    }
     setState(() => _saving = true);
     final note = _note.text.trim();
     final body = {
@@ -744,9 +809,13 @@ class _ImportReceiptFormPageState extends ConsumerState<ImportReceiptFormPage> {
                     required: true,
                     hint: 'Chọn kho',
                     value: _warehouseId,
+                    // nhân viên chỉ thấy kho được giao (backend vẫn chặn kho khác)
                     items: [
-                      for (final w in list)
-                        ((w['id'] as num).toInt(), '${w['warehouseName']}'),
+                      if (session != null && !session.canViewAllWarehouses)
+                        for (final w in session.warehouses) (w.id, w.name)
+                      else
+                        for (final w in list)
+                          ((w['id'] as num).toInt(), '${w['warehouseName']}'),
                     ],
                     onChanged: (v) => setState(() => _warehouseId = v),
                   ),

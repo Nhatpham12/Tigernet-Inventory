@@ -16,6 +16,11 @@ public interface ImportReceiptRepository extends JpaRepository<ImportReceiptEnti
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<ImportReceiptEntity> findFirstByReceiptCodeStartingWithOrderByReceiptCodeDesc(String prefix);
 
+    // khóa phiếu tới hết transaction: 2 người cùng xác nhận/sửa/hủy 1 phiếu thì người sau thấy trạng thái mới
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from ImportReceiptEntity r where r.id = :id")
+    Optional<ImportReceiptEntity> findByIdForUpdate(Integer id);
+
     @Query("""
             select r from ImportReceiptEntity r
             where (:warehouseId is null or r.warehouse.id = :warehouseId)
