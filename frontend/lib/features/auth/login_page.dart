@@ -161,7 +161,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     TextButton(
                                       onPressed: () => Toast.info(
                                         context,
-                                        'Quên mật khẩu: liên hệ quản trị viên hoặc hotro@tigernet.vn để đặt lại.',
+                                        'Quên mật khẩu: liên hệ quản trị viên hoặc support@tigernet.com.vn để đặt lại.',
                                       ),
                                       child: const Text('Quên mật khẩu?'),
                                     ),
@@ -293,7 +293,7 @@ class _BrandPanel extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.s24),
           Text(
-            'Hỗ trợ: hotro@tigernet.vn',
+            'Hỗ trợ: support@tigernet.com.vn',
             style: context.text.body1.copyWith(color: onBrand),
           ),
         ],

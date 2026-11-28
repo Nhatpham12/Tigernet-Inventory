@@ -174,7 +174,7 @@ class _SupplierListPageState extends ConsumerState<SupplierListPage> {
   @override
   Widget build(BuildContext context) => PagedListView(
     title: 'Danh sách nhà cung cấp',
-    subtitle: 'Thông tin liên hệ, mã số thuế và hợp đồng nhà cung cấp',
+    subtitle: 'Thông tin liên hệ và mã số thuế nhà cung cấp',
     crumbs: const [
       Crumb('Trang chủ', '/app/dashboard'),
       Crumb('Nhập hàng'),
@@ -194,11 +194,6 @@ class _SupplierListPageState extends ConsumerState<SupplierListPage> {
     onRowTap: (r) => context.go('/app/suppliers/${r['id']}/edit'),
     columns: [
       ..._partyColumns('NCC'),
-      TableColumnDef.text(
-        'Số hợp đồng',
-        (r) => '${r['contractNo'] ?? '—'}',
-        minWidth: 120,
-      ),
       _actionsColumn(
         kind: PartnerKind.supplier,
         onEdit: (r) => context.go('/app/suppliers/${r['id']}/edit'),
@@ -445,8 +440,7 @@ class _PartnerFormState extends ConsumerState<PartnerForm> {
             ),
             AppTextField(label: 'CCCD (cá nhân)', controller: _c['nationalId']),
             AppTextField(label: 'Địa chỉ', controller: _c['address']),
-            if (_supplier)
-              AppTextField(label: 'Số hợp đồng', controller: _c['contractNo']),
+            // Không hiện "Số hợp đồng" nữa (góp ý 11/2026); controller vẫn giữ giá trị cũ nên lưu không làm mất dữ liệu.
             if (_supplier)
               AppTextField(
                 label: 'Mã theo dõi',
