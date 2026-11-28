@@ -31,6 +31,16 @@ final vatOptionsLookupProvider = FutureProvider.autoDispose<List<Json>>(
   (ref) => ref.watch(apiClientProvider).getList('/bff/api/config/vat-options'),
 );
 
+/// Lựa chọn VAT trên phiếu nhập/xuất: một mục "Không chịu thuế" (để trống). Mục trong danh mục
+/// có thuế suất rỗng (nhãn "NO") cùng nghĩa nên ẩn đi cho khỏi trùng — trừ khi phiếu đang chọn
+/// đúng mục đó (phiếu cũ), để ô chọn vẫn hiện được giá trị hiện tại.
+List<(int?, String)> vatDropdownItems(List<Json> options, int? selectedId) => [
+  (null, 'Không chịu thuế'),
+  for (final v in options)
+    if (v['rate'] != null || (v['id'] as num).toInt() == selectedId)
+      ((v['id'] as num).toInt(), '${v['vat']}'),
+];
+
 final rolesLookupProvider = FutureProvider.autoDispose<List<Json>>(
   (ref) => ref.watch(apiClientProvider).getList('/bff/api/roles'),
 );

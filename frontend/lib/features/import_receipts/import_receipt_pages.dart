@@ -424,7 +424,7 @@ class _ImportReceiptDetailPageState
           ('Kho nhập', InfoGrid.text(context, r['warehouseName'])),
           ('Ngày nhập', InfoGrid.text(context, Fmt.dateTime(r['dateIn']))),
           ('Người lập', InfoGrid.text(context, r['createdByName'])),
-          ('VAT', InfoGrid.text(context, r['vat'] ?? 'Không VAT')),
+          ('VAT', InfoGrid.text(context, r['vat'] ?? 'Không chịu thuế')),
           ('Ghi chú', InfoGrid.text(context, r['note'])),
           if (status == 'CANCELLED') ...[
             ('Người hủy', InfoGrid.text(context, r['cancelledByName'])),
@@ -822,11 +822,7 @@ class _ImportReceiptFormPageState extends ConsumerState<ImportReceiptFormPage> {
                 data: (list) => AppDropdown<int?>(
                   label: 'VAT đầu vào',
                   value: _vatId,
-                  items: [
-                    (null, 'Không VAT'),
-                    for (final v in list)
-                      ((v['id'] as num).toInt(), '${v['vat']}'),
-                  ],
+                  items: vatDropdownItems(list, _vatId),
                   onChanged: (v) => setState(() => _vatId = v),
                 ),
               ),

@@ -435,12 +435,21 @@ class _ExportReceiptDetailPageState
           ('Khách hàng', InfoGrid.text(context, r['customerName'])),
           ('Kho xuất', InfoGrid.text(context, r['warehouseName'])),
           ('Ngày xuất', InfoGrid.text(context, Fmt.dateTime(r['dateOut']))),
-          ('Ngày giao', InfoGrid.text(context, Fmt.dateTime(r['deliveryDate']))),
+          (
+            'Ngày giao',
+            InfoGrid.text(context, Fmt.dateTime(r['deliveryDate'])),
+          ),
           ('Người nhận', InfoGrid.text(context, r['receiverNameSnapshot'])),
-          ('SĐT người nhận', InfoGrid.text(context, r['receiverPhoneSnapshot'])),
-          ('Địa chỉ giao', InfoGrid.text(context, r['receiverAddressSnapshot'])),
+          (
+            'SĐT người nhận',
+            InfoGrid.text(context, r['receiverPhoneSnapshot']),
+          ),
+          (
+            'Địa chỉ giao',
+            InfoGrid.text(context, r['receiverAddressSnapshot']),
+          ),
           ('Người lập', InfoGrid.text(context, r['createdByName'])),
-          ('VAT', InfoGrid.text(context, r['vat'] ?? 'Không VAT')),
+          ('VAT', InfoGrid.text(context, r['vat'] ?? 'Không chịu thuế')),
           ('Ghi chú', InfoGrid.text(context, r['note'])),
           if (status == 'CANCELLED') ...[
             ('Người hủy', InfoGrid.text(context, r['cancelledByName'])),
@@ -912,10 +921,7 @@ class _ExportReceiptFormPageState extends ConsumerState<ExportReceiptFormPage> {
                 controller: _receiverPhone,
                 keyboardType: TextInputType.phone,
               ),
-              AppTextField(
-                label: 'Địa chỉ giao',
-                controller: _receiverAddress,
-              ),
+              AppTextField(label: 'Địa chỉ giao', controller: _receiverAddress),
               DateField(
                 label: 'Ngày giao',
                 value: _deliveryDate,
@@ -927,11 +933,7 @@ class _ExportReceiptFormPageState extends ConsumerState<ExportReceiptFormPage> {
                 data: (list) => AppDropdown<int?>(
                   label: 'VAT',
                   value: _vatId,
-                  items: [
-                    (null, 'Không VAT'),
-                    for (final v in list)
-                      ((v['id'] as num).toInt(), '${v['vat']}'),
-                  ],
+                  items: vatDropdownItems(list, _vatId),
                   onChanged: (v) => setState(() => _vatId = v),
                 ),
               ),

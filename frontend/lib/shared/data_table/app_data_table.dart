@@ -107,9 +107,48 @@ class AppDataTable extends StatefulWidget {
 class _AppDataTableState extends State<AppDataTable> {
   final _horizontal = ScrollController();
 
+  /// Thanh cuộn ngang thứ hai ở ĐẦU bảng: bảng dài thì thanh ở đáy nằm khuất dưới cùng trang,
+  /// người dùng không biết là cuộn ngang được. Hai thanh đồng bộ vị trí với nhau.
+  final _topBar = ScrollController();
+  bool _syncing = false;
+
+  /// Bề rộng thật của bảng (lấy từ thanh cuộn đáy sau khi dựng); 0 = chưa biết / không tràn.
+  double _contentWidth = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _horizontal.addListener(() => _sync(_horizontal, _topBar));
+    _topBar.addListener(() => _sync(_topBar, _horizontal));
+  }
+
+  /// Kéo thanh này thì thanh kia theo; cờ [_syncing] chặn hai listener gọi qua lại vô hạn.
+  void _sync(ScrollController from, ScrollController to) {
+    if (_syncing || !to.hasClients || !from.hasClients) return;
+    final target = from.offset.clamp(0.0, to.position.maxScrollExtent);
+    if (target == to.offset) return;
+    _syncing = true;
+    to.jumpTo(target);
+    _syncing = false;
+  }
+
+  /// Ghi lại bề rộng bảng khi kích thước thay đổi (đổi cột, đổi cỡ cửa sổ) để vẽ thanh đầu bảng.
+  bool _onMetrics(ScrollMetricsNotification n) {
+    final m = n.metrics;
+    final overflow = m.maxScrollExtent > 0.5;
+    final width = overflow ? m.maxScrollExtent + m.viewportDimension : 0.0;
+    if ((width - _contentWidth).abs() > 0.5) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _contentWidth = width);
+      });
+    }
+    return false;
+  }
+
   @override
   void dispose() {
     _horizontal.dispose();
+    _topBar.dispose();
     super.dispose();
   }
 
@@ -131,9 +170,10 @@ class _AppDataTableState extends State<AppDataTable> {
       builder: (context, constraints) {
         final table = ConstrainedBox(
           // thừa chỗ thì các cột giãn theo flex cho kín bề ngang
-          // trừ 0,5px: tránh sai số làm tròn khiến bảng "tràn" vài phần nghìn px và hiện thanh cuộn thừa
+          // trừ viền khung (1px mỗi bên) + 0,5px sai số làm tròn: không thì bảng luôn "tràn" ~1,5px
+          // và hiện thanh cuộn ngang thừa dù bảng vừa khung
           constraints: BoxConstraints(
-            minWidth: (constraints.maxWidth - 0.5).clamp(0, double.infinity),
+            minWidth: (constraints.maxWidth - 2.5).clamp(0, double.infinity),
           ),
           child: Table(
             columnWidths: widths,
@@ -162,27 +202,50 @@ class _AppDataTableState extends State<AppDataTable> {
           clipBehavior: Clip.antiAlias,
           child: Material(
             color: c.surface,
-            child: Scrollbar(
-              controller: _horizontal,
-              thumbVisibility: true,
-              child: ScrollConfiguration(
-                // cho phép kéo chuột / bút / cảm ứng để cuộn ngang trên web
-                behavior: ScrollConfiguration.of(context).copyWith(
-                  dragDevices: {
-                    PointerDeviceKind.touch,
-                    PointerDeviceKind.mouse,
-                    PointerDeviceKind.trackpad,
-                    PointerDeviceKind.stylus,
-                  },
-                  scrollbars: false,
-                ),
-                child: SingleChildScrollView(
-                  controller: _horizontal,
-                  scrollDirection: Axis.horizontal,
-                  // chừa chỗ cho thanh cuộn ngang ở đáy bảng
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: table,
-                ),
+            child: ScrollConfiguration(
+              // cho phép kéo chuột / bút / cảm ứng để cuộn ngang trên web
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.trackpad,
+                  PointerDeviceKind.stylus,
+                },
+                scrollbars: false,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_contentWidth > 0)
+                    // chỉ là bản sao để nhìn/kéo của thanh đáy: ẩn khỏi trình đọc màn hình cho khỏi báo 2 vùng cuộn
+                    ExcludeSemantics(
+                      child: Scrollbar(
+                        key: const ValueKey('app-data-table-top-scrollbar'),
+                        controller: _topBar,
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          controller: _topBar,
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(width: _contentWidth, height: 10),
+                        ),
+                      ),
+                    ),
+                  Scrollbar(
+                    controller: _horizontal,
+                    thumbVisibility: true,
+                    child: NotificationListener<ScrollMetricsNotification>(
+                      onNotification: _onMetrics,
+                      child: SingleChildScrollView(
+                        controller: _horizontal,
+                        scrollDirection: Axis.horizontal,
+                        // chừa chỗ cho thanh cuộn ngang ở đáy bảng
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: table,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

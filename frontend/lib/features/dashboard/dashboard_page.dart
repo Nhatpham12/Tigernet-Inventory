@@ -133,6 +133,9 @@ class _DashboardBody extends StatelessWidget {
       ),
     ].where((a) => canAccessPath(a.path, session)).toList();
 
+    // Bấm thẻ số liệu để mở trang chi tiết; không có quyền vào trang đó thì thẻ chỉ để xem.
+    String? kpiPath(String path) => canAccessPath(path, session) ? path : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -144,6 +147,7 @@ class _DashboardBody extends StatelessWidget {
               toneBg: c.warningBg,
               label: 'Tổng số sản phẩm',
               value: Fmt.number(kpis['totalProducts']),
+              path: kpiPath('/app/products'),
             ),
             _KpiCard(
               icon: Icons.storage_outlined,
@@ -151,6 +155,7 @@ class _DashboardBody extends StatelessWidget {
               toneBg: c.infoBg,
               label: 'Giá trị tồn theo giá bán',
               value: Fmt.money(kpis['stockValue']),
+              path: kpiPath('/app/products'),
             ),
             _KpiCard(
               icon: Icons.receipt_long_outlined,
@@ -158,6 +163,7 @@ class _DashboardBody extends StatelessWidget {
               toneBg: c.warningBg,
               label: 'Công nợ phải thu',
               value: Fmt.money(kpis['receivables']),
+              path: kpiPath('/app/reports/receivables'),
             ),
             _KpiCard(
               icon: Icons.warning_amber_rounded,
@@ -166,6 +172,7 @@ class _DashboardBody extends StatelessWidget {
               label: 'SKU dưới ngưỡng',
               value: Fmt.number(kpis['lowStockCount']),
               valueColor: c.danger,
+              path: kpiPath('/app/products?stockStatus=LOW'),
             ),
           ],
         ),
@@ -337,6 +344,7 @@ class _KpiCard extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.path,
   });
 
   final IconData icon;
@@ -346,46 +354,57 @@ class _KpiCard extends StatelessWidget {
   final String value;
   final Color? valueColor;
 
+  /// Trang đích khi bấm vào thẻ; null = thẻ chỉ để xem (người dùng không có quyền vào trang đó).
+  final String? path;
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Container(
-      height: 112,
-      padding: const EdgeInsets.all(AppSpace.s16),
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border.all(color: c.border),
+    final target = path;
+    final card = Material(
+      color: c.surface,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: c.border),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        children: [
-          _IconTile(icon: icon, color: tone, bg: toneBg),
-          const SizedBox(width: AppSpace.s16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label,
-                  style: context.text.caption.copyWith(color: c.muted),
-                ),
-                const SizedBox(height: AppSpace.s4),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    value,
-                    style: context.text.kpi.copyWith(
-                      color: valueColor ?? c.text,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: target == null ? null : () => context.go(target),
+        child: Container(
+          height: 112,
+          padding: const EdgeInsets.all(AppSpace.s16),
+          child: _content(context, c),
+        ),
       ),
+    );
+    // trình đọc màn hình biết thẻ là liên kết sang trang chi tiết
+    return target == null ? card : Semantics(link: true, child: card);
+  }
+
+  Widget _content(BuildContext context, AppColors c) {
+    return Row(
+      children: [
+        _IconTile(icon: icon, color: tone, bg: toneBg),
+        const SizedBox(width: AppSpace.s16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(label, style: context.text.caption.copyWith(color: c.muted)),
+              const SizedBox(height: AppSpace.s4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: context.text.kpi.copyWith(color: valueColor ?? c.text),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
