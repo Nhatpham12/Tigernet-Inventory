@@ -31,7 +31,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Đổi mật khẩu / vai trò / khoá tài khoản phải làm mọi token cũ mất hiệu lực (tăng Token_Version). */
+/**
+ * Đổi vai trò / khoá tài khoản / buộc đăng xuất phải làm mọi token cũ mất hiệu lực (tăng Token_Version);
+ * đổi mật khẩu thì giữ phiên đang dùng.
+ */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class UserServiceTokenRevokeTest {
@@ -92,10 +95,18 @@ class UserServiceTokenRevokeTest {
     }
 
     @Test
-    void passwordResetRevokesTokensAndUnlocks() {
+    void passwordResetKeepsTokensAndUnlocks() {
         service.updateUser(7, UserUpdateRequest.builder().password("new-password").build());
-        assertEquals(1, user.getTokenVersion());
+        assertEquals(0, user.getTokenVersion()); // không đăng xuất người đang làm việc
+        assertEquals("new-hash", user.getPasswordHash());
         verify(loginFailureRepository).deleteByUserId(7); // mở khoá đăng nhập ở mọi IP
+    }
+
+    @Test
+    void revokeSessionsRevokesTokens() {
+        service.revokeSessions(7);
+        assertEquals(1, user.getTokenVersion());
+        verify(auditLogService).log("REVOKE_SESSIONS", "Users", 7, null);
     }
 
     @Test

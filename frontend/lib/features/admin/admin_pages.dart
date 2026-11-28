@@ -75,6 +75,30 @@ class _UserListPageState extends ConsumerState<UserListPage> {
     }
   }
 
+  /// Nghi tài khoản bị lộ: đăng xuất nhân viên khỏi mọi thiết bị (đổi mật khẩu không tự đăng xuất).
+  Future<void> _revokeSessions(RowData user) async {
+    final name = '${user['username']}';
+    final ok = await confirmDialog(
+      context,
+      title: 'Buộc đăng xuất $name',
+      message:
+          'Nhân viên sẽ bị đăng xuất khỏi mọi thiết bị và phải đăng nhập lại. '
+          'Dùng khi nghi tài khoản bị lộ (nên đổi mật khẩu trước).',
+      confirmLabel: 'Buộc đăng xuất',
+      danger: true,
+    );
+    if (!ok) return;
+    try {
+      await ref
+          .read(apiClientProvider)
+          .post('/bff/api/users/${user['userId']}/sessions/revoke');
+      if (!mounted) return;
+      Toast.success(context, 'Đã đăng xuất $name khỏi mọi thiết bị.');
+    } catch (e) {
+      if (mounted) Toast.error(context, e);
+    }
+  }
+
   Future<void> _delete(RowData user) async {
     final name = '${user['username']}';
     final ok = await confirmDialog(
@@ -197,6 +221,7 @@ class _UserListPageState extends ConsumerState<UserListPage> {
                   ),
                   'lock' => _setActive(r, false),
                   'unlock' => _setActive(r, true),
+                  'revoke' => _revokeSessions(r),
                   _ => _delete(r),
                 },
                 itemBuilder: (_) => [
@@ -219,6 +244,11 @@ class _UserListPageState extends ConsumerState<UserListPage> {
                     value: 'audit',
                     child: Text('Lịch sử thao tác'),
                   ),
+                  if (!self && r['isActive'] == true)
+                    const PopupMenuItem(
+                      value: 'revoke',
+                      child: Text('Buộc đăng xuất mọi thiết bị'),
+                    ),
                   if (!self)
                     r['isActive'] == true
                         ? const PopupMenuItem(

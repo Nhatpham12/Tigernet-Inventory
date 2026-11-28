@@ -97,7 +97,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Token bị thu hồi khi user đăng xuất, đổi mật khẩu, đổi vai trò hoặc bị khoá: claim "ver" phải bằng
+     * Token bị thu hồi khi user đăng xuất, bị buộc đăng xuất, đổi vai trò hoặc bị khoá: claim "ver" phải bằng
      * Users.Token_Version hiện tại và user còn hoạt động. Mỗi request tốn 1 truy vấn theo khoá chính.
      */
     public static OAuth2TokenValidator<Jwt> tokenVersionValidator(UserRepository userRepository) {

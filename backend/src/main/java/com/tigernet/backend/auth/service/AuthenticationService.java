@@ -308,7 +308,7 @@ public class AuthenticationService {
         if(!Boolean.TRUE.equals(user.getIsActive())){
             throw new AppException(ErrorCode.USER_INACTIVE);
         }
-        // đã đăng xuất / đổi mật khẩu / đổi vai trò sau khi token này được cấp
+        // đã đăng xuất / bị buộc đăng xuất / đổi vai trò / bị khoá sau khi token này được cấp
         if(!(claims.getClaim(TOKEN_VERSION_CLAIM) instanceof Number ver) || ver.intValue() != user.getTokenVersion()){
             throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
