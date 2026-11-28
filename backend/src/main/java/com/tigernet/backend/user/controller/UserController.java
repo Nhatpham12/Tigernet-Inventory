@@ -60,6 +60,12 @@ public class UserController {
         return ApiResponse.success(result.deleted() ? "User has been deleted" : "User has history and was locked instead", result);
     }
 
+    // nghi tài khoản bị lộ: đăng xuất user khỏi mọi thiết bị (đổi mật khẩu không tự đăng xuất)
+    @PostMapping("/{userId}/sessions/revoke")
+    ApiResponse<UserResponse> revokeSessions(@PathVariable Integer userId){
+        return ApiResponse.success(userService.revokeSessions(userId));
+    }
+
     // Quản trị mất điện thoại và hết mã khôi phục: Quản trị khác tắt MFA, lần đăng nhập sau phải cài lại
     @DeleteMapping("/{userId}/mfa")
     ApiResponse<UserResponse> resetMfa(@PathVariable Integer userId){

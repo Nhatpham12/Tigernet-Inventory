@@ -39,6 +39,7 @@ const _actionLabels = <String, String>{
   'UPDATE_USER': 'Sửa nhân viên',
   'DELETE_USER': 'Xóa nhân viên',
   'LOCK_USER': 'Khóa nhân viên',
+  'REVOKE_SESSIONS': 'Buộc đăng xuất',
   'SET_PERMISSIONS': 'Phân quyền trang',
   'RESET_PERMISSIONS': 'Bỏ phân quyền riêng',
 };
@@ -89,6 +90,7 @@ ChipTone _tone(String? action) => switch (action) {
   'DELETE_USER' ||
   'CANCEL' ||
   'LOCK_USER' ||
+  'REVOKE_SESSIONS' ||
   'LOGIN_FAILED' => ChipTone.danger,
   'CREATE' || 'CREATE_USER' || 'APPROVE' || 'COMPLETE' => ChipTone.success,
   'SET_PERMISSIONS' || 'RESET_PERMISSIONS' => ChipTone.purple,

@@ -124,10 +124,11 @@ public class UserService {
             // Quản trị đặt lại mật khẩu thì mở luôn khoá do nhập sai nhiều lần (mọi IP)
             loginFailureRepository.deleteByUserId(userId);
         }
-        // đổi mật khẩu / đổi vai trò / khoá tài khoản: token cũ mang quyền cũ nên phải mất hiệu lực ngay
+        // đổi vai trò / khoá tài khoản: token cũ mang quyền cũ nên phải mất hiệu lực ngay.
+        // Đổi mật khẩu thì KHÔNG đăng xuất (người dùng đang làm dở việc); nghi lộ tài khoản → revokeSessions.
         boolean roleChanged = !Objects.equals(roleId(oldRole), roleId(newRole));
         boolean deactivated = wasActive && !Boolean.TRUE.equals(user.getIsActive());
-        if(passwordChanged || roleChanged || deactivated){
+        if(roleChanged || deactivated){
             user.revokeTokens();
         }
 
@@ -140,6 +141,14 @@ public class UserService {
         }
         auditLogService.log("UPDATE_USER", "Users", userId, detail);
         return userMapper.toUserResponse(saved);
+    }
+
+    /** buộc đăng xuất user khỏi mọi thiết bị (dùng khi nghi tài khoản bị lộ): mọi access/refresh token cũ mất hiệu lực */
+    public UserResponse revokeSessions(Integer userId){
+        UserEntity user = findUserById(userId);
+        user.revokeTokens();
+        auditLogService.log("REVOKE_SESSIONS", "Users", userId, null);
+        return userMapper.toUserResponse(userRepository.save(user));
     }
 
     /** tắt xác thực 2 bước của user (xoá khoá + mã khôi phục), thu hồi token; lần đăng nhập sau phải cài lại */
