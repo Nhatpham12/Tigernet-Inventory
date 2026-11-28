@@ -1,32 +1,9 @@
 # Dùng chung cho server HTTP (chưa có chứng chỉ) và HTTPS
 client_max_body_size 25m;
 
-# Đăng nhập: giới hạn chặt chống dò mật khẩu (zone trong ratelimit.conf). BFF không proxy
-# /bff/api/auth/** nên đây là đường duy nhất tới /auth/login của backend. Làm mới token và
-# đăng xuất đi theo /bff/ bên dưới: chặn chúng sẽ làm người dùng bị đăng xuất giữa chừng.
-location = /bff/auth/login {
-    limit_req zone=tn_login burst=20 nodelay;
-    proxy_pass http://bff:8081;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-
-# Bước mã 6 số của Quản trị: cùng giới hạn với đăng nhập (chống dò mã)
-location /bff/auth/mfa/ {
-    limit_req zone=tn_login burst=20 nodelay;
-    proxy_pass http://bff:8081;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-
+# Không giới hạn số request theo IP (bỏ 28/11/2026: cả văn phòng có thể đi chung 1 IP qua Hestia/router).
+# Chống dò mật khẩu còn ở backend: sai 5 lần từ cùng IP thì khoá cặp (tài khoản, IP) 15 phút.
 location /bff/ {
-    limit_req zone=tn_general burst=40 nodelay;
     proxy_pass http://bff:8081;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
